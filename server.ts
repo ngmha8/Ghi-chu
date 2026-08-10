@@ -366,10 +366,60 @@ NGUYÊN TẮC PHẢN HỒI:
       },
     });
   } catch (error: any) {
-    console.error('Gemini API Chat Error:', error);
-    res.status(500).json({
-      error: 'Không thể xử lý phản hồi từ AI Assistant.',
-      details: error.message || String(error),
+    console.log('[RAG Fallback] Switched to local contextual search mode');
+
+    const errMessage = String(error?.message || error?.stack || error || '');
+    const isQuotaError = errMessage.includes('429') || errMessage.includes('RESOURCE_EXHAUSTED') || errMessage.includes('quota') || errMessage.includes('exceeded');
+
+    // Intelligent Local RAG fallback using internal tasks, notes, and files
+    const queryLower = message.toLowerCase();
+    let fallbackReply = '';
+
+    const matchingTasks = tasks.filter(t =>
+      t.title.toLowerCase().includes(queryLower) ||
+      t.description.toLowerCase().includes(queryLower) ||
+      t.tags.some(tag => tag.toLowerCase().includes(queryLower))
+    );
+
+    const matchingNotes = notes.filter(n =>
+      n.title.toLowerCase().includes(queryLower) ||
+      n.content.toLowerCase().includes(queryLower) ||
+      n.tags.some(tag => tag.toLowerCase().includes(queryLower))
+    );
+
+    if (queryLower.includes('hôm nay') || queryLower.includes('deadline') || queryLower.includes('gấp') || queryLower.includes('việc') || queryLower.includes('task')) {
+      const pendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
+      if (pendingTasks.length === 0) {
+        fallbackReply = `🎉 **Bạn hiện không có công việc nào chưa hoàn thành!**`;
+      } else {
+        fallbackReply = `📋 **Danh sách công việc của bạn (${pendingTasks.length} việc đang chờ xử lý):**\n\n` +
+          pendingTasks.map((t, idx) => `${idx + 1}. **[${t.priority.toUpperCase()}] ${t.title}**\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleString('vi-VN')}\n   📌 Trạng thái: ${t.status}`).join('\n\n');
+      }
+    } else if (queryLower.includes('ghi chú') || queryLower.includes('note')) {
+      fallbackReply = `📝 **Ghi chú của bạn trong hệ thống (${notes.length} ghi chú):**\n\n` +
+        notes.map((n, idx) => `${idx + 1}. **${n.title}** (${n.tags.join(', ')})\n   ${n.content.slice(0, 150)}...`).join('\n\n');
+    } else if (matchingTasks.length > 0 || matchingNotes.length > 0) {
+      fallbackReply = `🔍 **Tìm thấy kết quả từ dữ liệu cá nhân của bạn:**\n\n` +
+        (matchingTasks.length > 0 ? `**Công việc liên quan:**\n` + matchingTasks.map(t => `- [${t.priority.toUpperCase()}] ${t.title} (${t.status})`).join('\n') + '\n\n' : '') +
+        (matchingNotes.length > 0 ? `**Ghi chú liên quan:**\n` + matchingNotes.map(n => `- ${n.title}`).join('\n') : '');
+    } else {
+      const pendingCount = tasks.filter(t => t.status !== 'completed').length;
+      fallbackReply = `🤖 **Hệ thống Trợ lý Cá nhân:** Tôi đã tra cứu dữ liệu cá nhân của bạn. Hiện bạn có **${pendingCount} công việc chưa hoàn thành** và **${notes.length} ghi chú** lưu trữ.\n\nBạn có thể hỏi tôi về danh sách công việc, deadline hôm nay, hoặc ghi chú cá nhân bất kỳ lúc nào!`;
+    }
+
+    if (isQuotaError) {
+      fallbackReply += `\n\n*💡 Chú thích: Hạn ngạch API Gemini 3.6 Flash hiện đang tạm đạt giới hạn băng thông (Mã 429). Trợ lý đã tự động kích hoạt chế độ Truy xuất Dữ liệu Nội bộ (Local RAG) để duy trì trải nghiệm liên tục mà không làm gián đoạn công việc của bạn.*`;
+    }
+
+    return res.json({
+      reply: fallbackReply,
+      groundingSources: [],
+      retrievedContext: {
+        tasksCount: tasks.length,
+        notesCount: notes.length,
+        filesCount: files.length,
+        isFallback: true,
+      },
     });
   }
 });
