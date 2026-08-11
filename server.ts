@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
@@ -20,11 +21,42 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json());
 
+// Persistent Configuration Path
+const DATA_DIR = path.join(_dirname, 'data');
+const CONFIG_FILE = path.join(DATA_DIR, 'telegram_config.json');
+
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+}
+
+// Load persisted Telegram Config if available
+let telegramConfig: TelegramConfig = { ...initialTelegramConfig };
+if (fs.existsSync(CONFIG_FILE)) {
+  try {
+    const savedData = fs.readFileSync(CONFIG_FILE, 'utf-8');
+    const parsed = JSON.parse(savedData);
+    if (parsed && typeof parsed === 'object') {
+      telegramConfig = { ...telegramConfig, ...parsed };
+      console.log('Loaded persisted Telegram Config:', { ...telegramConfig, botToken: telegramConfig.botToken ? '***HIDDEN***' : '' });
+    }
+  } catch (e) {
+    console.warn('Could not read saved telegram_config.json:', e);
+  }
+}
+
+function saveTelegramConfigToFile() {
+  try {
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(telegramConfig, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('Could not save telegram_config.json:', e);
+  }
+}
+
 // In-Memory Database Store
 let tasks: Task[] = [...initialTasks];
 let notes: Note[] = [...initialNotes];
 let files: DriveFile[] = [...initialFiles];
-let telegramConfig: TelegramConfig = { ...initialTelegramConfig };
 let notificationLogs: NotificationLog[] = [...initialNotificationLogs];
 const userProfile = { ...initialUserProfile };
 
@@ -174,6 +206,7 @@ app.post('/api/telegram/config', (req: Request, res: Response) => {
     ...telegramConfig,
     ...req.body,
   };
+  saveTelegramConfigToFile();
   res.json({ success: true, config: telegramConfig });
 });
 
@@ -287,6 +320,7 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
   if (detectedChatId) {
     telegramConfig.chatId = detectedChatId;
     telegramConfig.isConnected = true;
+    saveTelegramConfigToFile();
     console.log(`Auto-registered Telegram Chat ID: ${detectedChatId}`);
   }
 
@@ -399,6 +433,19 @@ app.get('/api/scheduler/check', (req: Request, res: Response) => {
         };
         notificationLogs.unshift(alertLog);
         newTriggeredAlerts.push(alertLog);
+
+        // Send direct message to Telegram
+        if (telegramConfig.botToken && telegramConfig.chatId) {
+          fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: telegramConfig.chatId,
+              text: `${alertLog.title}\n\n${alertLog.message}\n\n📌 *Mẹo:* Bạn có thể nhắn \`/today\` hoặc hỏi AI để xem danh sách công việc.`,
+              parse_mode: 'Markdown',
+            }),
+          }).catch(err => console.warn('Scheduler telegram push error:', err));
+        }
       }
     }
   });
