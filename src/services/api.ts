@@ -127,6 +127,28 @@ export const api = {
     return res.json();
   },
 
+  setTelegramWebhook: async (webhookUrl?: string): Promise<{ success: boolean; webhookUrl: string; telegramResponse?: any }> => {
+    const res = await fetch('/api/telegram/set-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhookUrl }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Lỗi thiết lập Webhook Telegram');
+    }
+    return res.json();
+  },
+
+  getTelegramWebhookInfo: async (): Promise<{ success: boolean; info: any; currentConfig: TelegramConfig }> => {
+    const res = await fetch('/api/telegram/webhook-info');
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Không thể kiểm tra Webhook Info');
+    }
+    return res.json();
+  },
+
   // Scheduler Cron check
   checkScheduler: async (): Promise<{ checkedAt: string; triggeredCount: number; alerts: NotificationLog[] }> => {
     const res = await fetch('/api/scheduler/check');
