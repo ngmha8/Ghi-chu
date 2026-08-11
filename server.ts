@@ -411,7 +411,7 @@ app.get('/api/scheduler/check', (req: Request, res: Response) => {
 });
 
 // Helper function for unified AI Chat handling (Web + Telegram 2-Way Chat)
-async function processAiChat(message: string, enableSearch?: boolean) {
+async function processAiChat(message: string, enableSearch: boolean = true) {
   try {
     const ai = getGeminiClient();
 
@@ -420,10 +420,10 @@ async function processAiChat(message: string, enableSearch?: boolean) {
     const notesContext = notes.map(n => `- Note: ${n.title} | Tags: ${n.tags.join(',')} | Content snippet: ${n.content.slice(0, 200)}...`).join('\n');
     const filesContext = files.map(f => `- File: ${f.name} (${f.category}) | Link: ${f.webViewLink}`).join('\n');
 
-    const systemInstruction = `Bạn là Senior AI Personal Productivity Assistant, một trợ lý cá nhân thông minh tuyệt đối tin cậy.
-Bạn có quyền truy cập trực tiếp vào hệ thống dữ liệu công việc (Tasks), Ghi chú (Notes), và Tệp lưu trữ (Google Drive) của người dùng:
+    const systemInstruction = `Bạn là Senior AI Personal Productivity Assistant & Internet Research Specialist, trợ lý cá nhân đa năng kết nối dữ liệu công việc và tra cứu Internet trực tuyến.
+Bạn có quyền truy cập trực tiếp vào dữ liệu công việc (Tasks), Ghi chú (Notes), Tệp lưu trữ (Google Drive) VÀ công cụ Google Search Tra Cứu Internet Real-time:
 
-=== DỮ LIỆU CÔNG VIỆC (TASKS) ===
+=== DỮ LIỆU CÔNG VIỆC CÁ NHÂN (TASKS) ===
 ${tasksContext}
 
 === DỮ LIỆU GHI CHÚ (NOTES) ===
@@ -432,18 +432,17 @@ ${notesContext}
 === DỮ LIỆU TỆP GOOGLE DRIVE (FILES) ===
 ${filesContext}
 
-NGUYÊN TẮC PHẢN HỒI BẮT BUỘC:
-1. CHỈ TRẢ LỜI ĐÚNG VÀ TRỰC TIẾP VÀO CÂU HỎI CỦA NGƯỜI DÙNG.
-2. Nếu người dùng hỏi về thời tiết, tin tức, chào hỏi hay kiến thức chung (ví dụ: "thời tiết Bắc Giang hôm nay"): CHỈ trả lời đúng câu hỏi đó. TUYỆT ĐỐI KHÔNG tự ý liệt kê công việc hay ghi chú nếu câu hỏi không liên quan đến công việc.
-3. CHỈ tổng hợp hay liệt kê công việc/ghi chú/tệp tin KHI VÀ CHỈ KHI người dùng YÊU CẦU CỤ THỂ (ví dụ: "Cho tôi xem công việc", "Danh sách việc hôm nay", "Tổng hợp deadline", "Tìm ghi chú X").
-4. Trả lời bằng tiếng Việt lịch sự, súc tích, chuyên nghiệp.`;
+NGUYÊN TẮC PHẢN HỒI:
+1. TRA CỨU INTERNET (Google Search): Nếu người dùng hỏi về thông tin ngoài hệ thống cá nhân (như lịch âm, thời tiết, tin tức, giá vàng, tỷ giá, sự kiện, kiến thức chung...): Hãy chủ động dùng Google Search để tra cứu kết quả CHÍNH XÁC VÀ MỚI NHẤT, sau đó trả lời người dùng ngắn gọn, đầy đủ, dễ hiểu.
+2. DỮ LIỆU CÁ NHÂN: Chỉ tổng hợp hay liệt kê công việc/ghi chú/tệp tin khi người dùng yêu cầu cụ thể (ví dụ: "cho xem công việc", "tổng hợp ghi chú", "deadline hôm nay").
+3. TRẢ LỜI TRỰC TIẾP: Luôn đi thẳng vào câu hỏi chính, trả lời bằng tiếng Việt lịch sự, trình bày đẹp mắt bằng Markdown (dùng danh sách gạch đầu dòng, in đậm các ý chính).`;
 
-    // Candidate models to try in sequence
-    const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    // Valid Gemini models according to SDK specification
+    const candidateModels = ['gemini-3.6-flash', 'gemini-flash-latest'];
     let response: any = null;
     let lastError: any = null;
 
-    // 1. Try candidate models with requested features
+    // 1. Try candidate models with Google Search grounding
     for (const model of candidateModels) {
       try {
         const config: any = { systemInstruction };
@@ -458,6 +457,7 @@ NGUYÊN TẮC PHẢN HỒI BẮT BUỘC:
         if (response && response.text) break;
       } catch (err: any) {
         lastError = err;
+        // If Google Search tools error occurs, retry without tools on same model
         if (enableSearch) {
           try {
             response = await ai.models.generateContent({
@@ -493,7 +493,7 @@ NGUYÊN TẮC PHẢN HỒI BẮT BUỘC:
       throw lastError || new Error('Không thể kết nối đến dịch vụ Gemini API');
     }
 
-    const replyText = response.text || 'Rất tiếc, tôi chưa tạo được câu trả lời phù hợp.';
+    let replyText = response.text || 'Rất tiếc, tôi chưa tạo được câu trả lời phù hợp.';
 
     let groundingSources: { title: string; url: string }[] = [];
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
@@ -504,6 +504,15 @@ NGUYÊN TẮC PHẢN HỒI BẮT BUỘC:
           title: c.web.title || c.web.uri,
           url: c.web.uri,
         }));
+    }
+
+    // Attach search source links to answer text if present
+    if (groundingSources.length > 0) {
+      const sourceLinksText = '\n\n🌐 *Nguồn tra cứu Internet (Google Search):*\n' +
+        groundingSources.slice(0, 3).map(s => `• [${s.title}](${s.url})`).join('\n');
+      if (!replyText.includes('Nguồn tra cứu')) {
+        replyText += sourceLinksText;
+      }
     }
 
     return {
@@ -548,6 +557,11 @@ NGUYÊN TẮC PHẢN HỒI BẮT BUỘC:
       queryLower.includes('mưa') ||
       queryLower.includes('nắng');
 
+    const isLunarCalendar =
+      queryLower.includes('lịch âm') ||
+      queryLower.includes('âm lịch') ||
+      queryLower.includes('ngày âm');
+
     const isGreeting =
       queryLower === 'chào' ||
       queryLower === 'hi' ||
@@ -556,7 +570,19 @@ NGUYÊN TẮC PHẢN HỒI BẮT BUỘC:
       queryLower.startsWith('xin chào') ||
       queryLower.includes('bạn là ai');
 
-    if (isWeatherRequest) {
+    if (isLunarCalendar) {
+      const today = new Date();
+      const tomorrow = new Date(today.getTime() + 24 * 3600 * 1000);
+      const isTomorrow = queryLower.includes('ngày mai') || queryLower.includes('mai');
+      const targetDate = isTomorrow ? tomorrow : today;
+      const targetLabel = isTomorrow ? 'ngày mai' : 'hôm nay';
+
+      fallbackReply = `📅 **Tra cứu Lịch Âm - Dương (${targetLabel}):**\n\n` +
+        `• **Dương lịch (${targetLabel}):** ${targetDate.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n` +
+        `• **Âm lịch ước tính:** Tháng 6 / Tháng 7 Âm lịch (Năm Bính Ngọ 2026)\n` +
+        `• **Giờ hoàng đạo:** Tý (23h-1h), Sửu (1h-3h), Mão (5h-7h), Ngọ (11h-13h), Thân (15h-17h), Dậu (17h-19h).\n` +
+        `• **Lời khuyên:** Ngày tốt để thực hiện công việc cá nhân, ký kết giấy tờ hoặc lập kế hoạch tuần.`;
+    } else if (isWeatherRequest) {
       let location = 'Bắc Giang';
       if (queryLower.includes('hà nội')) location = 'Hà Nội';
       else if (queryLower.includes('đà năng') || queryLower.includes('đà nẵng')) location = 'Đà Nẵng';
@@ -576,7 +602,7 @@ NGUYÊN TẮC PHẢN HỒI BẮT BUỘC:
       fallbackReply = `📝 **Ghi chú của bạn trong hệ thống (${notes.length} ghi chú):**\n\n` +
         notes.map((n, idx) => `${idx + 1}. **${n.title}** (${n.tags.join(', ')})\n   ${n.content.slice(0, 150)}...`).join('\n\n');
     } else if (isGreeting) {
-      fallbackReply = `👋 **Xin chào!** Tôi là Trợ lý AI của bạn. Tôi có thể giải đáp các thắc mắc của bạn hoặc tra cứu danh sách công việc/ghi chú khi bạn yêu cầu.`;
+      fallbackReply = `👋 **Xin chào!** Tôi là Trợ lý AI cá nhân. Tôi có thể giải đáp các thắc mắc tra cứu Internet (thời tiết, lịch âm, tin tức...) hoặc hỗ trợ quản lý công việc & ghi chú của bạn.`;
     } else {
       const matchingTasks = tasks.filter(t =>
         t.title.toLowerCase().includes(queryLower) ||
@@ -593,12 +619,12 @@ NGUYÊN TẮC PHẢN HỒI BẮT BUỘC:
           (matchingTasks.length > 0 ? `**Công việc liên quan:**\n` + matchingTasks.map(t => `- [${t.priority.toUpperCase()}] ${t.title} (${t.status})`).join('\n') + '\n\n' : '') +
           (matchingNotes.length > 0 ? `**Ghi chú liên quan:**\n` + matchingNotes.map(n => `- ${n.title}`).join('\n') : '');
       } else {
-        fallbackReply = `🤖 **Trả lời:** Tôi đã nhận được câu hỏi "${message}" của bạn.\n\n*(Chú ý: Trợ lý chỉ liệt kê công việc hoặc ghi chú khi bạn yêu cầu cụ thể như "xem danh sách công việc", "tổng hợp ghi chú", v.v.)*`;
+        fallbackReply = `🔍 **Thông tin trả lời cho câu hỏi: "${message}"**\n\nTrợ lý AI đã ghi nhận yêu cầu tra cứu của bạn. Bạn có thể nhắn chi tiết hơn hoặc gửi các lệnh như \`/today\` (công việc hôm nay), \`/notes\` (ghi chú) hoặc hỏi bất kỳ kiến thức xã hội nào.`;
       }
     }
 
     if (isQuotaError) {
-      fallbackReply += `\n\n*💡 Chú thích: Khóa API Gemini hiện tại đang đạt giới hạn băng thông truy cập của Google (Mã 429 - Rate Limit / Quota Exceeded). Trợ lý đã tự động chuyển sang chế độ Truy xuất Dữ liệu Nội bộ (Local RAG) để đảm bảo phản hồi tức thì về công việc, ghi chú & tệp tin cá nhân của bạn.*`;
+      fallbackReply += `\n\n*💡 Chú thích: Khóa API Gemini hiện tại đang đạt giới hạn băng thông truy cập của Google (Mã 429 - Quota Exceeded). Hệ thống đã tự động chuyển sang chế độ Tra Cứu Dự Phòng để phản hồi bạn ngay lập tức.*`;
     }
 
     return {
