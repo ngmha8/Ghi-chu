@@ -90,12 +90,12 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
           </div>
           <div>
             <h2 className="text-sm font-editorial-serif font-bold text-white flex items-center gap-1.5">
-              <span>Senior AI Assistant</span>
+              <span>Senior AI Assistant & Agent</span>
               <span className="text-[9px] px-1.5 py-0.2 rounded-sm bg-[#0C0C0C] text-[#D4AF37] border border-[#D4AF37]/30 uppercase font-mono tracking-wider">
-                Gemini 3.6
+                Gemini 3.7
               </span>
             </h2>
-            <p className="text-[10px] text-[#888888] italic">RAG Context + Google Search Grounding</p>
+            <p className="text-[10px] text-[#888888] italic">Function Calling + Firestore Real-Time + Web Search</p>
           </div>
         </div>
 

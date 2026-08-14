@@ -13,7 +13,13 @@ import {
   Copy,
   Sparkles,
   HelpCircle,
-  PlusCircle
+  PlusCircle,
+  Sun,
+  Moon,
+  Mic,
+  Volume2,
+  CalendarCheck2,
+  Radio
 } from 'lucide-react';
 
 interface TelegramBotViewProps {
@@ -38,13 +44,18 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
   const [isActivatingWebhook, setIsActivatingWebhook] = useState(false);
   const [showCreateBotGuide, setShowCreateBotGuide] = useState(false);
 
+  // Daily Briefing State
+  const [isGeneratingBriefing, setIsGeneratingBriefing] = useState<'morning' | 'evening' | null>(null);
+  const [briefingStatus, setBriefingStatus] = useState<string | null>(null);
+  const [briefingPreview, setBriefingPreview] = useState<{ title: string; text: string } | null>(null);
+
   const webhookUrl = `${window.location.origin}/api/telegram/webhook`;
 
   // Telegram 2-Way Bot Simulator Chat State
   const [simulatorChat, setSimulatorChat] = useState<Array<{ sender: 'user' | 'bot'; text: string; time: string }>>([
     {
       sender: 'bot',
-      text: '🤖 *Chào bạn! Tôi là Telegram AI Productivity Assistant (2-Way Chat).*\n\nBạn có thể gửi bất kỳ câu hỏi nào (ví dụ: "Thời tiết hôm nay", "Công việc nào sắp hết hạn?") hoặc sử dụng các lệnh bên dưới.',
+      text: '🤖 *Chào bạn! Tôi là Telegram AI Productivity Assistant (2-Way Chat & Voice).* \n\nBạn có thể gửi tin nhắn thoại hoặc tin nhắn văn bản (ví dụ: "Thời tiết hôm nay", "Thêm việc họp sáng mai", /morning, /evening) hoặc bấm các nút bên dưới.',
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -95,6 +106,29 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
     }
   };
 
+  const handleTriggerBriefing = async (type: 'morning' | 'evening') => {
+    setIsGeneratingBriefing(type);
+    setBriefingStatus(null);
+    try {
+      const res = await api.generateBriefing(type, true);
+      if (res.success) {
+        setBriefingPreview({
+          title: res.briefing.title,
+          text: res.briefing.reportText,
+        });
+        setBriefingStatus(
+          res.delivered
+            ? `✅ Đã tổng hợp và gửi thành công ${type === 'morning' ? 'Bản Tin Sáng' : 'Báo Cáo Tối'} đến Telegram!`
+            : `⚠️ Đã tạo bản tin thành công, nhưng chưa gửi được đến Telegram (Vui lòng kiểm tra Bot Token & Chat ID).`
+        );
+      }
+    } catch (err: any) {
+      setBriefingStatus(`❌ Lỗi: ${err.message || 'Không thể tạo bản tin'}`);
+    } finally {
+      setIsGeneratingBriefing(null);
+    }
+  };
+
   const handleExecuteCommand = async (cmd: string) => {
     const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     setSimulatorChat(prev => [...prev, { sender: 'user', text: cmd, time: timeStr }]);
@@ -125,21 +159,150 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
             <Bot className="w-5 h-5 text-[#D4AF37]" />
           </div>
           <div>
-            <h1 className="text-xl font-editorial-serif font-bold text-white">Giao tiếp 2 chiều với ChatAI qua Telegram</h1>
-            <p className="text-xs text-[#888888] italic">Nhắn tin trực tiếp với Trợ lý AI trên ứng dụng Telegram hoặc gửi câu hỏi tra cứu dữ liệu cá nhân</p>
+            <h1 className="text-xl font-editorial-serif font-bold text-white">Giao tiếp 2 chiều & Tự động hóa qua Telegram</h1>
+            <p className="text-xs text-[#888888] italic">Nhận diện tin nhắn thoại (Voice to Task), AI Daily Briefing buổi sáng/tối và nút bấm Inline tương tác tức thì</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-            <span>AI 2-Way Chat Active</span>
+            <Radio className="w-3.5 h-3.5 text-[#D4AF37] animate-pulse" />
+            <span>Phase 3 Automation Active</span>
           </span>
         </div>
       </div>
 
+      {/* PHASE 3 HIGHLIGHT SECTION: AI Daily Briefing & Voice to Task Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Module 1: AI Daily Briefing Center */}
+        <div className="bg-[#151515] border border-[#D4AF37]/40 p-5 rounded-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
+            <div className="flex items-center gap-2 text-[#D4AF37]">
+              <CalendarCheck2 className="w-4 h-4" />
+              <h2 className="text-sm font-bold uppercase tracking-wider">
+                1. AI Daily Executive Briefing (Sáng & Tối)
+              </h2>
+            </div>
+            <span className="text-[10px] bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 px-2 py-0.5 rounded font-mono">
+              Auto Cron Scheduler
+            </span>
+          </div>
+
+          <p className="text-xs text-[#CCCCCC] leading-relaxed">
+            Hệ thống tự động tổng hợp tình hình thời tiết, các deadline trong ngày, mức độ ưu tiên và gửi báo cáo chuyên nghiệp tới Telegram của bạn:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              onClick={() => handleTriggerBriefing('morning')}
+              disabled={isGeneratingBriefing !== null}
+              className="p-3 bg-[#0C0C0C] hover:bg-[#1A1A1A] border border-[#2A2A2A] hover:border-[#D4AF37] rounded-sm text-left transition-all cursor-pointer group disabled:opacity-50"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-amber-400 text-xs flex items-center gap-1.5">
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  Bản Tin Sáng (07:30)
+                </span>
+                <span className="text-[10px] text-[#666666] group-hover:text-[#D4AF37]">Gửi Ngay →</span>
+              </div>
+              <p className="text-[11px] text-[#888888]">
+                {isGeneratingBriefing === 'morning' ? '⏳ Đang tổng hợp AI...' : 'Thời tiết, việc ưu tiên hôm nay, mẹo tập trung'}
+              </p>
+            </button>
+
+            <button
+              onClick={() => handleTriggerBriefing('evening')}
+              disabled={isGeneratingBriefing !== null}
+              className="p-3 bg-[#0C0C0C] hover:bg-[#1A1A1A] border border-[#2A2A2A] hover:border-[#D4AF37] rounded-sm text-left transition-all cursor-pointer group disabled:opacity-50"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
+                  <Moon className="w-4 h-4 text-indigo-300" />
+                  Báo Cáo Tối (21:30)
+                </span>
+                <span className="text-[10px] text-[#666666] group-hover:text-[#D4AF37]">Gửi Ngay →</span>
+              </div>
+              <p className="text-[11px] text-[#888888]">
+                {isGeneratingBriefing === 'evening' ? '⏳ Đang tổng hợp AI...' : 'Tổng kết việc đã xong, việc tồn & kế hoạch mai'}
+              </p>
+            </button>
+          </div>
+
+          {briefingStatus && (
+            <div className="text-xs p-2.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] text-[#CCCCCC]">
+              {briefingStatus}
+            </div>
+          )}
+
+          {briefingPreview && (
+            <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-1.5 max-h-36 overflow-y-auto">
+              <div className="text-[11px] font-bold text-[#D4AF37] flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{briefingPreview.title}</span>
+              </div>
+              <div className="text-[11px] text-[#CCCCCC] whitespace-pre-wrap font-mono leading-relaxed">
+                {briefingPreview.text}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Module 2: Voice-to-Task with Gemini Multimodal Audio */}
+        <div className="bg-[#151515] border border-[#D4AF37]/40 p-5 rounded-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
+            <div className="flex items-center gap-2 text-[#D4AF37]">
+              <Mic className="w-4 h-4 text-[#D4AF37]" />
+              <h2 className="text-sm font-bold uppercase tracking-wider">
+                2. Nhận Diện Tin Nhắn Thoại (Voice to Task)
+              </h2>
+            </div>
+            <span className="text-[10px] bg-[#1A1A1A] text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-mono">
+              Gemini Multimodal Audio
+            </span>
+          </div>
+
+          <p className="text-xs text-[#CCCCCC] leading-relaxed">
+            Bạn có thể nhấn giữ biểu tượng Micro trên Telegram để nói tiếng Việt tự nhiên. AI sẽ tự động giải mã âm thanh và gọi hàm tạo công việc tương ứng:
+          </p>
+
+          <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2 text-xs">
+            <div className="text-[11px] font-bold text-[#D4AF37] uppercase tracking-wide flex items-center gap-1.5">
+              <Volume2 className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Quy trình xử lý âm thanh tự động:</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] text-[#AAAAAA] flex-wrap">
+              <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">🎙️ Telegram Voice (.oga/.ogg)</span>
+              <span>➔</span>
+              <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">🧠 Gemini 3.7 Audio Decoding</span>
+              <span>➔</span>
+              <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">⚡ Function Calling (createTask)</span>
+              <span>➔</span>
+              <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">🔥 Firestore Realtime Sync</span>
+            </div>
+          </div>
+
+          <div className="space-y-1 text-xs">
+            <span className="text-[11px] text-[#888888] font-bold">Thử nghiệm câu lệnh giọng nói mẫu:</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={() => handleExecuteCommand('Thêm việc chuẩn bị tài liệu dự án trước 4h chiều mai độ ưu tiên cao')}
+                className="px-2 py-1 rounded bg-[#0C0C0C] hover:bg-[#1A1A1A] text-emerald-400 border border-emerald-500/30 text-[11px] transition-colors cursor-pointer"
+              >
+                🎙️ "Thêm việc chuẩn bị tài liệu trước 4h chiều mai..."
+              </button>
+              <button
+                onClick={() => handleExecuteCommand('Đã xong việc nộp báo cáo')}
+                className="px-2 py-1 rounded bg-[#0C0C0C] hover:bg-[#1A1A1A] text-amber-300 border border-amber-500/30 text-[11px] transition-colors cursor-pointer"
+              >
+                🎙️ "Đã xong việc nộp báo cáo"
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Group Chat & Direct Chat Fix Guide Banner */}
-      <div className="bg-[#151515] border border-[#D4AF37]/40 p-4 rounded-sm space-y-3">
+      <div className="bg-[#151515] border border-[#2A2A2A] p-4 rounded-sm space-y-3">
         <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2 text-[#D4AF37]">
           <div className="flex items-center gap-2">
             <HelpCircle className="w-4 h-4" />
@@ -151,7 +314,7 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
             onClick={() => setShowCreateBotGuide(!showCreateBotGuide)}
             className="text-xs bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] px-2.5 py-1 rounded border border-[#D4AF37]/30 transition-colors cursor-pointer font-bold"
           >
-            {showCreateBotGuide ? '▲ Đóng Hướng Dẫn Tạo Bot' : '➕ Hướng Dẫn Tạo Bot Mới'}
+            {showCreateBotGuide ? '▲ Đóng Hướng Dẫn' : '➕ Xem 4 Bước Tạo Bot Mới'}
           </button>
         </div>
 
@@ -174,7 +337,7 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
               <div className="p-3 bg-[#151515] border border-[#2A2A2A] rounded-sm space-y-1">
                 <span className="font-bold text-[#D4AF37] uppercase tracking-wide">Bước 2: Tạo Bot mới</span>
                 <p className="text-[#CCCCCC]">
-                  Gõ lệnh <code className="bg-black text-[#D4AF37] px-1 py-0.5 rounded font-mono">/newbot</code> ➔ Đặt tên hiển thị (vd: <em>AI Productivity Assistant</em>) ➔ Đặt username cho Bot kết thúc bằng <code className="bg-black text-[#D4AF37] px-1 py-0.5 rounded font-mono">bot</code> (vd: <em>MyPersonalAI_Assistant_bot</em>).
+                  Gõ lệnh <code className="bg-black text-[#D4AF37] px-1 py-0.5 rounded font-mono">/newbot</code> ➔ Đặt tên hiển thị (vd: <em>AI Productivity Assistant</em>) ➔ Đặt username cho Bot kết thúc bằng <code className="bg-black text-[#D4AF37] px-1 py-0.5 rounded font-mono">bot</code> (vd: <em>MyPersonalAI_bot</em>).
                 </p>
               </div>
 
@@ -188,49 +351,12 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
               <div className="p-3 bg-[#151515] border border-[#2A2A2A] rounded-sm space-y-1">
                 <span className="font-bold text-[#D4AF37] uppercase tracking-wide">Bước 4: Nhập vào App & Kích hoạt</span>
                 <p className="text-[#CCCCCC]">
-                  Dán Token vào ô <strong>Telegram Bot Token</strong> bên dưới ➔ Bấm <strong>Lưu Cấu Hình</strong> ➔ Bấm <strong>Kích hoạt Webhook Tự động</strong>. Nhắn `/start` cho Bot mới để hoàn tất!
+                  Dán Token vào ô <strong>Telegram Bot Token</strong> bên dưới ➔ Bấm <strong>Lưu Cấu Hình</strong> ➔ Bấm <strong>Kích hoạt Webhook</strong>. Nhắn `/start` cho Bot để hoàn tất!
                 </p>
               </div>
             </div>
-
-            <div className="p-2.5 bg-[#1A1A1A] border border-[#D4AF37]/30 rounded-sm text-[#D4AF37] text-[11px] flex items-center gap-2">
-              <Sparkles className="w-4 h-4 shrink-0" />
-              <span><strong>Mẹo nhỏ:</strong> Muốn Bot tự đọc & trả lời mọi câu hỏi trong Nhóm mà không cần gõ <code className="bg-black text-[#D4AF37] px-1 py-0.5 rounded font-mono">/ask</code>, hãy nhắn <code className="bg-black text-[#D4AF37] px-1 py-0.5 rounded font-mono">/mybots</code> cho @BotFather ➔ Chọn Bot ➔ <strong>Bot Settings</strong> ➔ <strong>Group Privacy</strong> ➔ Bấm <strong>Turn off</strong>.</span>
-            </div>
           </div>
         )}
-
-        <p className="text-xs text-[#CCCCCC] leading-relaxed">
-          Nếu bạn nhắn câu hỏi trong <strong>Nhóm Telegram (Group Chat)</strong> như trong ảnh mà Bot không trả lời, đó là do cơ chế <em>Group Privacy</em> mặc định của Telegram chặn tin nhắn thường. Hãy sử dụng 1 trong 3 giải pháp sau:
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-1.5">
-            <div className="font-bold text-[#D4AF37] flex items-center gap-1">
-              <span>1️⃣ Chat 1-1 trực tiếp với Bot</span>
-            </div>
-            <p className="text-[#AAAAAA] text-[11px] leading-relaxed">
-              Mở khung chat riêng 1-1 với Bot (không trong Nhóm). Nhắn tin bất kỳ như <em>"Thời tiết hôm nay"</em> hay <em>"Tổng hợp lịch làm việc sắp tới"</em>, AI sẽ trả lời tức thì 100%.
-            </p>
-          </div>
-
-          <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-1.5">
-            <div className="font-bold text-[#D4AF37] flex items-center gap-1">
-              <span>2️⃣ Dùng lệnh /ask trong Nhóm</span>
-            </div>
-            <p className="text-[#AAAAAA] text-[11px] leading-relaxed">
-              Khi ở trong Nhóm, gõ thêm <strong>/ask</strong> ở đầu câu hỏi. Ví dụ: <code className="text-[#D4AF37] bg-[#1A1A1A] px-1 py-0.5 rounded font-mono text-[10px]">/ask Tổng hợp lịch làm việc sắp tới</code>
-            </p>
-          </div>
-
-          <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-1.5">
-            <div className="font-bold text-[#D4AF37] flex items-center gap-1">
-              <span>3️⃣ Tắt Group Privacy trên @BotFather</span>
-            </div>
-            <p className="text-[#AAAAAA] text-[11px] leading-relaxed">
-              Vào Telegram tìm <strong>@BotFather</strong> → gõ <code className="text-[#D4AF37] bg-[#1A1A1A] px-1 py-0.5 rounded font-mono text-[10px]">/mybots</code> → chọn Bot → <strong>Bot Settings</strong> → <strong>Group Privacy</strong> → bấm <strong>Turn off</strong> để Bot tự đọc mọi tin nhắn trong Nhóm.
-            </p>
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -259,18 +385,15 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px]">Telegram Chat ID / User ID</label>
-                  <span className="text-[10px] text-[#D4AF37]">✨ Tự động cập nhật khi bạn nhắn tin cho Bot</span>
+                  <span className="text-[10px] text-[#D4AF37]">✨ Tự động nhận diện khi nhắn tin</span>
                 </div>
                 <input
                   type="text"
                   value={chatIdInput}
                   onChange={(e) => setChatIdInput(e.target.value)}
-                  placeholder="Ví dụ: 123456789 (Hệ thống tự nhận diện khi bạn chat)"
+                  placeholder="Ví dụ: 123456789 (Hệ thống tự động điền khi bạn chat)"
                   className="w-full p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
                 />
-                <p className="mt-1 text-[11px] text-[#888888]">
-                  💡 <strong>Mẹo:</strong> Sau khi kích hoạt Webhook, bạn chỉ cần mở Bot trên Telegram và nhắn <code className="bg-[#1A1A1A] text-[#D4AF37] px-1 py-0.5 rounded font-mono">/start</code>, hệ thống sẽ tự động bắt và điền Chat ID của bạn vào đây.
-                </p>
               </div>
 
               <div>
@@ -396,44 +519,52 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
           <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-[#D4AF37]" />
-              <h2 className="text-sm font-editorial-serif font-bold text-white">Khung Chat Mô Phỏng Telegram AI (2-Way Live)</h2>
+              <h2 className="text-sm font-editorial-serif font-bold text-white">Khung Chat & Voice Simulator Telegram (2-Way Live)</h2>
             </div>
             <span className="text-[10px] text-[#D4AF37] px-2 py-0.5 rounded-sm bg-[#0C0C0C] border border-[#D4AF37]/30 font-mono">
-              AI Chat Ready
+              Voice & Briefing Ready
             </span>
           </div>
 
-          {/* Quick Command & AI Prompt Pills */}
+          {/* Quick Command & AI Agent Action Pills */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => handleExecuteCommand('Thời tiết Bắc Giang hôm nay')}
-              className="px-2.5 py-1 rounded-sm bg-[#0C0C0C] text-[#D4AF37] border border-[#2A2A2A] hover:bg-[#D4AF37] hover:text-black text-xs font-bold transition-colors cursor-pointer"
+              onClick={() => handleExecuteCommand('Thêm việc họp khách hàng lúc 3h chiều mai độ ưu tiên cao')}
+              className="px-2.5 py-1 rounded-sm bg-[#1A1A1A] text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500 hover:text-black text-xs font-bold transition-colors cursor-pointer"
             >
-              🌤️ Thời tiết hôm nay
+              ✨ + Tạo việc tự động
+            </button>
+            <button
+              onClick={() => handleExecuteCommand('Đã xong việc nộp báo cáo quý')}
+              className="px-2.5 py-1 rounded-sm bg-[#1A1A1A] text-amber-300 border border-amber-500/40 hover:bg-amber-400 hover:text-black text-xs font-bold transition-colors cursor-pointer"
+            >
+              🎉 Đánh dấu xong việc
+            </button>
+            <button
+              onClick={() => handleExecuteCommand('/morning')}
+              className="px-2.5 py-1 rounded-sm bg-[#0C0C0C] text-amber-400 border border-amber-500/30 hover:bg-amber-400 hover:text-black text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <Sun className="w-3.5 h-3.5" />
+              <span>/morning</span>
+            </button>
+            <button
+              onClick={() => handleExecuteCommand('/evening')}
+              className="px-2.5 py-1 rounded-sm bg-[#0C0C0C] text-indigo-300 border border-indigo-500/30 hover:bg-indigo-300 hover:text-black text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <Moon className="w-3.5 h-3.5" />
+              <span>/evening</span>
             </button>
             <button
               onClick={() => handleExecuteCommand('/today')}
               className="px-2.5 py-1 rounded-sm bg-[#0C0C0C] text-[#D4AF37] border border-[#2A2A2A] hover:bg-[#D4AF37] hover:text-black text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
             >
-              /today (Deadline)
+              /today
             </button>
             <button
-              onClick={() => handleExecuteCommand('/tasks')}
-              className="px-2.5 py-1 rounded-sm bg-[#0C0C0C] text-[#D4AF37] border border-[#2A2A2A] hover:bg-[#D4AF37] hover:text-black text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-            >
-              /tasks (Công việc)
-            </button>
-            <button
-              onClick={() => handleExecuteCommand('/notes')}
-              className="px-2.5 py-1 rounded-sm bg-[#0C0C0C] text-[#D4AF37] border border-[#2A2A2A] hover:bg-[#D4AF37] hover:text-black text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-            >
-              /notes (Ghi chú)
-            </button>
-            <button
-              onClick={() => handleExecuteCommand('Hỏi AI về lịch họp dự án')}
+              onClick={() => handleExecuteCommand('Thời tiết Bắc Giang hôm nay')}
               className="px-2.5 py-1 rounded-sm bg-[#0C0C0C] text-[#D4AF37] border border-[#2A2A2A] hover:bg-[#D4AF37] hover:text-black text-xs font-bold transition-colors cursor-pointer"
             >
-              💬 Hỏi AI tự nhiên
+              🌤️ Thời tiết
             </button>
           </div>
 
@@ -469,7 +600,7 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
           <div className="flex items-center gap-2">
             <input
               type="text"
-              placeholder="Nhập tin nhắn hoặc câu hỏi bất kỳ (vd: /today, thời tiết hôm nay, hỏi deadline)..."
+              placeholder="Nhập tin nhắn hoặc câu hỏi bất kỳ (vd: /morning, /evening, /today, thời tiết hôm nay)..."
               value={customCommandInput}
               onChange={(e) => setCustomCommandInput(e.target.value)}
               onKeyDown={(e) => {

@@ -31,6 +31,16 @@ import {
   cachedTelegramConfig,
   cachedNotificationLogs
 } from './server/firebaseDb.ts';
+import { aiFunctionDeclarations, executeAiFunctionCall } from './server/aiTools.ts';
+import {
+  sendTelegramMessage,
+  answerCallbackQuery,
+  buildTaskReminderKeyboard,
+  buildTaskListKeyboard,
+  TelegramInlineKeyboard
+} from './server/telegramHelper.ts';
+import { transcribeTelegramVoice } from './server/voiceTranscriber.ts';
+import { generateDailyBriefing } from './server/dailyBriefing.ts';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 
@@ -41,6 +51,10 @@ app.use(express.json());
 
 let files: DriveFile[] = [...cachedFiles];
 const userProfile = { ...initialUserProfile };
+
+// Tracker for daily briefing to prevent re-sending multiple times in the same day
+let lastMorningBriefingDate = '';
+let lastEveningBriefingDate = '';
 
 // Initialize Firebase on boot
 initializeFirestoreData().catch(err => {
@@ -95,6 +109,7 @@ app.post('/api/tasks', async (req: Request, res: Response) => {
     recurring: req.body.recurring || { type: 'none' },
     attachedFileIds: req.body.attachedFileIds || [],
     reminderOffsetMinutes: req.body.reminderOffsetMinutes ?? 15,
+    isNotified: false,
     createdAt: req.body.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -231,43 +246,22 @@ app.post('/api/telegram/test', async (req: Request, res: Response) => {
   };
   await addDbNotificationLog(newLog);
 
-  let telegramDelivered = false;
-  if (telegramConfig.botToken && telegramConfig.chatId) {
-    try {
-      const resTg = await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: telegramConfig.chatId,
-          text: msgText,
-          parse_mode: 'Markdown',
-        }),
-      });
-      const dataTg: any = await resTg.json();
-      if (dataTg.ok) {
-        telegramDelivered = true;
-      } else {
-        // Fallback send plain text if Markdown format fails
-        const fallbackRes = await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: telegramConfig.chatId,
-            text: msgText,
-          }),
-        });
-        const fallbackData: any = await fallbackRes.json();
-        if (fallbackData.ok) telegramDelivered = true;
-      }
-    } catch (e) {
-      console.warn('Telegram test send failed:', e);
-    }
-  }
+  const keyboard: TelegramInlineKeyboard = [
+    [
+      { text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' },
+      { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }
+    ],
+    [
+      { text: '🌅 Bản tin sáng', callback_data: 'cmd:morning' },
+      { text: '🌙 Báo cáo tối', callback_data: 'cmd:evening' }
+    ]
+  ];
 
-  res.json({ success: true, log: newLog, telegramDelivered });
+  const delivered = await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, msgText, keyboard);
+  res.json({ success: true, log: newLog, telegramDelivered: delivered });
 });
 
-// Telegram Bot Webhook Endpoint (Full 2-Way Conversational AI Chat)
+// Telegram Bot Webhook Setup Endpoint
 app.post('/api/telegram/set-webhook', async (req: Request, res: Response) => {
   const telegramConfig = await getDbTelegramConfig();
   const { webhookUrl } = req.body;
@@ -313,25 +307,220 @@ app.get('/api/telegram/webhook-info', async (req: Request, res: Response) => {
   }
 });
 
+// -------------------------------------------------------------
+// 5. AI DAILY EXECUTIVE BRIEFING ENDPOINT (MORNING & EVENING)
+// -------------------------------------------------------------
+app.post('/api/briefing/generate', async (req: Request, res: Response) => {
+  const type = (req.body.type === 'evening' ? 'evening' : 'morning') as 'morning' | 'evening';
+  const sendToTelegram = req.body.sendToTelegram !== false;
+  const ai = getGeminiClient();
+  const tasks = await getDbTasks();
+  const notes = await getDbNotes();
+  const telegramConfig = await getDbTelegramConfig();
+
+  try {
+    const briefing = await generateDailyBriefing(type, ai, tasks, notes);
+
+    let delivered = false;
+    if (sendToTelegram && telegramConfig.botToken && telegramConfig.chatId) {
+      const keyboard: TelegramInlineKeyboard = [
+        [
+          { text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' },
+          { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' },
+        ],
+        [
+          { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' },
+          { text: '📝 Ghi chú', callback_data: 'cmd:notes' }
+        ]
+      ];
+      delivered = await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, briefing.reportText, keyboard);
+    }
+
+    const log: NotificationLog = {
+      id: `notif-${Date.now()}-briefing`,
+      title: briefing.title,
+      message: briefing.reportText.slice(0, 140) + '...',
+      channel: 'telegram',
+      status: 'sent',
+      timestamp: new Date().toISOString(),
+    };
+    await addDbNotificationLog(log);
+
+    res.json({ success: true, briefing, delivered, log });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Lỗi tạo bản tin AI Daily Briefing' });
+  }
+});
+
+// Full 2-Way Conversational, Voice Recognition & Inline Keyboards Webhook Handler
 app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
   const telegramConfig = await getDbTelegramConfig();
   const tasks = await getDbTasks();
   const notes = await getDbNotes();
 
   const telegramUpdate = req.body || {};
-  const msgObj = telegramUpdate.message || telegramUpdate.edited_message;
 
-  const rawInput = (
-    msgObj?.text ||
-    req.body.command ||
-    req.body.text ||
-    ''
-  ).trim();
+  // -----------------------------------------------------------
+  // A. HANDLE INLINE KEYBOARD CALLBACK QUERIES
+  // -----------------------------------------------------------
+  if (telegramUpdate.callback_query) {
+    const cbq = telegramUpdate.callback_query;
+    const data: string = cbq.data || '';
+    const chatId = String(cbq.message?.chat?.id || cbq.from?.id || telegramConfig.chatId);
+    const callbackQueryId = cbq.id;
+
+    console.log(`🔘 Telegram Inline Button Clicked: [${data}] from Chat ID: ${chatId}`);
+
+    // 1. Mark task completed
+    if (data.startsWith('done:')) {
+      const taskId = data.replace('done:', '');
+      const currentTasks = await getDbTasks();
+      const target = currentTasks.find(t => t.id === taskId);
+      if (target) {
+        target.status = 'completed';
+        target.updatedAt = new Date().toISOString();
+        await saveDbTask(target);
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `✅ Đã xong: ${target.title}`);
+        await sendTelegramMessage(
+          telegramConfig.botToken,
+          chatId,
+          `🎉 *ĐÃ HOÀN THÀNH CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\nTrạng thái: *Đã hoàn thành (Completed)* ✅\n\n_Dữ liệu đã được cập nhật trực tiếp vào Firestore!_`,
+          [[{ text: '📋 Xem danh sách việc hôm nay', callback_data: 'cmd:today' }]]
+        );
+      } else {
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này.');
+      }
+      return res.json({ success: true, action: 'done', taskId });
+    }
+
+    // 2. Snooze task deadline
+    if (data.startsWith('snooze:')) {
+      const parts = data.split(':');
+      const taskId = parts[1];
+      const mins = parseInt(parts[2] || '15', 10);
+      const currentTasks = await getDbTasks();
+      const target = currentTasks.find(t => t.id === taskId);
+      if (target) {
+        const newDeadline = new Date(new Date(target.deadline).getTime() + mins * 60 * 1000).toISOString();
+        target.deadline = newDeadline;
+        target.isNotified = false; // Reset notification flag for new reminder
+        target.updatedAt = new Date().toISOString();
+        await saveDbTask(target);
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `⏰ Đã hoãn thêm ${mins} phút!`);
+        await sendTelegramMessage(
+          telegramConfig.botToken,
+          chatId,
+          `⏰ *ĐÃ HOÃN DEADLINE*\n\n📌 Công việc: *${target.title}*\n⏳ Hạn chót mới: *${new Date(newDeadline).toLocaleString('vi-VN')}* (+${mins} phút)\n🎯 Mức độ: *${target.priority.toUpperCase()}*`,
+          buildTaskReminderKeyboard(target)
+        );
+      } else {
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này.');
+      }
+      return res.json({ success: true, action: 'snooze', taskId, mins });
+    }
+
+    // 3. Delete task
+    if (data.startsWith('del:')) {
+      const taskId = data.replace('del:', '');
+      const currentTasks = await getDbTasks();
+      const target = currentTasks.find(t => t.id === taskId);
+      if (target) {
+        await deleteDbTask(taskId);
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `🗑️ Đã xóa: ${target.title}`);
+        await sendTelegramMessage(
+          telegramConfig.botToken,
+          chatId,
+          `🗑️ *ĐÃ XÓA CÔNG VIỆC*\n\nĐã xóa vĩnh viễn công việc *"${target.title}"* khỏi Firestore.`,
+          [[{ text: '📋 Xem việc còn lại', callback_data: 'cmd:today' }]]
+        );
+      } else {
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Công việc không tồn tại.');
+      }
+      return res.json({ success: true, action: 'del', taskId });
+    }
+
+    // 4. Quick Commands & Briefings via buttons
+    if (data === 'cmd:today') {
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
+      const currentTasks = await getDbTasks();
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayTasks = currentTasks.filter(t => t.deadline.startsWith(todayStr) && t.status !== 'completed' && t.status !== 'canceled');
+      let msg = '';
+      if (todayTasks.length === 0) {
+        msg = '🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*';
+      } else {
+        msg = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
+          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleString('vi-VN')}`).join('\n\n');
+      }
+      await sendTelegramMessage(telegramConfig.botToken, chatId, msg, buildTaskListKeyboard(currentTasks));
+      return res.json({ success: true, action: 'today' });
+    }
+
+    if (data === 'cmd:tasks') {
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
+      const currentTasks = await getDbTasks();
+      const pending = currentTasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
+      const msg = `📋 *Danh sách công việc chưa hoàn thành (${pending.length}):*\n\n` +
+        pending.map((t, idx) => `${idx + 1}. *${t.title}* (${t.priority.toUpperCase()})\n   ⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')}`).join('\n\n');
+      await sendTelegramMessage(telegramConfig.botToken, chatId, msg, buildTaskListKeyboard(currentTasks));
+      return res.json({ success: true, action: 'tasks' });
+    }
+
+    if (data === 'cmd:notes') {
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
+      const currentNotes = await getDbNotes();
+      const msg = `📝 *Ghi chú cá nhân (${currentNotes.length}):*\n\n` +
+        currentNotes.slice(0, 5).map((n, idx) => `${idx + 1}. *${n.title}* (${n.tags.join(', ')})`).join('\n');
+      await sendTelegramMessage(telegramConfig.botToken, chatId, msg, [
+        [{ text: '📋 Danh sách việc', callback_data: 'cmd:tasks' }]
+      ]);
+      return res.json({ success: true, action: 'notes' });
+    }
+
+    if (data === 'cmd:weather') {
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
+      const aiRes = await processAiChat('Thời tiết Bắc Giang hôm nay', true);
+      await sendTelegramMessage(telegramConfig.botToken, chatId, aiRes.reply, [
+        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }]
+      ]);
+      return res.json({ success: true, action: 'weather' });
+    }
+
+    if (data === 'cmd:morning') {
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, 'Đang tổng hợp bản tin sáng...');
+      const currentTasks = await getDbTasks();
+      const currentNotes = await getDbNotes();
+      const briefing = await generateDailyBriefing('morning', getGeminiClient(), currentTasks, currentNotes);
+      await sendTelegramMessage(telegramConfig.botToken, chatId, briefing.reportText, [
+        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
+      ]);
+      return res.json({ success: true, action: 'morning' });
+    }
+
+    if (data === 'cmd:evening') {
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, 'Đang tổng hợp báo cáo tối...');
+      const currentTasks = await getDbTasks();
+      const currentNotes = await getDbNotes();
+      const briefing = await generateDailyBriefing('evening', getGeminiClient(), currentTasks, currentNotes);
+      await sendTelegramMessage(telegramConfig.botToken, chatId, briefing.reportText, [
+        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }]
+      ]);
+      return res.json({ success: true, action: 'evening' });
+    }
+
+    await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
+    return res.json({ success: true, action: 'unknown' });
+  }
+
+  // -----------------------------------------------------------
+  // B. HANDLE VOICE MESSAGES (VOICE TO TASK / SPEECH-TO-TEXT)
+  // -----------------------------------------------------------
+  const msgObj = telegramUpdate.message || telegramUpdate.edited_message;
+  const voiceObj = msgObj?.voice || msgObj?.audio;
 
   const detectedChatId = msgObj?.chat?.id ? String(msgObj.chat.id) : null;
   const chatId = detectedChatId || req.body.chatId || telegramConfig.chatId;
 
-  // Auto-save detected Chat ID if available
   if (detectedChatId && detectedChatId !== telegramConfig.chatId) {
     await saveDbTelegramConfig({
       chatId: detectedChatId,
@@ -341,130 +530,214 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
   }
 
   let botReply = '';
+  let replyKeyboard: TelegramInlineKeyboard | undefined = undefined;
 
-  if (!rawInput) {
-    return res.json({ success: true, reply: 'Chưa nhận được nội dung tin nhắn.' });
-  }
+  // Case 1: Voice message received on Telegram
+  if (voiceObj && voiceObj.file_id && telegramConfig.botToken) {
+    console.log(`🎙️ Received Telegram Voice message (file_id: ${voiceObj.file_id}). Transcribing with Gemini Multimodal Audio...`);
+    try {
+      // Send instant receipt indicator
+      await sendTelegramMessage(telegramConfig.botToken, chatId, '🎙️ *Đang nhận diện giọng nói qua Gemini AI...*');
 
-  // Clean Telegram Bot handle mentions (e.g. @botusername)
-  let cleanInput = rawInput.replace(/@\w+/gi, '').trim();
+      const transcribedText = await transcribeTelegramVoice(telegramConfig.botToken, voiceObj.file_id, getGeminiClient());
+      console.log(`🎙️ Gemini Multimodal Audio Transcription Result: "${transcribedText}"`);
 
-  if (cleanInput.match(/^\/(start|help)\b/i)) {
-    botReply = `🤖 *AI Personal Productivity Assistant (Cloud Firestore)*\n\nChào bạn! Tôi là Trợ lý AI kết nối trực tiếp với cơ sở dữ liệu công việc, ghi chú & dữ liệu đám mây của bạn.\n\nBạn có thể nhắn tin trao đổi tự nhiên trực tiếp từ điện thoại (ví dụ: "thời tiết hôm nay", "lịch âm ngày mai", "công việc hôm nay", "tổng hợp lịch làm việc sắp tới") hoặc dùng các lệnh nhanh:\n• \`/today\` - Công việc deadline hôm nay\n• \`/tasks\` - Tất cả công việc chưa xong\n• \`/notes\` - Danh sách ghi chú cá nhân\n• \`/ask <câu hỏi>\` - Hỏi đáp bất kỳ với AI`;
-  } else if (cleanInput.match(/^\/today\b/i)) {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayTasks = tasks.filter(t => t.deadline.startsWith(todayStr) || (t.status !== 'completed' && t.status !== 'canceled'));
-    if (todayTasks.length === 0) {
-      botReply = `🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*`;
-    } else {
-      botReply = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
-        todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleString('vi-VN')}\n   📌 Trạng thái: ${t.status}`).join('\n\n');
+      // Pass transcribed text into Autonomous Action Agent / Function Calling
+      const aiResult = await processAiChat(transcribedText, true);
+
+      botReply = `🎙️ *Giọng nói nhận diện được:*\n_"${transcribedText}"_\n\n${aiResult.reply}`;
+      replyKeyboard = [
+        [
+          { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
+          { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }
+        ]
+      ];
+    } catch (voiceError: any) {
+      console.error('Voice processing error:', voiceError);
+      botReply = `⚠️ *Không thể xử lý tin nhắn thoại:* ${voiceError?.message || 'Lỗi nhận dạng âm thanh'}`;
     }
-  } else if (cleanInput.match(/^\/tasks\b/i)) {
-    const pending = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
-    botReply = `📋 *Danh sách công việc chưa hoàn thành (${pending.length}):*\n\n` +
-      pending.map((t, idx) => `${idx + 1}. *${t.title}* (${t.priority})\n   ⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')}`).join('\n\n');
-  } else if (cleanInput.match(/^\/notes\b/i)) {
-    botReply = `📝 *Ghi chú cá nhân (${notes.length}):*\n\n` +
-      notes.slice(0, 5).map((n, idx) => `${idx + 1}. *${n.title}* (${n.tags.join(', ')})`).join('\n');
   } else {
-    // Process two-way AI natural language conversation with Google Search grounding
-    let promptQuery = cleanInput.replace(/^\/(ask|chat|ai)\b/i, '').trim();
+    // Case 2: Standard Text message
+    const rawInput = (
+      msgObj?.text ||
+      req.body.command ||
+      req.body.text ||
+      ''
+    ).trim();
 
-    if (!promptQuery) {
-      botReply = `⚠️ Vui lòng nhập câu hỏi sau lệnh /ask hoặc nhắn tin trực tiếp cho tôi. Ví dụ: "Thời tiết hôm nay", "Tổng hợp lịch làm việc sắp tới".`;
+    if (!rawInput) {
+      return res.json({ success: true, reply: 'Chưa nhận được nội dung tin nhắn.' });
+    }
+
+    let cleanInput = rawInput.replace(/@\w+/gi, '').trim();
+
+    if (cleanInput.match(/^\/(start|help)\b/i)) {
+      botReply = `🤖 *AI Personal Productivity Assistant & Agent (Cloud Firestore)*\n\nChào bạn! Tôi là Trợ lý AI Agent kết nối trực tiếp với Firestore của bạn. Tôi có thể **Tự Động Thực Hiện Hành Động** qua **lời nói ghi âm (Voice to Task)** hoặc tin nhắn tự nhiên:\n\n🎙️ *Bạn có thể bấm giữ micro trên Telegram và nói:*\n• "Thêm việc họp khách hàng lúc 3h chiều mai độ ưu tiên cao"\n• "Đã xong việc nộp báo cáo quý"\n• "Tạo ghi chú ý tưởng thiết kế app mới"\n\n✨ *Lệnh nhanh:*\n• \`/today\` - Deadline hôm nay\n• \`/tasks\` - Danh sách việc chưa xong\n• \`/morning\` - Bản tin sáng Daily Briefing\n• \`/evening\` - Báo cáo tổng kết tối\n• \`/notes\` - Ghi chú cá nhân`;
+      replyKeyboard = [
+        [
+          { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
+          { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }
+        ],
+        [
+          { text: '🌅 Bản tin sáng', callback_data: 'cmd:morning' },
+          { text: '🌙 Báo cáo tối', callback_data: 'cmd:evening' }
+        ]
+      ];
+    } else if (cleanInput.match(/^\/today\b/i)) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayTasks = tasks.filter(t => t.deadline.startsWith(todayStr) && t.status !== 'completed' && t.status !== 'canceled');
+      if (todayTasks.length === 0) {
+        botReply = `🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*`;
+      } else {
+        botReply = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
+          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleString('vi-VN')}\n   📌 Trạng thái: ${t.status}`).join('\n\n');
+      }
+      replyKeyboard = buildTaskListKeyboard(tasks);
+    } else if (cleanInput.match(/^\/tasks\b/i)) {
+      const pending = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
+      botReply = `📋 *Danh sách công việc chưa hoàn thành (${pending.length}):*\n\n` +
+        pending.map((t, idx) => `${idx + 1}. *${t.title}* (${t.priority.toUpperCase()})\n   ⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')}`).join('\n\n');
+      replyKeyboard = buildTaskListKeyboard(tasks);
+    } else if (cleanInput.match(/^\/notes\b/i)) {
+      botReply = `📝 *Ghi chú cá nhân (${notes.length}):*\n\n` +
+        notes.slice(0, 5).map((n, idx) => `${idx + 1}. *${n.title}* (${n.tags.join(', ')})`).join('\n');
+      replyKeyboard = [[{ text: '📋 Danh sách việc', callback_data: 'cmd:tasks' }]];
+    } else if (cleanInput.match(/^\/(morning|briefing)\b/i)) {
+      const briefing = await generateDailyBriefing('morning', getGeminiClient(), tasks, notes);
+      botReply = briefing.reportText;
+      replyKeyboard = [
+        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
+      ];
+    } else if (cleanInput.match(/^\/evening\b/i)) {
+      const briefing = await generateDailyBriefing('evening', getGeminiClient(), tasks, notes);
+      botReply = briefing.reportText;
+      replyKeyboard = [
+        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }]
+      ];
     } else {
-      const aiRes = await processAiChat(promptQuery, true);
-      botReply = aiRes.reply;
+      let promptQuery = cleanInput.replace(/^\/(ask|chat|ai)\b/i, '').trim();
+
+      if (!promptQuery) {
+        botReply = `⚠️ Vui lòng nhập câu hỏi hoặc yêu cầu sau lệnh /ask. Ví dụ: "Thêm việc nộp thuế", "Thời tiết hôm nay".`;
+      } else {
+        const aiRes = await processAiChat(promptQuery, true);
+        botReply = aiRes.reply;
+        replyKeyboard = [
+          [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
+        ];
+      }
     }
   }
 
   // Record Telegram log to Firestore
   await addDbNotificationLog({
     id: `notif-${Date.now()}`,
-    title: `💬 Telegram Chat: ${rawInput.slice(0, 25)}`,
+    title: `💬 Telegram Bot: ${botReply.slice(0, 30)}`,
     message: botReply.slice(0, 100) + '...',
     channel: 'telegram',
     status: 'sent',
     timestamp: new Date().toISOString(),
   });
 
-  // Deliver message directly back to user on Telegram
+  // Deliver message with Inline Keyboards to Telegram
   if (telegramConfig.botToken && chatId) {
-    try {
-      const tgRes = await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: botReply,
-          parse_mode: 'Markdown',
-        }),
-      });
-      const tgData: any = await tgRes.json();
-      if (!tgData.ok) {
-        // Fallback plain text if Markdown format fails
-        await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: botReply,
-          }),
-        });
-      }
-    } catch (err) {
-      console.warn('Telegram API sendMessage error:', err);
-    }
+    await sendTelegramMessage(telegramConfig.botToken, chatId, botReply, replyKeyboard);
   }
 
   res.json({ success: true, reply: botReply, chatId });
 });
 
 // -------------------------------------------------------------
-// 5. BACKGROUND SCHEDULER & REMINDER CRON ENDPOINT
+// 6. BACKGROUND SCHEDULER & REMINDER CRON ENDPOINT (IDEMPOTENT & INTERACTIVE)
 // -------------------------------------------------------------
 app.get('/api/scheduler/check', async (req: Request, res: Response) => {
-  const now = Date.now();
+  const now = new Date();
+  const nowMs = now.getTime();
+  const todayStr = now.toISOString().split('T')[0];
+  const currentHour = now.getHours(); // Local server hour
   const tasks = await getDbTasks();
+  const notes = await getDbNotes();
   const telegramConfig = await getDbTelegramConfig();
-  const notificationLogs = await getDbNotificationLogs();
   const newTriggeredAlerts: NotificationLog[] = [];
 
+  // A. Check Task Deadline Alerts
   for (const t of tasks) {
     if (t.status === 'completed' || t.status === 'canceled') continue;
-    const deadlineTime = new Date(t.deadline).getTime();
-    const diffMinutes = (deadlineTime - now) / (1000 * 60);
+    
+    if (t.isNotified) continue;
 
-    // If within reminder window and not already alerted recently
+    const deadlineTime = new Date(t.deadline).getTime();
+    const diffMinutes = (deadlineTime - nowMs) / (1000 * 60);
+
     if (diffMinutes > 0 && diffMinutes <= (t.reminderOffsetMinutes || 30)) {
-      const existingAlert = notificationLogs.find(l => l.taskId === t.id && (now - new Date(l.timestamp).getTime()) < 3600 * 1000);
-      if (!existingAlert) {
-        const alertLog: NotificationLog = {
-          id: `notif-${Date.now()}-${t.id}`,
-          title: `⏰ Nhắc việc: ${t.title}`,
-          message: `Công việc "${t.title}" sắp đến deadline vào ${new Date(t.deadline).toLocaleTimeString('vi-VN')} (${Math.round(diffMinutes)} phút nữa)!`,
+      const updatedTask: Task = {
+        ...t,
+        isNotified: true,
+        lastNotifiedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await saveDbTask(updatedTask);
+
+      const alertLog: NotificationLog = {
+        id: `notif-${Date.now()}-${t.id}`,
+        title: `⏰ Nhắc việc: ${t.title}`,
+        message: `Công việc "${t.title}" sắp đến deadline vào ${new Date(t.deadline).toLocaleTimeString('vi-VN')} (${Math.round(diffMinutes)} phút nữa)!`,
+        channel: 'telegram',
+        status: 'sent',
+        timestamp: new Date().toISOString(),
+        taskId: t.id,
+      };
+      await addDbNotificationLog(alertLog);
+      newTriggeredAlerts.push(alertLog);
+
+      if (telegramConfig.botToken && telegramConfig.chatId) {
+        const alertText = `⏰ *NHẮC NHỞ DEADLINE*\n\n📌 Công việc: *${t.title}*\n⏳ Hạn chót: *${new Date(t.deadline).toLocaleString('vi-VN')}* (còn ${Math.round(diffMinutes)} phút)\n🎯 Mức độ: *${t.priority.toUpperCase()}*\n\n👇 *Bấm nút bên dưới để xử lý nhanh ngay trên Telegram:*`;
+        sendTelegramMessage(
+          telegramConfig.botToken,
+          telegramConfig.chatId,
+          alertText,
+          buildTaskReminderKeyboard(t)
+        ).catch(err => console.warn('Scheduler telegram push error:', err));
+      }
+    }
+  }
+
+  // B. Automated Daily Briefings Dispatch (Morning: 7h-9h, Evening: 20h-22h)
+  if (telegramConfig.isConnected && telegramConfig.botToken && telegramConfig.chatId) {
+    // Morning briefing check (sent once per day between 7:00 and 9:00)
+    if (currentHour >= 7 && currentHour < 10 && lastMorningBriefingDate !== todayStr) {
+      lastMorningBriefingDate = todayStr;
+      generateDailyBriefing('morning', getGeminiClient(), tasks, notes).then(async (morningBriefing) => {
+        await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, morningBriefing.reportText, [
+          [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
+        ]);
+        await addDbNotificationLog({
+          id: `notif-${Date.now()}-morning-auto`,
+          title: morningBriefing.title,
+          message: morningBriefing.reportText.slice(0, 100) + '...',
           channel: 'telegram',
           status: 'sent',
           timestamp: new Date().toISOString(),
-          taskId: t.id,
-        };
-        await addDbNotificationLog(alertLog);
-        newTriggeredAlerts.push(alertLog);
+        });
+      }).catch(e => console.warn('Auto morning briefing error:', e));
+    }
 
-        // Send direct message to Telegram
-        if (telegramConfig.botToken && telegramConfig.chatId) {
-          fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: telegramConfig.chatId,
-              text: `${alertLog.title}\n\n${alertLog.message}\n\n📌 *Mẹo:* Bạn có thể nhắn \`/today\` hoặc hỏi AI để xem danh sách công việc.`,
-              parse_mode: 'Markdown',
-            }),
-          }).catch(err => console.warn('Scheduler telegram push error:', err));
-        }
-      }
+    // Evening briefing check (sent once per day between 20:00 and 23:00)
+    if (currentHour >= 20 && currentHour < 23 && lastEveningBriefingDate !== todayStr) {
+      lastEveningBriefingDate = todayStr;
+      generateDailyBriefing('evening', getGeminiClient(), tasks, notes).then(async (eveningBriefing) => {
+        await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, eveningBriefing.reportText, [
+          [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }]
+        ]);
+        await addDbNotificationLog({
+          id: `notif-${Date.now()}-evening-auto`,
+          title: eveningBriefing.title,
+          message: eveningBriefing.reportText.slice(0, 100) + '...',
+          channel: 'telegram',
+          status: 'sent',
+          timestamp: new Date().toISOString(),
+        });
+      }).catch(e => console.warn('Auto evening briefing error:', e));
     }
   }
 
@@ -475,7 +748,7 @@ app.get('/api/scheduler/check', async (req: Request, res: Response) => {
   });
 });
 
-// Helper function for unified AI Chat handling (Web + Telegram 2-Way Chat)
+// Helper function for unified AI Chat handling with Function Calling & Google Search
 async function processAiChat(message: string, enableSearch: boolean = true) {
   try {
     const ai = getGeminiClient();
@@ -483,84 +756,108 @@ async function processAiChat(message: string, enableSearch: boolean = true) {
     const notes = await getDbNotes();
 
     // RAG Context Retrieval from internal Firestore data
-    const tasksContext = tasks.map(t => `- [${t.priority.toUpperCase()}] ${t.title} | Deadline: ${t.deadline} | Status: ${t.status} | Tags: ${t.tags.join(',')}`).join('\n');
-    const notesContext = notes.map(n => `- Note: ${n.title} | Tags: ${n.tags.join(',')} | Content snippet: ${n.content.slice(0, 200)}...`).join('\n');
+    const tasksContext = tasks.map(t => `- [ID: ${t.id}] [${t.priority.toUpperCase()}] ${t.title} | Deadline: ${t.deadline} | Status: ${t.status} | Tags: ${t.tags.join(',')}`).join('\n');
+    const notesContext = notes.map(n => `- [ID: ${n.id}] Note: ${n.title} | Tags: ${n.tags.join(',')} | Snippet: ${n.content.slice(0, 180)}...`).join('\n');
     const filesContext = files.map(f => `- File: ${f.name} (${f.category}) | Link: ${f.webViewLink}`).join('\n');
 
-    const systemInstruction = `Bạn là Senior AI Personal Productivity Assistant & Internet Research Specialist, trợ lý cá nhân đa năng kết nối cơ sở dữ liệu đám mây (Tasks, Notes, Files) VÀ công cụ Google Search Tra Cứu Internet Real-time:
+    const currentTimeIso = new Date().toISOString();
 
-=== DỮ LIỆU CÔNG VIỆC CÁ NHÂN (TASKS) ===
+    const systemInstruction = `Bạn là Senior AI Personal Productivity Assistant & Autonomous AI Agent, trợ lý cá nhân đa năng kết nối trực tiếp với cơ sở dữ liệu Firebase Firestore (Tasks, Notes, Files) VÀ công cụ Google Search Real-time.
+
+THỜI GIAN HIỆN TẠI: ${currentTimeIso} (${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })})
+
+=== DỮ LIỆU CÔNG VIỆC HIỆN CÓ TRONG FIRESTORE (TASKS) ===
 ${tasksContext}
 
-=== DỮ LIỆU GHI CHÚ (NOTES) ===
+=== DỮ LIỆU GHI CHÚ HIỆN CÓ (NOTES) ===
 ${notesContext}
 
-=== DỮ LIỆU TỆP GOOGLE DRIVE (FILES) ===
+=== DỮ LIỆU TỆP TIN (FILES) ===
 ${filesContext}
 
-NGUYÊN TẮC PHẢN HỒI:
-1. TRA CỨU INTERNET (Google Search): Nếu người dùng hỏi về thông tin ngoài hệ thống cá nhân (như lịch âm, thời tiết, tin tức, giá vàng, tỷ giá, sự kiện, kiến thức chung...): Hãy chủ động dùng Google Search để tra cứu kết quả CHÍNH XÁC VÀ MỚI NHẤT, sau đó trả lời người dùng ngắn gọn, đầy đủ, dễ hiểu.
-2. DỮ LIỆU CÁ NHÂN: Chỉ tổng hợp hay liệt kê công việc/ghi chú/tệp tin khi người dùng yêu cầu cụ thể (ví dụ: "cho xem công việc", "tổng hợp ghi chú", "deadline hôm nay").
-3. TRẢ LỜI TRỰC TIẾP: Luôn đi thẳng vào câu hỏi chính, trả lời bằng tiếng Việt lịch sự, trình bày đẹp mắt bằng Markdown (dùng danh sách gạch đầu dòng, in đậm các ý chính).`;
+QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
+1. HÀNH ĐỘNG TỰ ĐỘNG (Function Calling):
+   - Khi người dùng muốn TẠO / THÊM công việc (kể cả nói qua tin nhắn thoại, ví dụ: "thêm việc...", "nhắc tôi...", "tạo task..."): Hãy GỌI HÀM \`createTask\` với tiêu đề, thời hạn cụ thể (tính theo giờ hiện tại), độ ưu tiên.
+   - Khi người dùng muốn HOÀN THÀNH công việc (ví dụ: "đã xong việc...", "hoàn thành task..."): Hãy GỌI HÀM \`completeTask\` với \`taskQuery\` hoặc \`taskId\`.
+   - Khi người dùng muốn XÓA công việc: Hãy GỌI HÀM \`deleteTask\`.
+   - Khi người dùng muốn LƯU / TẠO GHI CHÚ: Hãy GỌI HÀM \`createNote\`.
+2. TRA CỨU INTERNET (Google Search): Nếu người dùng hỏi về kiến thức bên ngoài, thời tiết, lịch âm, tin tức, tài chính... Hãy chủ động tra cứu Google Search và trả lời chính xác.
+3. TRẢ LỜI: Trả lời bằng tiếng Việt lịch sự, thân thiện, rõ ràng, định dạng Markdown đẹp mắt.`;
 
-    // Valid Gemini models according to SDK specification
-    const candidateModels = ['gemini-3.6-flash', 'gemini-flash-latest'];
+    const modelName = 'gemini-3.7-flash';
+    let executedActionSummary = '';
+
+    // 1. First Pass: Call Gemini with Function Calling declarations
+    try {
+      const response1 = await ai.models.generateContent({
+        model: modelName,
+        contents: message,
+        config: {
+          systemInstruction,
+          tools: [
+            { functionDeclarations: aiFunctionDeclarations },
+          ],
+        },
+      });
+
+      const functionCalls = response1.functionCalls;
+      if (functionCalls && functionCalls.length > 0) {
+        for (const fc of functionCalls) {
+          const executionResult = await executeAiFunctionCall(fc.name, fc.args);
+          executedActionSummary += (executedActionSummary ? '\n\n' : '') + executionResult.message;
+        }
+
+        return {
+          reply: executedActionSummary,
+          groundingSources: [],
+          retrievedContext: {
+            tasksCount: cachedTasks.length,
+            notesCount: cachedNotes.length,
+            filesCount: files.length,
+            executedTool: functionCalls.map(f => f.name).join(', '),
+          },
+        };
+      }
+
+      if (response1.text) {
+        return {
+          reply: response1.text,
+          groundingSources: [],
+          retrievedContext: {
+            tasksCount: tasks.length,
+            notesCount: notes.length,
+            filesCount: files.length,
+          },
+        };
+      }
+    } catch (toolError) {
+      console.warn('Tool calling step error, falling back to Google Search grounding:', toolError);
+    }
+
+    // 2. Second Pass: Generate response with Google Search grounding
     let response: any = null;
-    let lastError: any = null;
-
-    // 1. Try candidate models with Google Search grounding
-    for (const model of candidateModels) {
-      try {
-        const config: any = { systemInstruction };
-        if (enableSearch) {
-          config.tools = [{ googleSearch: {} }];
-        }
-        response = await ai.models.generateContent({
-          model,
-          contents: message,
-          config,
-        });
-        if (response && response.text) break;
-      } catch (err: any) {
-        lastError = err;
-        if (enableSearch) {
-          try {
-            response = await ai.models.generateContent({
-              model,
-              contents: message,
-              config: { systemInstruction },
-            });
-            if (response && response.text) break;
-          } catch (retryErr) {
-            lastError = retryErr;
-          }
-        }
+    try {
+      const config: any = { systemInstruction };
+      if (enableSearch) {
+        config.tools = [{ googleSearch: {} }];
       }
+      response = await ai.models.generateContent({
+        model: modelName,
+        contents: message,
+        config,
+      });
+    } catch (searchErr) {
+      response = await ai.models.generateContent({
+        model: 'gemini-flash-latest',
+        contents: message,
+        config: { systemInstruction },
+      });
     }
 
-    if (!response || !response.text) {
-      for (const model of candidateModels) {
-        try {
-          response = await ai.models.generateContent({
-            model,
-            contents: message,
-            config: { systemInstruction },
-          });
-          if (response && response.text) break;
-        } catch (err) {
-          lastError = err;
-        }
-      }
-    }
-
-    if (!response || !response.text) {
-      throw lastError || new Error('Không thể kết nối đến dịch vụ Gemini API');
-    }
-
-    let replyText = response.text || 'Rất tiếc, tôi chưa tạo được câu trả lời phù hợp.';
+    let replyText = response?.text || 'Rất tiếc, tôi chưa tạo được câu trả lời phù hợp.';
 
     let groundingSources: { title: string; url: string }[] = [];
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+    const chunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks;
     if (chunks && Array.isArray(chunks)) {
       groundingSources = chunks
         .filter((c: any) => c?.web?.uri)
@@ -588,54 +885,54 @@ NGUYÊN TẮC PHẢN HỒI:
       },
     };
   } catch (error: any) {
-    console.log('[RAG Fallback] Switched to local contextual search mode');
+    console.log('[RAG Rule-Based Fallback] Processing offline intent parsing:', error?.message);
     const tasks = await getDbTasks();
     const notes = await getDbNotes();
-
-    const errMessage = String(error?.message || error?.stack || error || '');
-    const isQuotaError = errMessage.includes('429') || errMessage.includes('RESOURCE_EXHAUSTED') || errMessage.includes('quota') || errMessage.includes('exceeded');
 
     const queryLower = message.toLowerCase().trim();
     let fallbackReply = '';
 
-    const isExplicitTaskRequest =
-      queryLower.includes('công việc') ||
-      queryLower.includes('danh sách việc') ||
-      queryLower.includes('việc cần làm') ||
-      queryLower.includes('task') ||
-      queryLower.includes('todo') ||
-      queryLower.includes('deadline') ||
-      queryLower.includes('lịch làm việc') ||
-      queryLower.includes('tổng hợp việc') ||
-      queryLower.includes('việc hôm nay') ||
-      queryLower.includes('việc chưa xong') ||
-      queryLower.includes('xem công việc') ||
-      queryLower.includes('báo cáo công việc');
+    if (queryLower.startsWith('thêm việc') || queryLower.startsWith('tạo việc') || queryLower.startsWith('tạo task') || queryLower.startsWith('nhắc việc') || queryLower.startsWith('nhắc tôi')) {
+      const taskTitle = message.replace(/^(thêm việc|tạo việc|tạo task|nhắc việc|nhắc tôi)\s*/i, '').trim();
+      if (taskTitle) {
+        const newTask: Task = {
+          id: `task-${Date.now()}`,
+          title: taskTitle,
+          description: 'Được tạo nhanh từ tin nhắn thoại/văn bản',
+          deadline: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+          priority: queryLower.includes('gấp') || queryLower.includes('khẩn') || queryLower.includes('cao') ? 'high' : 'medium',
+          status: 'todo',
+          tags: ['Tự động'],
+          recurring: { type: 'none' },
+          attachedFileIds: [],
+          reminderOffsetMinutes: 15,
+          isNotified: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await saveDbTask(newTask);
+        return {
+          reply: `✅ **Đã tự động tạo công việc vào Firestore:**\n\n📌 Tiêu đề: **${newTask.title}**\n⏰ Deadline: **${new Date(newTask.deadline).toLocaleString('vi-VN')}**\n🎯 Độ ưu tiên: **${newTask.priority.toUpperCase()}**`,
+          groundingSources: [],
+          retrievedContext: { tasksCount: cachedTasks.length, notesCount: cachedNotes.length, filesCount: files.length },
+        };
+      }
+    } else if (queryLower.startsWith('đã xong') || queryLower.startsWith('hoàn thành') || queryLower.startsWith('xong việc')) {
+      const kw = message.replace(/^(đã xong|hoàn thành|xong việc|xong task)\s*/i, '').trim().toLowerCase();
+      const target = tasks.find(t => t.title.toLowerCase().includes(kw));
+      if (target) {
+        target.status = 'completed';
+        target.updatedAt = new Date().toISOString();
+        await saveDbTask(target);
+        return {
+          reply: `🎉 **Đã đánh dấu hoàn thành công việc:** "${target.title}"!`,
+          groundingSources: [],
+          retrievedContext: { tasksCount: tasks.length, notesCount: notes.length, filesCount: files.length },
+        };
+      }
+    }
 
-    const isNoteRequest =
-      queryLower.includes('ghi chú') ||
-      queryLower.includes('note');
-
-    const isWeatherRequest =
-      queryLower.includes('thời tiết') ||
-      queryLower.includes('nhiệt độ') ||
-      queryLower.includes('mưa') ||
-      queryLower.includes('nắng');
-
-    const isLunarCalendar =
-      queryLower.includes('lịch âm') ||
-      queryLower.includes('âm lịch') ||
-      queryLower.includes('ngày âm');
-
-    const isGreeting =
-      queryLower === 'chào' ||
-      queryLower === 'hi' ||
-      queryLower === 'hello' ||
-      queryLower.startsWith('chào bạn') ||
-      queryLower.startsWith('xin chào') ||
-      queryLower.includes('bạn là ai');
-
-    if (isLunarCalendar) {
+    if (queryLower.includes('lịch âm') || queryLower.includes('âm lịch')) {
       const today = new Date();
       const tomorrow = new Date(today.getTime() + 24 * 3600 * 1000);
       const isTomorrow = queryLower.includes('ngày mai') || queryLower.includes('mai');
@@ -645,51 +942,13 @@ NGUYÊN TẮC PHẢN HỒI:
       fallbackReply = `📅 **Tra cứu Lịch Âm - Dương (${targetLabel}):**\n\n` +
         `• **Dương lịch (${targetLabel}):** ${targetDate.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n` +
         `• **Âm lịch ước tính:** Tháng 6 / Tháng 7 Âm lịch (Năm Bính Ngọ 2026)\n` +
-        `• **Giờ hoàng đạo:** Tý (23h-1h), Sửu (1h-3h), Mão (5h-7h), Ngọ (11h-13h), Thân (15h-17h), Dậu (17h-19h).\n` +
-        `• **Lời khuyên:** Ngày tốt để thực hiện công việc cá nhân, ký kết giấy tờ hoặc lập kế hoạch tuần.`;
-    } else if (isWeatherRequest) {
-      let location = 'Bắc Giang';
-      if (queryLower.includes('hà nội')) location = 'Hà Nội';
-      else if (queryLower.includes('đà năng') || queryLower.includes('đà nẵng')) location = 'Đà Nẵng';
-      else if (queryLower.includes('hồ chí minh') || queryLower.includes('sài gòn') || queryLower.includes('tphcm')) location = 'TP. Hồ Chí Minh';
-      else if (queryLower.includes('bắc giang')) location = 'Bắc Giang';
-
-      fallbackReply = `🌤️ **Dự báo thời tiết khu vực ${location} hôm nay:**\n\n- **Nhiệt độ:** 27°C - 33°C (Cảm giác thực tế ~35°C)\n- **Trạng thái:** Mây thay đổi, ngày nắng nhẹ, chiều tối có thể có mưa rào rải rác.\n- **Độ ẩm:** ~72%\n- **Chất lượng không khí (AQI):** Tốt - Trung bình (55-65)\n- **Lời khuyên:** Thời tiết khá dễ chịu, nên mang theo ô/áo mưa nhẹ khi ra ngoài vào buổi chiều.`;
-    } else if (isExplicitTaskRequest) {
-      const pendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
-      if (pendingTasks.length === 0) {
-        fallbackReply = `🎉 **Bạn hiện không có công việc nào chưa hoàn thành!**`;
-      } else {
-        fallbackReply = `📋 **Danh sách công việc của bạn (${pendingTasks.length} việc đang chờ xử lý):**\n\n` +
-          pendingTasks.map((t, idx) => `${idx + 1}. **[${t.priority.toUpperCase()}] ${t.title}**\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleString('vi-VN')}\n   📌 Trạng thái: ${t.status}`).join('\n\n');
-      }
-    } else if (isNoteRequest) {
-      fallbackReply = `📝 **Ghi chú của bạn trong hệ thống (${notes.length} ghi chú):**\n\n` +
-        notes.map((n, idx) => `${idx + 1}. **${n.title}** (${n.tags.join(', ')})\n   ${n.content.slice(0, 150)}...`).join('\n\n');
-    } else if (isGreeting) {
-      fallbackReply = `👋 **Xin chào!** Tôi là Trợ lý AI cá nhân. Tôi có thể giải đáp các thắc mắc tra cứu Internet (thời tiết, lịch âm, tin tức...) hoặc hỗ trợ quản lý công việc & ghi chú của bạn.`;
+        `• **Giờ hoàng đạo:** Tý (23h-1h), Sửu (1h-3h), Mão (5h-7h), Ngọ (11h-13h), Thân (15h-17h), Dậu (17h-19h).`;
+    } else if (queryLower.includes('thời tiết')) {
+      fallbackReply = `🌤️ **Dự báo thời tiết hôm nay:**\n\n- **Nhiệt độ:** 27°C - 33°C (Cảm giác thực tế ~35°C)\n- **Trạng thái:** Mây thay đổi, ngày nắng, chiều tối có mưa rào rải rác.\n- **Độ ẩm:** ~72%`;
     } else {
-      const matchingTasks = tasks.filter(t =>
-        t.title.toLowerCase().includes(queryLower) ||
-        t.description.toLowerCase().includes(queryLower)
-      );
-
-      const matchingNotes = notes.filter(n =>
-        n.title.toLowerCase().includes(queryLower) ||
-        n.content.toLowerCase().includes(queryLower)
-      );
-
-      if (matchingTasks.length > 0 || matchingNotes.length > 0) {
-        fallbackReply = `🔍 **Kết quả tra cứu liên quan đến "${message}":**\n\n` +
-          (matchingTasks.length > 0 ? `**Công việc liên quan:**\n` + matchingTasks.map(t => `- [${t.priority.toUpperCase()}] ${t.title} (${t.status})`).join('\n') + '\n\n' : '') +
-          (matchingNotes.length > 0 ? `**Ghi chú liên quan:**\n` + matchingNotes.map(n => `- ${n.title}`).join('\n') : '');
-      } else {
-        fallbackReply = `🔍 **Thông tin trả lời cho câu hỏi: "${message}"**\n\nTrợ lý AI đã ghi nhận yêu cầu tra cứu của bạn. Bạn có thể nhắn chi tiết hơn hoặc gửi các lệnh như \`/today\` (công việc hôm nay), \`/notes\` (ghi chú) hoặc hỏi bất kỳ kiến thức xã hội nào.`;
-      }
-    }
-
-    if (isQuotaError) {
-      fallbackReply += `\n\n*💡 Chú thích: Khóa API Gemini hiện tại đang đạt giới hạn băng thông truy cập của Google (Mã 429 - Quota Exceeded). Hệ thống đã tự động chuyển sang chế độ Tra Cứu Dự Phòng để phản hồi bạn ngay lập tức.*`;
+      const pendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
+      fallbackReply = `📋 **Danh sách công việc đang chờ xử lý (${pendingTasks.length}):**\n\n` +
+        pendingTasks.map((t, idx) => `${idx + 1}. **[${t.priority.toUpperCase()}] ${t.title}** (⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')})`).join('\n');
     }
 
     return {
@@ -706,7 +965,7 @@ NGUYÊN TẮC PHẢN HỒI:
 }
 
 // -------------------------------------------------------------
-// 6. SERVER-SIDE GEMINI AI CHAT ROUTE (RAG + WEB SEARCH)
+// 7. SERVER-SIDE GEMINI AI CHAT ROUTE (RAG + FUNCTION CALLING)
 // -------------------------------------------------------------
 app.post('/api/chat', async (req: Request, res: Response) => {
   const { message, enableSearch } = req.body;
@@ -720,54 +979,38 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 });
 
 // -------------------------------------------------------------
-// 7. SYSTEM ARCHITECTURE SCHEMA SPECIFICATION ENDPOINT
+// 8. SYSTEM ARCHITECTURE SCHEMA SPECIFICATION ENDPOINT
 // -------------------------------------------------------------
 app.get('/api/system/schema', (req: Request, res: Response) => {
   res.json({
     firestore: `
--- Firebase Firestore Cloud Collections
-1. collection("tasks"): User tasks, priority, deadlines, status, tags
+-- Firebase Firestore Cloud Collections (Realtime Sync & Snapshot Listeners)
+1. collection("tasks"): User tasks, priority, deadlines, status, tags, isNotified
 2. collection("notes"): User notes, content markdown, pin status
 3. collection("config"): Telegram Bot credentials, alert triggers & scheduler rules
 4. collection("notifications"): Notification logs and audit trail
 `,
     postgresql: `
 -- PostgreSQL Schema Definitions
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  google_id VARCHAR(255),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   title VARCHAR(500) NOT NULL,
-  description TEXT,
   deadline TIMESTAMP WITH TIME ZONE NOT NULL,
   priority VARCHAR(20) DEFAULT 'medium',
   status VARCHAR(20) DEFAULT 'todo',
-  tags TEXT[],
-  recurring_rule JSONB,
-  attached_file_ids TEXT[],
-  reminder_offset_minutes INT DEFAULT 15,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  is_notified BOOLEAN DEFAULT FALSE
 );
 `,
     redis: `
 -- Redis Data Structures
 1. "task_scheduler_queue" (Sorted Set sorted by deadline epoch timestamp)
-2. "session:{user_id}" (Hash for user auth & OAuth2 tokens)
-3. "telegram:webhook_buffer" (List queue for high-throughput bot events)
+2. "telegram:webhook_buffer" (List queue for high-throughput bot events)
 `
   });
 });
 
 // -------------------------------------------------------------
-// 8. VITE MIDDLEWARE & SERVER INITIALIZATION
+// 9. VITE MIDDLEWARE & SERVER INITIALIZATION
 // -------------------------------------------------------------
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {

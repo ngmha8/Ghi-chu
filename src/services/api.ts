@@ -156,6 +156,30 @@ export const api = {
     return res.json();
   },
 
+  // Daily Briefing Endpoint
+  generateBriefing: async (type: 'morning' | 'evening', sendToTelegram: boolean = true): Promise<{
+    success: boolean;
+    briefing: {
+      type: 'morning' | 'evening';
+      title: string;
+      reportText: string;
+      generatedAt: string;
+    };
+    delivered: boolean;
+    log: NotificationLog;
+  }> => {
+    const res = await fetch('/api/briefing/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, sendToTelegram }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Failed to generate briefing');
+    }
+    return res.json();
+  },
+
   // AI Chat Endpoint
   sendChatMessage: async (message: string, enableSearch: boolean = false): Promise<{
     reply: string;

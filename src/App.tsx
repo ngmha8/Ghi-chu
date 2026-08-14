@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage } from './types/index.js';
 import { api } from './services/api.js';
+import {
+  subscribeTasks,
+  subscribeNotes,
+  subscribeNotifications,
+  subscribeTelegramConfig,
+} from './services/firebase.ts';
 
 import { Header } from './components/Header.tsx';
 import { DashboardView } from './components/DashboardView.tsx';
@@ -47,7 +53,7 @@ export default function App() {
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Initial Fetching
+  // Initial Fetching & Firestore Realtime Subscriptions
   useEffect(() => {
     async function loadData() {
       try {
@@ -68,7 +74,32 @@ export default function App() {
     }
     loadData();
 
-    // Cron Scheduler Background Check every 30s
+    // 1. Subscribe to Real-time Firestore Listeners
+    const unsubTasks = subscribeTasks((liveTasks) => {
+      if (liveTasks && liveTasks.length > 0) {
+        setTasks(liveTasks);
+      }
+    });
+
+    const unsubNotes = subscribeNotes((liveNotes) => {
+      if (liveNotes && liveNotes.length > 0) {
+        setNotes(liveNotes);
+      }
+    });
+
+    const unsubNotifs = subscribeNotifications((liveLogs) => {
+      if (liveLogs && liveLogs.length > 0) {
+        setNotificationLogs(liveLogs);
+      }
+    });
+
+    const unsubConfig = subscribeTelegramConfig((liveConfig) => {
+      if (liveConfig) {
+        setTelegramConfig(liveConfig);
+      }
+    });
+
+    // 2. Cron Scheduler Background Check every 30s
     const cronInterval = setInterval(async () => {
       try {
         const checkRes = await api.checkScheduler();
@@ -80,7 +111,13 @@ export default function App() {
       }
     }, 30000);
 
-    return () => clearInterval(cronInterval);
+    return () => {
+      unsubTasks();
+      unsubNotes();
+      unsubNotifs();
+      unsubConfig();
+      clearInterval(cronInterval);
+    };
   }, []);
 
   // -------------------------------------------------------------

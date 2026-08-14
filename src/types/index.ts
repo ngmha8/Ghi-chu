@@ -20,6 +20,8 @@ export interface Task {
   recurring: RecurringRule;
   attachedFileIds: string[];
   reminderOffsetMinutes: number; // e.g., 15 mins before deadline
+  isNotified?: boolean; // Anti-duplicate reminder flag
+  lastNotifiedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
