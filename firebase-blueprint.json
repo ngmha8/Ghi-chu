@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "Task": {
+      "title": "Task",
+      "description": "User productivity tasks and deadlines",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+        "status": { "type": "string", "enum": ["todo", "in-progress", "completed"] },
+        "category": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "dueTime": { "type": "string" },
+        "notifyBefore": { "type": "number" },
+        "isNotified": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "priority", "status", "category", "dueDate"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "Personal notes and knowledge snippets",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "isPinned": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "content"]
+    },
+    "TelegramConfig": {
+      "title": "TelegramConfig",
+      "description": "Telegram bot settings and webhook status",
+      "type": "object",
+      "properties": {
+        "botToken": { "type": "string" },
+        "chatId": { "type": "string" },
+        "isConnected": { "type": "boolean" },
+        "notificationsEnabled": { "type": "boolean" },
+        "dailySummaryTime": { "type": "string" },
+        "reminderMinutesBefore": { "type": "number" }
+      },
+      "required": ["isConnected"]
+    },
+    "NotificationLog": {
+      "title": "NotificationLog",
+      "description": "System and reminder notification log",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["reminder", "daily-briefing", "system", "file-sync"] },
+        "timestamp": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["title", "message", "type", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/tasks/{taskId}": {
+      "entity": "Task",
+      "description": "User tasks"
+    },
+    "/notes/{noteId}": {
+      "entity": "Note",
+      "description": "User notes"
+    },
+    "/config/{configId}": {
+      "entity": "TelegramConfig",
+      "description": "App and Telegram configuration"
+    },
+    "/notifications/{notificationId}": {
+      "entity": "NotificationLog",
+      "description": "Notification history"
+    }
+  }
+}

@@ -103,11 +103,18 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden md:inline">Hỏi AI</span>
           </button>
 
-          {/* Google Drive Status */}
+          {/* Cloud Firestore & Google Drive Status */}
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[11px] text-[#A0A0A0]">
+            <span className="text-amber-400 font-bold flex items-center gap-1">
+              🔥 Firestore
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          </div>
+
           <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[11px] text-[#A0A0A0]">
             <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
             <span>Drive Sync</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           </div>
         </div>
       </div>
