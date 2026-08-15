@@ -12,12 +12,16 @@ import { DriveFile } from '../types/index.ts';
 
 export const SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/drive.readonly'
+  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile'
 ];
 
 export const DEFAULT_APP_FOLDER_NAME = 'AI Assistant Documents';
 const STORAGE_FOLDER_KEY = 'ai_app_drive_folder_id';
 const STORAGE_FOLDER_NAME_KEY = 'ai_app_drive_folder_name';
+const STORAGE_TOKEN_KEY = 'ai_app_google_drive_access_token';
+const STORAGE_USER_KEY = 'ai_app_google_user_info';
 
 function getFirebaseApp() {
   return getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -32,22 +36,126 @@ provider.setCustomParameters({
 });
 
 let isSigningIn = false;
-let cachedAccessToken: string | null = null;
-let cachedUser: User | null = null;
+let cachedAccessToken: string | null = localStorage.getItem(STORAGE_TOKEN_KEY);
+let cachedUser: any | null = (() => {
+  try {
+    const raw = localStorage.getItem(STORAGE_USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+})();
 
 export const initGoogleAuth = (
   onAuthChange?: (user: User | null, token: string | null) => void
 ) => {
+  // If we have cached token and user in localStorage, notify immediately
+  if (cachedUser && cachedAccessToken && onAuthChange) {
+    onAuthChange(cachedUser as User, cachedAccessToken);
+  }
+
   return onAuthStateChanged(auth, async (user: User | null) => {
-    cachedUser = user;
     if (user) {
+      cachedUser = user;
+      localStorage.setItem(STORAGE_USER_KEY, JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL
+      }));
       if (onAuthChange) onAuthChange(user, cachedAccessToken);
-    } else {
+    } else if (!localStorage.getItem(STORAGE_TOKEN_KEY)) {
       cachedAccessToken = null;
+      cachedUser = null;
       if (onAuthChange) onAuthChange(null, null);
     }
   });
 };
+
+/**
+ * Direct Google OAuth flow using Google Identity Services (GIS)
+ * Works as a robust fallback without being blocked by Firebase Auth unauthorized domain.
+ */
+export async function signInWithGoogleGIS(clientId?: string): Promise<{ user: any; accessToken: string }> {
+  const effectiveClientId = clientId || (firebaseConfig as any).oAuthClientId || '797950767923-2ibe3kgt6hl8uahlmn0pk1vh5u5qlmr5.apps.googleusercontent.com';
+
+  return new Promise((resolve, reject) => {
+    const initClient = () => {
+      try {
+        const client = (window as any).google?.accounts?.oauth2?.initTokenClient({
+          client_id: effectiveClientId,
+          scope: SCOPES.join(' '),
+          callback: async (response: any) => {
+            if (response.error) {
+              reject(new Error(response.error_description || response.error));
+              return;
+            }
+            if (response.access_token) {
+              cachedAccessToken = response.access_token;
+              localStorage.setItem(STORAGE_TOKEN_KEY, response.access_token);
+
+              let fakeUser: any = {
+                uid: 'google-oauth-user',
+                email: 'Google Drive User',
+                displayName: 'Google Drive Account',
+                photoURL: ''
+              };
+
+              try {
+                const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${response.access_token}` }
+                });
+                if (userRes.ok) {
+                  const userData = await userRes.json();
+                  fakeUser = {
+                    uid: userData.sub || 'google-user',
+                    email: userData.email,
+                    displayName: userData.name || userData.email,
+                    photoURL: userData.picture || ''
+                  };
+                }
+              } catch (e) {
+                console.warn('Could not fetch userinfo:', e);
+              }
+
+              cachedUser = fakeUser;
+              localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(fakeUser));
+              resolve({ user: fakeUser, accessToken: response.access_token });
+            } else {
+              reject(new Error('Không nhận được Access Token từ Google.'));
+            }
+          }
+        });
+
+        if (!client) {
+          throw new Error('Google Identity Services client initialization failed');
+        }
+
+        client.requestAccessToken({ prompt: 'consent' });
+      } catch (err: any) {
+        reject(err);
+      }
+    };
+
+    if ((window as any).google?.accounts?.oauth2) {
+      initClient();
+    } else {
+      const existingScript = document.getElementById('google-gis-script');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => initClient());
+      } else {
+        const script = document.createElement('script');
+        script.id = 'google-gis-script';
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.onload = () => initClient();
+        script.onerror = () => reject(new Error('Không thể tải Google Identity Services SDK'));
+        document.body.appendChild(script);
+      }
+    }
+  });
+}
 
 export const signInWithGoogle = async (): Promise<{ user: User; accessToken: string }> => {
   try {
@@ -60,31 +168,107 @@ export const signInWithGoogle = async (): Promise<{ user: User; accessToken: str
 
     cachedAccessToken = credential.accessToken;
     cachedUser = result.user;
+    localStorage.setItem(STORAGE_TOKEN_KEY, credential.accessToken);
+    localStorage.setItem(STORAGE_USER_KEY, JSON.stringify({
+      uid: result.user.uid,
+      email: result.user.email,
+      displayName: result.user.displayName,
+      photoURL: result.user.photoURL
+    }));
+
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
-    console.error('Google Sign In Error:', error);
+    console.error('Firebase Google Sign In Error:', error);
+
+    // If unauthorized-domain, try fallback to Google Identity Services automatically
+    if (error?.code === 'auth/unauthorized-domain' || error?.message?.includes('unauthorized-domain')) {
+      console.log('Attempting GIS token client fallback due to auth/unauthorized-domain...');
+      try {
+        return await signInWithGoogleGIS();
+      } catch (gisErr: any) {
+        console.warn('GIS fallback also had error:', gisErr);
+        // Throw the original descriptive error
+        throw error;
+      }
+    }
     throw error;
   } finally {
     isSigningIn = false;
   }
 };
 
+export const setCustomAccessToken = async (token: string): Promise<{ user: any; accessToken: string }> => {
+  const cleanToken = token.trim();
+  if (!cleanToken) {
+    throw new Error('Token không được để trống.');
+  }
+
+  // Validate token
+  const isValid = await validateGoogleToken(cleanToken);
+  if (!isValid) {
+    throw new Error('Access Token không hợp lệ hoặc đã hết hạn. Hãy kiểm tra lại.');
+  }
+
+  cachedAccessToken = cleanToken;
+  localStorage.setItem(STORAGE_TOKEN_KEY, cleanToken);
+
+  let fakeUser: any = {
+    uid: 'custom-token-user',
+    email: 'Token User',
+    displayName: 'Google Drive Account',
+    photoURL: ''
+  };
+
+  try {
+    const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${cleanToken}` }
+    });
+    if (userRes.ok) {
+      const userData = await userRes.json();
+      fakeUser = {
+        uid: userData.sub || 'custom-user',
+        email: userData.email,
+        displayName: userData.name || userData.email,
+        photoURL: userData.picture || ''
+      };
+    }
+  } catch (e) {
+    console.warn('Could not fetch user profile with custom token:', e);
+  }
+
+  cachedUser = fakeUser;
+  localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(fakeUser));
+  return { user: fakeUser, accessToken: cleanToken };
+};
+
 export const getAccessToken = (): string | null => {
-  return cachedAccessToken;
+  return cachedAccessToken || localStorage.getItem(STORAGE_TOKEN_KEY);
 };
 
 export const setCachedAccessToken = (token: string | null) => {
   cachedAccessToken = token;
+  if (token) {
+    localStorage.setItem(STORAGE_TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(STORAGE_TOKEN_KEY);
+  }
 };
 
-export const getGoogleUser = (): User | null => {
+export const getGoogleUser = (): any | null => {
   return cachedUser;
 };
 
 export const logOutGoogle = async () => {
-  await signOut(auth);
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.warn('Firebase signout warning:', e);
+  }
   cachedAccessToken = null;
   cachedUser = null;
+  localStorage.removeItem(STORAGE_TOKEN_KEY);
+  localStorage.removeItem(STORAGE_USER_KEY);
+  localStorage.removeItem(STORAGE_FOLDER_KEY);
 };
 
 /**

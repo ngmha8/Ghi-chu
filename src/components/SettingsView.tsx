@@ -3,6 +3,8 @@ import { TelegramConfig, DriveFile } from '../types/index.js';
 import { api } from '../services/api.js';
 import {
   signInWithGoogle,
+  signInWithGoogleGIS,
+  setCustomAccessToken,
   logOutGoogle,
   initGoogleAuth,
   getOrCreateAppFolder,
@@ -12,6 +14,7 @@ import {
   DriveFolderInfo,
   DEFAULT_APP_FOLDER_NAME
 } from '../services/googleDriveAuth.ts';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { User } from 'firebase/auth';
 import {
   Settings,
@@ -41,7 +44,9 @@ import {
   Radio,
   Clock,
   KeyRound,
-  Layers
+  Layers,
+  Globe,
+  Key
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -77,7 +82,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const webhookUrl = `${window.location.origin}/api/telegram/webhook`;
 
   // --- Google Drive State ---
-  const [googleUser, setGoogleUser] = useState<User | null>(getGoogleUser());
+  const [googleUser, setGoogleUser] = useState<any | null>(getGoogleUser());
   const [accessToken, setAccessToken] = useState<string | null>(getAccessToken());
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [driveAuthError, setDriveAuthError] = useState<string | null>(null);
@@ -87,6 +92,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isSavingFolder, setIsSavingFolder] = useState(false);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
+  const [showManualTokenInput, setShowManualTokenInput] = useState(false);
+  const [manualToken, setManualToken] = useState('');
+  const [isSubmittingManualToken, setIsSubmittingManualToken] = useState(false);
+
+  const currentHostname = window.location.hostname;
+  const currentOrigin = window.location.origin;
+  const firebaseProjectId = (firebaseConfig as any).projectId || 'amplified-rhythm-nlsxp';
+  const firebaseAuthDomainUrl = `https://console.firebase.google.com/project/${firebaseProjectId}/authentication/providers`;
 
   // Sync token and chatId if updated externally
   useEffect(() => {
@@ -183,6 +197,55 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  const handleDirectGISLogin = async () => {
+    setIsAuthenticating(true);
+    setDriveAuthError(null);
+    try {
+      const { user, accessToken: token } = await signInWithGoogleGIS();
+      setGoogleUser(user);
+      setAccessToken(token);
+
+      const folder = await getOrCreateAppFolder(token);
+      setAppFolder(folder);
+      setCustomFolderName(folder.name);
+
+      setDriveStatusMsg(`Đã kết nối Google Drive (GIS Direct)! Đang liên kết với thư mục: 📁 ${folder.name}`);
+      setTimeout(() => setDriveStatusMsg(null), 5000);
+    } catch (err: any) {
+      console.error('Direct GIS Login error:', err);
+      setDriveAuthError(err.message || 'Đăng nhập trực tiếp qua Google OAuth thất bại');
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleManualTokenSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualToken.trim()) return;
+
+    setIsSubmittingManualToken(true);
+    setDriveAuthError(null);
+
+    try {
+      const { user, accessToken: token } = await setCustomAccessToken(manualToken.trim());
+      setGoogleUser(user);
+      setAccessToken(token);
+
+      const folder = await getOrCreateAppFolder(token);
+      setAppFolder(folder);
+      setCustomFolderName(folder.name);
+
+      setDriveStatusMsg(`Đã xác thực thành công Access Token! Đang liên kết: 📁 ${folder.name}`);
+      setShowManualTokenInput(false);
+      setManualToken('');
+      setTimeout(() => setDriveStatusMsg(null), 5000);
+    } catch (err: any) {
+      setDriveAuthError(err.message || 'Access Token không hợp lệ');
+    } finally {
+      setIsSubmittingManualToken(false);
+    }
+  };
+
   const handleGoogleLogout = async () => {
     await logOutGoogle();
     setGoogleUser(null);
@@ -244,6 +307,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setDriveStatusMsg(`Đã đẩy thành công ${count}/${unsyncedFiles.length} tệp vào thư mục 📁 ${appFolder?.name || DEFAULT_APP_FOLDER_NAME}!`);
     setTimeout(() => setDriveStatusMsg(null), 5000);
   };
+
+  const isUnauthorizedDomain = driveAuthError?.includes('unauthorized-domain') || driveAuthError?.includes('auth/unauthorized-domain');
 
   const syncedCount = files.filter(f => f.isSyncedToDrive && f.syncStatus === 'synced').length;
   const localOnlyCount = files.length - syncedCount;
@@ -572,7 +637,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </span>
           </div>
 
-          {/* Drive Status & Error Alerts */}
+          {/* Drive Status Alert */}
           {driveStatusMsg && (
             <div className="p-3 rounded-sm bg-[#151515] border border-[#D4AF37] text-xs text-[#D4AF37] font-bold flex items-center gap-2 animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -580,7 +645,77 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           )}
 
-          {driveAuthError && (
+          {/* Actionable Error Alert for Unauthorized Domain */}
+          {isUnauthorizedDomain && (
+            <div className="p-4 rounded-sm bg-[#181111] border border-rose-600/80 space-y-3 animate-in fade-in shadow-lg">
+              <div className="flex items-center justify-between border-b border-rose-800/40 pb-2">
+                <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wider">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>Khắc Phục Lỗi: Tên Miền Chưa Được Ủy Quyền (auth/unauthorized-domain)</span>
+                </div>
+                <button
+                  onClick={() => setDriveAuthError(null)}
+                  className="text-xs text-[#888888] hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-xs text-[#E0E0E0] leading-relaxed">
+                Firebase yêu cầu thêm tên miền của trang web vào danh sách <strong>Authorized Domains</strong> trước khi cho phép đăng nhập Google.
+              </p>
+
+              {/* Step by step fix */}
+              <div className="bg-[#0C0C0C] border border-[#2A2A2A] p-3 rounded-sm space-y-2 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[#AAAAAA]">Tên miền hiện tại cần thêm:</span>
+                  <div className="flex items-center gap-1.5 bg-[#151515] px-2 py-1 rounded border border-[#333333]">
+                    <code className="text-[#D4AF37] font-mono text-xs font-bold">{currentHostname}</code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(currentHostname);
+                        setCopiedDomain(true);
+                        setTimeout(() => setCopiedDomain(false), 2000);
+                      }}
+                      className="p-1 text-[#888888] hover:text-white cursor-pointer"
+                      title="Sao chép tên miền"
+                    >
+                      {copiedDomain ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-[#222222] space-y-1.5 text-[11px] text-[#CCCCCC]">
+                  <div><strong>Bước 1:</strong> Mở <a href={firebaseAuthDomainUrl} target="_blank" rel="noreferrer" className="text-[#D4AF37] hover:underline font-bold inline-flex items-center gap-1">Firebase Console Settings <ExternalLink className="w-3 h-3 inline" /></a> ➔ tab <strong>Settings</strong> ➔ mục <strong>Authorized domains</strong>.</div>
+                  <div><strong>Bước 2:</strong> Bấm <strong>Add domain (Thêm miền)</strong> ➔ Dán <code className="bg-[#1A1A1A] text-[#D4AF37] px-1 font-mono">{currentHostname}</code> ➔ Bấm <strong>Save</strong>.</div>
+                  <div><strong>Bước 3:</strong> Quay lại đây và bấm nút Đăng Nhập Google bên dưới.</div>
+                </div>
+              </div>
+
+              {/* Fallback Action Buttons */}
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <button
+                  onClick={handleDirectGISLogin}
+                  disabled={isAuthenticating}
+                  className="px-3 py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs rounded-sm transition-colors cursor-pointer flex items-center gap-1.5 shadow"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Đăng Nhập Trực Tiếp (GIS Direct OAuth)</span>
+                </button>
+
+                <button
+                  onClick={() => setShowManualTokenInput(!showManualTokenInput)}
+                  className="px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/40 font-bold text-xs rounded-sm transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Dán Access Token Thủ Công</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {driveAuthError && !isUnauthorizedDomain && (
             <div className="p-3 rounded-sm bg-rose-950/40 border border-rose-800 text-xs text-rose-300 font-medium flex items-center justify-between animate-in fade-in">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
@@ -588,6 +723,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
               <button onClick={() => setDriveAuthError(null)} className="text-xs hover:text-white cursor-pointer">✕</button>
             </div>
+          )}
+
+          {/* Manual Token Drawer */}
+          {showManualTokenInput && (
+            <form onSubmit={handleManualTokenSubmit} className="p-4 bg-[#151515] border border-[#D4AF37]/40 rounded-sm space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[#D4AF37] text-xs font-bold uppercase tracking-wider">
+                  <Key className="w-4 h-4" />
+                  <span>Dán Google OAuth Access Token</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowManualTokenInput(false)}
+                  className="text-xs text-[#888888] hover:text-white cursor-pointer"
+                >
+                  ✕ Đóng
+                </button>
+              </div>
+              <p className="text-[11px] text-[#888888]">
+                Nếu bạn có Google OAuth Access Token (hoặc tạo từ Google OAuth Playground), bạn có thể dán vào đây để kết nối ngay:
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                  placeholder="Dán token dạng: ya29.a0AcM6123..."
+                  className="flex-1 p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] font-mono focus:outline-none focus:border-[#D4AF37]"
+                />
+                <button
+                  type="submit"
+                  disabled={isSubmittingManualToken || !manualToken.trim()}
+                  className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs rounded-sm transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingManualToken ? 'Đang kiểm tra...' : 'Xác Thực Token'}
+                </button>
+              </div>
+            </form>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -629,8 +802,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         <span className="text-[#D4AF37] font-mono">drive.file (Cách ly an toàn)</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Thời lượng Token:</span>
-                        <span className="text-emerald-400 font-mono">60 phút (OAuth 2.0)</span>
+                        <span>Trạng thái Access Token:</span>
+                        <span className="text-emerald-400 font-mono">Đã lưu & Sẵn sàng</span>
                       </div>
                     </div>
                   </div>
@@ -645,7 +818,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* Login / Logout Action Button */}
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 {googleUser ? (
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -666,19 +839,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={handleGoogleLogin}
-                    disabled={isAuthenticating}
-                    className="w-full py-2.5 px-4 rounded-sm bg-white hover:bg-neutral-100 text-neutral-900 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow cursor-pointer"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 48 48">
-                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                    </svg>
-                    <span>{isAuthenticating ? 'Đang kết nối...' : 'Đăng Nhập Tài Khoản Google'}</span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleGoogleLogin}
+                      disabled={isAuthenticating}
+                      className="w-full py-2.5 px-4 rounded-sm bg-white hover:bg-neutral-100 text-neutral-900 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow cursor-pointer"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 48 48">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                      </svg>
+                      <span>{isAuthenticating ? 'Đang kết nối...' : 'Đăng Nhập Tài Khoản Google'}</span>
+                    </button>
+
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleDirectGISLogin}
+                        disabled={isAuthenticating}
+                        className="text-[11px] text-[#888888] hover:text-[#D4AF37] underline cursor-pointer"
+                      >
+                        ⚡ Đăng nhập trực tiếp (GIS)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowManualTokenInput(!showManualTokenInput)}
+                        className="text-[11px] text-[#888888] hover:text-[#D4AF37] underline cursor-pointer"
+                      >
+                        🔑 Nhập Token thủ công
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
