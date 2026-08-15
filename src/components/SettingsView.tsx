@@ -5,6 +5,8 @@ import {
   signInWithGoogle,
   signInWithGoogleGIS,
   setCustomAccessToken,
+  getCustomGoogleClientId,
+  setCustomGoogleClientId,
   logOutGoogle,
   initGoogleAuth,
   getOrCreateAppFolder,
@@ -93,8 +95,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
+  const [copiedOrigin, setCopiedOrigin] = useState(false);
   const [showManualTokenInput, setShowManualTokenInput] = useState(false);
+  const [showClientIdInput, setShowClientIdInput] = useState(false);
   const [manualToken, setManualToken] = useState('');
+  const [clientIdInput, setClientIdInput] = useState(getCustomGoogleClientId());
   const [isSubmittingManualToken, setIsSubmittingManualToken] = useState(false);
 
   const currentHostname = window.location.hostname;
@@ -244,6 +249,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } finally {
       setIsSubmittingManualToken(false);
     }
+  };
+
+  const handleSaveClientId = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustomGoogleClientId(clientIdInput.trim());
+    setShowClientIdInput(false);
+    setDriveStatusMsg(clientIdInput.trim() ? 'Đã lưu Google Client ID tùy chỉnh!' : 'Đã xóa Google Client ID tùy chỉnh.');
+    setTimeout(() => setDriveStatusMsg(null), 4000);
   };
 
   const handleGoogleLogout = async () => {
@@ -645,13 +658,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           )}
 
-          {/* Actionable Error Alert for Unauthorized Domain */}
-          {isUnauthorizedDomain && (
+          {/* Actionable Error Alert for Unauthorized Domain / Origin Mismatch */}
+          {(isUnauthorizedDomain || driveAuthError?.includes('origin_mismatch') || driveAuthError?.includes('400')) && (
             <div className="p-4 rounded-sm bg-[#181111] border border-rose-600/80 space-y-3 animate-in fade-in shadow-lg">
               <div className="flex items-center justify-between border-b border-rose-800/40 pb-2">
                 <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wider">
                   <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span>Khắc Phục Lỗi: Tên Miền Chưa Được Ủy Quyền (auth/unauthorized-domain)</span>
+                  <span>Khắc Phục Lỗi Google OAuth (origin_mismatch / unauthorized-domain)</span>
                 </div>
                 <button
                   onClick={() => setDriveAuthError(null)}
@@ -662,60 +675,85 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <p className="text-xs text-[#E0E0E0] leading-relaxed">
-                Firebase yêu cầu thêm tên miền của trang web vào danh sách <strong>Authorized Domains</strong> trước khi cho phép đăng nhập Google.
+                Google bảo mật OAuth bằng cách chỉ cho phép ứng dụng đã khai báo đúng <strong>JavaScript Origin</strong> hoặc sử dụng <strong>Access Token</strong> trực tiếp. Chọn 1 trong 2 cách giải quyết nhanh nhất bên dưới:
               </p>
 
-              {/* Step by step fix */}
-              <div className="bg-[#0C0C0C] border border-[#2A2A2A] p-3 rounded-sm space-y-2 text-xs">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-[#AAAAAA]">Tên miền hiện tại cần thêm:</span>
-                  <div className="flex items-center gap-1.5 bg-[#151515] px-2 py-1 rounded border border-[#333333]">
-                    <code className="text-[#D4AF37] font-mono text-xs font-bold">{currentHostname}</code>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(currentHostname);
-                        setCopiedDomain(true);
-                        setTimeout(() => setCopiedDomain(false), 2000);
-                      }}
-                      className="p-1 text-[#888888] hover:text-white cursor-pointer"
-                      title="Sao chép tên miền"
-                    >
-                      {copiedDomain ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
+              {/* Quick Choice Box */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                
+                {/* Method A: OAuth Playground Token (Fastest, 30 seconds, 100% works) */}
+                <div className="p-3 bg-[#0C0C0C] border border-[#D4AF37]/50 rounded-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#D4AF37] flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Cách 1: Lấy Token Nhanh (100% Thành Công)
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono">Khuyên Dùng</span>
                   </div>
+                  <p className="text-[11px] text-[#AAAAAA]">
+                    Lấy Access Token từ trang chính thức của Google trong 30 giây:
+                  </p>
+                  <ol className="text-[11px] text-[#CCCCCC] list-decimal list-inside space-y-1">
+                    <li>Mở <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[#D4AF37] hover:underline font-bold inline-flex items-center gap-0.5">Google OAuth Playground <ExternalLink className="w-2.5 h-2.5 inline" /></a></li>
+                    <li>Tìm <strong>Drive API v3</strong> ➔ tích chọn <code className="text-[#D4AF37] text-[10px]">.../auth/drive.file</code></li>
+                    <li>Bấm <strong>Authorize APIs</strong> ➔ Đăng nhập tài khoản của bạn</li>
+                    <li>Bấm <strong>Exchange authorization code for tokens</strong></li>
+                    <li>Copy chuỗi <strong>Access token</strong> dán vào nút bên dưới:</li>
+                  </ol>
+                  <button
+                    type="button"
+                    onClick={() => { setShowManualTokenInput(true); setShowClientIdInput(false); }}
+                    className="w-full py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs rounded-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5 mt-2"
+                  >
+                    <Key className="w-3.5 h-3.5" />
+                    <span>Dán Access Token & Kết Nối Ngay</span>
+                  </button>
                 </div>
 
-                <div className="pt-2 border-t border-[#222222] space-y-1.5 text-[11px] text-[#CCCCCC]">
-                  <div><strong>Bước 1:</strong> Mở <a href={firebaseAuthDomainUrl} target="_blank" rel="noreferrer" className="text-[#D4AF37] hover:underline font-bold inline-flex items-center gap-1">Firebase Console Settings <ExternalLink className="w-3 h-3 inline" /></a> ➔ tab <strong>Settings</strong> ➔ mục <strong>Authorized domains</strong>.</div>
-                  <div><strong>Bước 2:</strong> Bấm <strong>Add domain (Thêm miền)</strong> ➔ Dán <code className="bg-[#1A1A1A] text-[#D4AF37] px-1 font-mono">{currentHostname}</code> ➔ Bấm <strong>Save</strong>.</div>
-                  <div><strong>Bước 3:</strong> Quay lại đây và bấm nút Đăng Nhập Google bên dưới.</div>
+                {/* Method B: Own Client ID (Standard Google button) */}
+                <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-[#AAAAAA]" />
+                      Cách 2: Cấu Hình Client ID Cá Nhân
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#AAAAAA]">
+                    Tạo Google OAuth Client ID của riêng bạn trên Google Cloud để nút Đăng Nhập hoạt động mãi mãi:
+                  </p>
+                  <div className="flex items-center justify-between bg-[#151515] p-1.5 rounded border border-[#222222]">
+                    <span className="text-[11px] text-[#888888]">Origin cần thêm:</span>
+                    <div className="flex items-center gap-1">
+                      <code className="text-[#D4AF37] font-mono text-[10px] font-bold truncate max-w-[150px]">{currentOrigin}</code>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(currentOrigin);
+                          setCopiedOrigin(true);
+                          setTimeout(() => setCopiedOrigin(false), 2000);
+                        }}
+                        className="p-1 text-[#888888] hover:text-white"
+                        title="Sao chép Origin"
+                      >
+                        {copiedOrigin ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowClientIdInput(true); setShowManualTokenInput(false); }}
+                    className="w-full py-1.5 bg-[#1A1A1A] hover:bg-[#252525] text-white border border-[#333333] font-bold text-xs rounded-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5 mt-2"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span>Nhập Client ID Tùy Chỉnh</span>
+                  </button>
                 </div>
-              </div>
 
-              {/* Fallback Action Buttons */}
-              <div className="flex items-center gap-2 pt-1 flex-wrap">
-                <button
-                  onClick={handleDirectGISLogin}
-                  disabled={isAuthenticating}
-                  className="px-3 py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs rounded-sm transition-colors cursor-pointer flex items-center gap-1.5 shadow"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Đăng Nhập Trực Tiếp (GIS Direct OAuth)</span>
-                </button>
-
-                <button
-                  onClick={() => setShowManualTokenInput(!showManualTokenInput)}
-                  className="px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/40 font-bold text-xs rounded-sm transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <Key className="w-3.5 h-3.5" />
-                  <span>Dán Access Token Thủ Công</span>
-                </button>
               </div>
             </div>
           )}
 
-          {driveAuthError && !isUnauthorizedDomain && (
+          {driveAuthError && !isUnauthorizedDomain && !driveAuthError?.includes('origin_mismatch') && !driveAuthError?.includes('400') && (
             <div className="p-3 rounded-sm bg-rose-950/40 border border-rose-800 text-xs text-rose-300 font-medium flex items-center justify-between animate-in fade-in">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
@@ -725,9 +763,51 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           )}
 
+          {/* Client ID Customization Drawer */}
+          {showClientIdInput && (
+            <form onSubmit={handleSaveClientId} className="p-4 bg-[#151515] border border-[#D4AF37]/50 rounded-sm space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[#D4AF37] text-xs font-bold uppercase tracking-wider">
+                  <Settings className="w-4 h-4" />
+                  <span>Cấu Hình Google OAuth Client ID Riêng</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowClientIdInput(false)}
+                  className="text-xs text-[#888888] hover:text-white cursor-pointer"
+                >
+                  ✕ Đóng
+                </button>
+              </div>
+
+              <div className="text-[11px] text-[#CCCCCC] space-y-1.5 bg-[#0C0C0C] p-3 rounded border border-[#222222]">
+                <div>1. Mở <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-[#D4AF37] hover:underline font-bold inline-flex items-center gap-0.5">Google Cloud Credentials <ExternalLink className="w-2.5 h-2.5 inline" /></a> ➔ Bấm <strong>Create Credentials (Tạo thông tin xác thực)</strong> ➔ <strong>OAuth client ID</strong>.</div>
+                <div>2. Application type chọn <strong>Web application</strong>.</div>
+                <div>3. Tại mục <strong>Authorized JavaScript origins</strong>, thêm: <code className="text-[#D4AF37] bg-[#1A1A1A] px-1 font-mono">{currentOrigin}</code></div>
+                <div>4. Bấm <strong>Create</strong> rồi sao chép mã <strong>Client ID</strong> dán vào ô bên dưới:</div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={clientIdInput}
+                  onChange={(e) => setClientIdInput(e.target.value)}
+                  placeholder="Ví dụ: 123456789-abcdef.apps.googleusercontent.com"
+                  className="flex-1 p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] font-mono focus:outline-none focus:border-[#D4AF37]"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs rounded-sm transition-colors cursor-pointer"
+                >
+                  Lưu Client ID
+                </button>
+              </div>
+            </form>
+          )}
+
           {/* Manual Token Drawer */}
           {showManualTokenInput && (
-            <form onSubmit={handleManualTokenSubmit} className="p-4 bg-[#151515] border border-[#D4AF37]/40 rounded-sm space-y-3 animate-in fade-in">
+            <form onSubmit={handleManualTokenSubmit} className="p-4 bg-[#151515] border border-[#D4AF37]/50 rounded-sm space-y-3 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-[#D4AF37] text-xs font-bold uppercase tracking-wider">
                   <Key className="w-4 h-4" />
@@ -742,7 +822,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </button>
               </div>
               <p className="text-[11px] text-[#888888]">
-                Nếu bạn có Google OAuth Access Token (hoặc tạo từ Google OAuth Playground), bạn có thể dán vào đây để kết nối ngay:
+                Dán chuỗi Access Token (bắt đầu bằng <code className="text-[#D4AF37] font-mono">ya29...</code>) lấy từ <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[#D4AF37] hover:underline inline-flex items-center gap-0.5">Google OAuth Playground <ExternalLink className="w-2.5 h-2.5 inline" /></a>:
               </p>
               <div className="flex items-center gap-2">
                 <input
@@ -757,7 +837,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   disabled={isSubmittingManualToken || !manualToken.trim()}
                   className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs rounded-sm transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {isSubmittingManualToken ? 'Đang kiểm tra...' : 'Xác Thực Token'}
+                  {isSubmittingManualToken ? 'Đang kiểm tra...' : 'Xác Thực & Kết Nối'}
                 </button>
               </div>
             </form>
@@ -854,22 +934,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <span>{isAuthenticating ? 'Đang kết nối...' : 'Đăng Nhập Tài Khoản Google'}</span>
                     </button>
 
-                    <div className="flex items-center justify-between gap-2 pt-1">
+                    <div className="flex items-center justify-between gap-1 pt-1 flex-wrap text-[11px]">
                       <button
                         type="button"
                         onClick={handleDirectGISLogin}
                         disabled={isAuthenticating}
-                        className="text-[11px] text-[#888888] hover:text-[#D4AF37] underline cursor-pointer"
+                        className="text-[#888888] hover:text-[#D4AF37] underline cursor-pointer flex items-center gap-1"
                       >
-                        ⚡ Đăng nhập trực tiếp (GIS)
+                        <span>⚡ Đăng nhập GIS</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => setShowManualTokenInput(!showManualTokenInput)}
-                        className="text-[11px] text-[#888888] hover:text-[#D4AF37] underline cursor-pointer"
+                        onClick={() => { setShowClientIdInput(!showClientIdInput); setShowManualTokenInput(false); }}
+                        className="text-[#D4AF37] font-semibold hover:underline cursor-pointer flex items-center gap-1"
                       >
-                        🔑 Nhập Token thủ công
+                        <Settings className="w-3 h-3 text-[#D4AF37]" />
+                        <span>⚙️ Nhập Client ID</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => { setShowManualTokenInput(!showManualTokenInput); setShowClientIdInput(false); }}
+                        className="text-[#888888] hover:text-[#D4AF37] underline cursor-pointer flex items-center gap-1"
+                      >
+                        <Key className="w-3 h-3" />
+                        <span>Nhập Token</span>
                       </button>
                     </div>
                   </div>

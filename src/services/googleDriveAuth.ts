@@ -22,6 +22,19 @@ const STORAGE_FOLDER_KEY = 'ai_app_drive_folder_id';
 const STORAGE_FOLDER_NAME_KEY = 'ai_app_drive_folder_name';
 const STORAGE_TOKEN_KEY = 'ai_app_google_drive_access_token';
 const STORAGE_USER_KEY = 'ai_app_google_user_info';
+const STORAGE_CLIENT_ID_KEY = 'ai_app_custom_google_client_id';
+
+export function getCustomGoogleClientId(): string {
+  return localStorage.getItem(STORAGE_CLIENT_ID_KEY) || '';
+}
+
+export function setCustomGoogleClientId(clientId: string): void {
+  if (clientId.trim()) {
+    localStorage.setItem(STORAGE_CLIENT_ID_KEY, clientId.trim());
+  } else {
+    localStorage.removeItem(STORAGE_CLIENT_ID_KEY);
+  }
+}
 
 function getFirebaseApp() {
   return getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -77,7 +90,8 @@ export const initGoogleAuth = (
  * Works as a robust fallback without being blocked by Firebase Auth unauthorized domain.
  */
 export async function signInWithGoogleGIS(clientId?: string): Promise<{ user: any; accessToken: string }> {
-  const effectiveClientId = clientId || (firebaseConfig as any).oAuthClientId || '797950767923-2ibe3kgt6hl8uahlmn0pk1vh5u5qlmr5.apps.googleusercontent.com';
+  const customId = getCustomGoogleClientId();
+  const effectiveClientId = clientId || customId || (firebaseConfig as any).oAuthClientId || '797950767923-2ibe3kgt6hl8uahlmn0pk1vh5u5qlmr5.apps.googleusercontent.com';
 
   return new Promise((resolve, reject) => {
     const initClient = () => {
