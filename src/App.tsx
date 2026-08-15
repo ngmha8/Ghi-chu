@@ -4,6 +4,7 @@ import { api } from './services/api.js';
 import {
   subscribeTasks,
   subscribeNotes,
+  subscribeFiles,
   subscribeNotifications,
   subscribeTelegramConfig,
 } from './services/firebase.ts';
@@ -14,13 +15,14 @@ import { TasksView } from './components/TasksView.tsx';
 import { NotesView } from './components/NotesView.tsx';
 import { FilesView } from './components/FilesView.tsx';
 import { TelegramBotView } from './components/TelegramBotView.tsx';
+import { SettingsView } from './components/SettingsView.tsx';
 import { SystemArchView } from './components/SystemArchView.tsx';
 import { AiChatDrawer } from './components/AiChatDrawer.tsx';
 import { TaskModal } from './components/TaskModal.tsx';
 import { NoteModal } from './components/NoteModal.tsx';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'architecture'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'settings' | 'architecture'>('dashboard');
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -87,6 +89,12 @@ export default function App() {
       }
     });
 
+    const unsubFiles = subscribeFiles((liveFiles) => {
+      if (liveFiles && liveFiles.length > 0) {
+        setFiles(liveFiles);
+      }
+    });
+
     const unsubNotifs = subscribeNotifications((liveLogs) => {
       if (liveLogs && liveLogs.length > 0) {
         setNotificationLogs(liveLogs);
@@ -114,6 +122,7 @@ export default function App() {
     return () => {
       unsubTasks();
       unsubNotes();
+      unsubFiles();
       unsubNotifs();
       unsubConfig();
       clearInterval(cronInterval);
@@ -198,6 +207,15 @@ export default function App() {
       setFiles(prev => prev.filter(f => f.id !== id));
     } catch (err) {
       console.error('Error deleting file:', err);
+    }
+  };
+
+  const handleFileUpdate = async (id: string, fileData: Partial<DriveFile>) => {
+    try {
+      const updated = await api.updateFile(id, fileData);
+      setFiles(prev => prev.map(f => f.id === id ? updated : f));
+    } catch (err) {
+      console.error('Error updating file:', err);
     }
   };
 
@@ -331,7 +349,9 @@ export default function App() {
             notes={notes}
             onFileUpload={handleFileUpload}
             onFileDelete={handleFileDelete}
+            onFileUpdate={handleFileUpdate}
             openAiChatWithPrompt={openAiChatWithPrompt}
+            onNavigateToSettings={() => setActiveTab('settings')}
           />
         )}
 
@@ -342,6 +362,17 @@ export default function App() {
             onUpdateConfig={handleUpdateTelegramConfig}
             onSendTestMessage={handleSendTestTelegramMessage}
             onSendTelegramCommand={handleSendTelegramCommand}
+            onNavigateToSettings={() => setActiveTab('settings')}
+          />
+        )}
+
+        {activeTab === 'settings' && (
+          <SettingsView
+            telegramConfig={telegramConfig}
+            onUpdateTelegramConfig={handleUpdateTelegramConfig}
+            onSendTestTelegramMessage={handleSendTestTelegramMessage}
+            files={files}
+            onFileUpdate={handleFileUpdate}
           />
         )}
 

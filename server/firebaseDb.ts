@@ -1,17 +1,5 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import {
-  getFirestore,
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  setDoc,
-  deleteDoc,
-  updateDoc
-} from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { Task, Note, DriveFile, TelegramConfig, NotificationLog } from '../src/types/index.ts';
 import {
   initialTasks,
@@ -22,35 +10,6 @@ import {
 } from './initialData.ts';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
-
-// 1. Load Firebase configuration from firebase-applet-config.json
-let firebaseConfig: any = null;
-try {
-  const configFile = path.join(_dirname, 'firebase-applet-config.json');
-  if (fs.existsSync(configFile)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
-  }
-} catch (err) {
-  console.warn('Error reading firebase-applet-config.json:', err);
-}
-
-let db: any = null;
-let isFirestoreAvailable = false;
-
-if (firebaseConfig && firebaseConfig.apiKey) {
-  try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
-    db = getFirestore(app, dbId);
-    isFirestoreAvailable = true;
-    console.log(`🔥 Firebase Firestore successfully connected (DB: ${dbId})`);
-  } catch (err) {
-    console.error('⚠️ Could not initialize Firestore, using local fallback:', err);
-    isFirestoreAvailable = false;
-  }
-} else {
-  console.log('ℹ️ No Firebase configuration detected, running in local storage mode.');
-}
 
 // In-Memory cache for high-speed access & offline resilience
 export let cachedTasks: Task[] = [...initialTasks];
@@ -64,6 +23,7 @@ const DATA_DIR = path.join(_dirname, 'data');
 const LOCAL_CONFIG_FILE = path.join(DATA_DIR, 'telegram_config.json');
 const LOCAL_TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const LOCAL_NOTES_FILE = path.join(DATA_DIR, 'notes.json');
+const LOCAL_FILES_FILE = path.join(DATA_DIR, 'files.json');
 
 if (!fs.existsSync(DATA_DIR)) {
   try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
@@ -83,6 +43,10 @@ try {
     const data = JSON.parse(fs.readFileSync(LOCAL_NOTES_FILE, 'utf-8'));
     if (Array.isArray(data) && data.length > 0) cachedNotes = data;
   }
+  if (fs.existsSync(LOCAL_FILES_FILE)) {
+    const data = JSON.parse(fs.readFileSync(LOCAL_FILES_FILE, 'utf-8'));
+    if (Array.isArray(data) && data.length > 0) cachedFiles = data;
+  }
 } catch (e) {
   console.warn('Could not read local backup files:', e);
 }
@@ -92,81 +56,15 @@ function saveLocalBackups() {
     fs.writeFileSync(LOCAL_CONFIG_FILE, JSON.stringify(cachedTelegramConfig, null, 2), 'utf-8');
     fs.writeFileSync(LOCAL_TASKS_FILE, JSON.stringify(cachedTasks, null, 2), 'utf-8');
     fs.writeFileSync(LOCAL_NOTES_FILE, JSON.stringify(cachedNotes, null, 2), 'utf-8');
+    fs.writeFileSync(LOCAL_FILES_FILE, JSON.stringify(cachedFiles, null, 2), 'utf-8');
   } catch (e) {
     console.warn('Error saving local backup:', e);
   }
 }
 
-// -------------------------------------------------------------
-// FIRESTORE INITIALIZATION & SEEDING
-// -------------------------------------------------------------
 export async function initializeFirestoreData() {
-  if (!isFirestoreAvailable || !db) return;
-
-  try {
-    // 1. Sync Config
-    const configDocRef = doc(db, 'config', 'telegram');
-    const configSnap = await getDoc(configDocRef);
-    if (configSnap.exists()) {
-      cachedTelegramConfig = { ...cachedTelegramConfig, ...(configSnap.data() as TelegramConfig) };
-    } else {
-      await setDoc(configDocRef, cachedTelegramConfig);
-    }
-
-    // 2. Sync Tasks
-    const tasksCol = collection(db, 'tasks');
-    const tasksSnap = await getDocs(tasksCol);
-    if (!tasksSnap.empty) {
-      const fetchedTasks: Task[] = [];
-      tasksSnap.forEach(d => {
-        fetchedTasks.push({ id: d.id, ...d.data() } as Task);
-      });
-      cachedTasks = fetchedTasks;
-    } else {
-      // Seed initial tasks
-      for (const t of cachedTasks) {
-        await setDoc(doc(db, 'tasks', t.id), t);
-      }
-    }
-
-    // 3. Sync Notes
-    const notesCol = collection(db, 'notes');
-    const notesSnap = await getDocs(notesCol);
-    if (!notesSnap.empty) {
-      const fetchedNotes: Note[] = [];
-      notesSnap.forEach(d => {
-        fetchedNotes.push({ id: d.id, ...d.data() } as Note);
-      });
-      cachedNotes = fetchedNotes;
-    } else {
-      // Seed initial notes
-      for (const n of cachedNotes) {
-        await setDoc(doc(db, 'notes', n.id), n);
-      }
-    }
-
-    // 4. Sync Notifications
-    const notifsCol = collection(db, 'notifications');
-    const notifsSnap = await getDocs(notifsCol);
-    if (!notifsSnap.empty) {
-      const fetchedNotifs: NotificationLog[] = [];
-      notifsSnap.forEach(d => {
-        fetchedNotifs.push({ id: d.id, ...d.data() } as NotificationLog);
-      });
-      cachedNotificationLogs = fetchedNotifs.sort(
-        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-    } else {
-      for (const log of cachedNotificationLogs) {
-        await setDoc(doc(db, 'notifications', log.id), log);
-      }
-    }
-
-    saveLocalBackups();
-    console.log('✅ Firebase Firestore synchronized successfully!');
-  } catch (err) {
-    console.error('Error synchronizing with Firestore:', err);
-  }
+  saveLocalBackups();
+  console.log('✅ Local storage initialized successfully.');
 }
 
 // -------------------------------------------------------------
@@ -184,24 +82,12 @@ export async function saveDbTask(task: Task): Promise<Task> {
     cachedTasks.unshift(task);
   }
   saveLocalBackups();
-
-  if (isFirestoreAvailable && db) {
-    setDoc(doc(db, 'tasks', task.id), task).catch(e =>
-      console.warn(`Firestore task save error (${task.id}):`, e)
-    );
-  }
   return task;
 }
 
 export async function deleteDbTask(id: string): Promise<boolean> {
   cachedTasks = cachedTasks.filter(t => t.id !== id);
   saveLocalBackups();
-
-  if (isFirestoreAvailable && db) {
-    deleteDoc(doc(db, 'tasks', id)).catch(e =>
-      console.warn(`Firestore task delete error (${id}):`, e)
-    );
-  }
   return true;
 }
 
@@ -220,24 +106,46 @@ export async function saveDbNote(note: Note): Promise<Note> {
     cachedNotes.unshift(note);
   }
   saveLocalBackups();
-
-  if (isFirestoreAvailable && db) {
-    setDoc(doc(db, 'notes', note.id), note).catch(e =>
-      console.warn(`Firestore note save error (${note.id}):`, e)
-    );
-  }
   return note;
 }
 
 export async function deleteDbNote(id: string): Promise<boolean> {
   cachedNotes = cachedNotes.filter(n => n.id !== id);
   saveLocalBackups();
+  return true;
+}
 
-  if (isFirestoreAvailable && db) {
-    deleteDoc(doc(db, 'notes', id)).catch(e =>
-      console.warn(`Firestore note delete error (${id}):`, e)
-    );
+// -------------------------------------------------------------
+// CRUD METHODS (FILES)
+// -------------------------------------------------------------
+export async function getDbFiles(): Promise<DriveFile[]> {
+  return cachedFiles.map(f => {
+    // If it has a legitimate Google Drive ID/view link, mark as synced
+    const isRealDrive = !!(f.driveFileId && !f.driveFileId.startsWith('file-') && !f.driveFileId.startsWith('drive-id-') && f.webViewLink && f.webViewLink.includes('drive.google.com/file/d/'));
+    return {
+      ...f,
+      isSyncedToDrive: isRealDrive,
+      syncStatus: f.syncStatus || (isRealDrive ? 'synced' : 'local_only'),
+      downloadUrl: f.downloadUrl || `/api/files/download/${f.id}`,
+      previewUrl: f.previewUrl || `/api/files/preview/${f.id}`,
+    };
+  });
+}
+
+export async function saveDbFile(file: DriveFile): Promise<DriveFile> {
+  const index = cachedFiles.findIndex(f => f.id === file.id);
+  if (index >= 0) {
+    cachedFiles[index] = file;
+  } else {
+    cachedFiles.unshift(file);
   }
+  saveLocalBackups();
+  return file;
+}
+
+export async function deleteDbFile(id: string): Promise<boolean> {
+  cachedFiles = cachedFiles.filter(f => f.id !== id);
+  saveLocalBackups();
   return true;
 }
 
@@ -254,12 +162,6 @@ export async function saveDbTelegramConfig(config: Partial<TelegramConfig>): Pro
     ...config,
   };
   saveLocalBackups();
-
-  if (isFirestoreAvailable && db) {
-    setDoc(doc(db, 'config', 'telegram'), cachedTelegramConfig).catch(e =>
-      console.warn('Firestore telegram config save error:', e)
-    );
-  }
   return cachedTelegramConfig;
 }
 
@@ -274,12 +176,6 @@ export async function addDbNotificationLog(log: NotificationLog): Promise<Notifi
   cachedNotificationLogs.unshift(log);
   if (cachedNotificationLogs.length > 100) {
     cachedNotificationLogs.pop();
-  }
-
-  if (isFirestoreAvailable && db) {
-    setDoc(doc(db, 'notifications', log.id), log).catch(e =>
-      console.warn('Firestore notification save error:', e)
-    );
   }
   return log;
 }

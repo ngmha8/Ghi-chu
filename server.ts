@@ -21,6 +21,9 @@ import {
   getDbNotes,
   saveDbNote,
   deleteDbNote,
+  getDbFiles,
+  saveDbFile,
+  deleteDbFile,
   getDbTelegramConfig,
   saveDbTelegramConfig,
   getDbNotificationLogs,
@@ -41,13 +44,19 @@ import {
 } from './server/telegramHelper.ts';
 import { transcribeTelegramVoice } from './server/voiceTranscriber.ts';
 import { generateDailyBriefing } from './server/dailyBriefing.ts';
+import { safeGenerateContent, GEMINI_MODEL_FALLBACK_CHAIN } from './server/geminiHelper.ts';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+const UPLOADS_DIR = path.join(_dirname, 'data', 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch (e) {}
+}
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 let files: DriveFile[] = [...cachedFiles];
 const userProfile = { ...initialUserProfile };
@@ -73,6 +82,11 @@ function getGeminiClient(): GoogleGenAI {
     },
   });
 }
+
+// Health & Ping Endpoints (for cron-job.org, uptime monitors, Keep-Alive)
+app.get(['/health', '/ping', '/api/health', '/api/ping'], (req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok', time: new Date().toISOString(), message: 'AI Assistant server is active' });
+});
 
 // -------------------------------------------------------------
 // FIREBASE / DATABASE STATUS ENDPOINT
@@ -190,29 +204,167 @@ app.delete('/api/notes/:id', async (req: Request, res: Response) => {
 // -------------------------------------------------------------
 // 3. FILE / GOOGLE DRIVE MANAGER API ROUTES
 // -------------------------------------------------------------
-app.get('/api/files', (req: Request, res: Response) => {
-  res.json(files);
+app.get('/api/files', async (req: Request, res: Response) => {
+  const currentFiles = await getDbFiles();
+  res.json(currentFiles);
 });
 
-app.post('/api/files', (req: Request, res: Response) => {
+app.post('/api/files', async (req: Request, res: Response) => {
+  const fileId = req.body.id || `file-${Date.now()}`;
+  const fileName = req.body.name || 'document.pdf';
+  const mimeType = req.body.mimeType || 'application/pdf';
+  const size = req.body.size || 102400;
+  const isSynced = req.body.isSyncedToDrive ?? false;
+  const driveFileId = req.body.driveFileId;
+  const webViewLink = req.body.webViewLink;
+  const textContent = req.body.textContent;
+  const base64Data = req.body.base64Data;
+
+  // Save binary to server uploads directory if provided
+  if (base64Data) {
+    try {
+      const buffer = Buffer.from(base64Data.replace(/^data:.*?;base64,/, ''), 'base64');
+      const filePath = path.join(UPLOADS_DIR, `${fileId}_${path.basename(fileName)}`);
+      fs.writeFileSync(filePath, buffer);
+    } catch (e) {
+      console.warn('Error saving uploaded file binary to disk:', e);
+    }
+  }
+
   const newFile: DriveFile = {
-    id: `file-${Date.now()}`,
-    name: req.body.name || 'document.pdf',
-    mimeType: req.body.mimeType || 'application/pdf',
-    size: req.body.size || Math.floor(Math.random() * 5000000) + 100000,
-    webViewLink: `https://drive.google.com/file/d/drive-${Date.now()}/view`,
+    id: fileId,
+    name: fileName,
+    mimeType: mimeType,
+    size: size,
+    webViewLink: isSynced && webViewLink ? webViewLink : undefined,
     category: req.body.category || 'document',
-    isSyncedToDrive: true,
-    driveFileId: `gdrive-id-${Date.now()}`,
-    uploadedAt: new Date().toISOString(),
+    isSyncedToDrive: isSynced,
+    driveFileId: driveFileId,
+    syncStatus: isSynced ? 'synced' : 'local_only',
+    downloadUrl: `/api/files/download/${fileId}`,
+    previewUrl: `/api/files/preview/${fileId}`,
+    textContent: textContent,
+    uploadedAt: req.body.uploadedAt || new Date().toISOString(),
   };
-  files.unshift(newFile);
-  res.status(201).json(newFile);
+
+  const saved = await saveDbFile(newFile);
+  res.status(201).json(saved);
 });
 
-app.delete('/api/files/:id', (req: Request, res: Response) => {
+app.get('/api/files/download/:id', async (req: Request, res: Response) => {
   const fileId = req.params.id;
-  files = files.filter(f => f.id !== fileId);
+  const currentFiles = await getDbFiles();
+  const file = currentFiles.find(f => f.id === fileId);
+
+  if (!file) {
+    return res.status(404).send('Không tìm thấy tệp yêu cầu');
+  }
+
+  // Look for stored file on disk
+  try {
+    const filesInDir = fs.readdirSync(UPLOADS_DIR);
+    const matched = filesInDir.find(fn => fn.startsWith(fileId));
+    if (matched) {
+      const fullPath = path.join(UPLOADS_DIR, matched);
+      return res.download(fullPath, file.name);
+    }
+  } catch (e) {
+    console.warn('Error checking uploads folder:', e);
+  }
+
+  // If textContent available, send as text file
+  if (file.textContent) {
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+    res.setHeader('Content-Type', file.mimeType || 'text/plain; charset=utf-8');
+    return res.send(file.textContent);
+  }
+
+  // Fallback realistic document generator
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+  res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+  res.send(`--- TÀI LIỆU HỆ THỐNG TRỢ LÝ AI: ${file.name} ---\nLoại: ${file.category}\nKích thước: ${file.size} bytes\nNgày lưu: ${file.uploadedAt}\n\nNội dung văn bản lưu trữ an toàn trong Local Storage Vault.`);
+});
+
+app.get('/api/files/preview/:id', async (req: Request, res: Response) => {
+  const fileId = req.params.id;
+  const currentFiles = await getDbFiles();
+  const file = currentFiles.find(f => f.id === fileId);
+
+  if (!file) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  try {
+    const filesInDir = fs.readdirSync(UPLOADS_DIR);
+    const matched = filesInDir.find(fn => fn.startsWith(fileId));
+    if (matched) {
+      const fullPath = path.join(UPLOADS_DIR, matched);
+      res.setHeader('Content-Type', file.mimeType);
+      return res.sendFile(fullPath);
+    }
+  } catch (e) {}
+
+  res.json({
+    id: file.id,
+    name: file.name,
+    category: file.category,
+    mimeType: file.mimeType,
+    textContent: file.textContent || `[Tài liệu: ${file.name}] - Lưu trữ cục bộ an toàn.`,
+    isSyncedToDrive: file.isSyncedToDrive,
+    webViewLink: file.webViewLink,
+  });
+});
+
+app.post('/api/files/sync-drive/:id', async (req: Request, res: Response) => {
+  const fileId = req.params.id;
+  const { driveFileId, webViewLink } = req.body;
+  const currentFiles = await getDbFiles();
+  const existing = currentFiles.find(f => f.id === fileId);
+
+  if (!existing) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  const updated: DriveFile = {
+    ...existing,
+    driveFileId: driveFileId || existing.driveFileId,
+    webViewLink: webViewLink || existing.webViewLink,
+    isSyncedToDrive: true,
+    syncStatus: 'synced',
+    syncError: undefined,
+  };
+
+  const saved = await saveDbFile(updated);
+  res.json({ success: true, file: saved });
+});
+
+app.put('/api/files/:id', async (req: Request, res: Response) => {
+  const fileId = req.params.id;
+  const currentFiles = await getDbFiles();
+  const existing = currentFiles.find(f => f.id === fileId);
+  if (!existing) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+  const updated: DriveFile = {
+    ...existing,
+    ...req.body,
+    id: fileId,
+  };
+  const saved = await saveDbFile(updated);
+  res.json(saved);
+});
+
+app.delete('/api/files/:id', async (req: Request, res: Response) => {
+  const fileId = req.params.id;
+  await deleteDbFile(fileId);
+  // Clean up from uploads folder
+  try {
+    const filesInDir = fs.readdirSync(UPLOADS_DIR);
+    const matched = filesInDir.find(fn => fn.startsWith(fileId));
+    if (matched) {
+      fs.unlinkSync(path.join(UPLOADS_DIR, matched));
+    }
+  } catch (e) {}
   res.json({ success: true, id: fileId });
 });
 
@@ -513,10 +665,12 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
   }
 
   // -----------------------------------------------------------
-  // B. HANDLE VOICE MESSAGES (VOICE TO TASK / SPEECH-TO-TEXT)
+  // B. HANDLE INCOMING MESSAGES (VOICE, DOCUMENTS, PHOTOS, TEXT)
   // -----------------------------------------------------------
   const msgObj = telegramUpdate.message || telegramUpdate.edited_message;
   const voiceObj = msgObj?.voice || msgObj?.audio;
+  const documentObj = msgObj?.document;
+  const photoArray = msgObj?.photo;
 
   const detectedChatId = msgObj?.chat?.id ? String(msgObj.chat.id) : null;
   const chatId = detectedChatId || req.body.chatId || telegramConfig.chatId;
@@ -556,8 +710,73 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
       console.error('Voice processing error:', voiceError);
       botReply = `⚠️ *Không thể xử lý tin nhắn thoại:* ${voiceError?.message || 'Lỗi nhận dạng âm thanh'}`;
     }
+  } else if ((documentObj || (photoArray && photoArray.length > 0)) && telegramConfig.botToken) {
+    // Case 2: Document / File / Photo sent on Telegram
+    try {
+      const fileId = documentObj?.file_id || photoArray[photoArray.length - 1].file_id;
+      const fileName = documentObj?.file_name || `photo_${Date.now()}.jpg`;
+      const mimeType = documentObj?.mime_type || 'image/jpeg';
+      const fileSize = documentObj?.file_size || photoArray[photoArray.length - 1].file_size || 102400;
+
+      // 1. Fetch file from Telegram API
+      const fileMetaRes = await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/getFile?file_id=${fileId}`);
+      const fileMeta: any = await fileMetaRes.json();
+
+      let isSavedLocally = false;
+      const localFileId = `file-tg-${Date.now()}`;
+
+      if (fileMeta.ok && fileMeta.result?.file_path) {
+        const downloadUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${fileMeta.result.file_path}`;
+        const binaryRes = await fetch(downloadUrl);
+        if (binaryRes.ok) {
+          const buffer = Buffer.from(await binaryRes.arrayBuffer());
+          const savePath = path.join(UPLOADS_DIR, `${localFileId}_${path.basename(fileName)}`);
+          fs.writeFileSync(savePath, buffer);
+          isSavedLocally = true;
+        }
+      }
+
+      // Determine category
+      const ext = fileName.split('.').pop()?.toLowerCase() || '';
+      let category: DriveFile['category'] = 'document';
+      if (['xlsx', 'xls', 'csv'].includes(ext)) category = 'spreadsheet';
+      else if (ext === 'pdf') category = 'pdf';
+      else if (['pptx', 'ppt'].includes(ext)) category = 'presentation';
+      else if (['png', 'jpg', 'jpeg', 'webp'].includes(ext) || mimeType.startsWith('image/')) category = 'image';
+
+      const newDriveFile: DriveFile = {
+        id: localFileId,
+        name: fileName,
+        mimeType: mimeType,
+        size: fileSize,
+        category: category,
+        isSyncedToDrive: false,
+        syncStatus: 'local_only',
+        downloadUrl: `/api/files/download/${localFileId}`,
+        previewUrl: `/api/files/preview/${localFileId}`,
+        uploadedAt: new Date().toISOString(),
+      };
+
+      await saveDbFile(newDriveFile);
+
+      botReply = `📄 *ĐÃ NHẬN TÀI LIỆU TỪ TELEGRAM*\n\n` +
+        `• **Tên tệp:** \`${fileName}\`\n` +
+        `• **Dung lượng:** \`${(fileSize / (1024 * 1024)).toFixed(2)} MB\`\n` +
+        `• **Trạng thái:** 🟡 *Đã lưu trữ cục bộ (Local Vault)*\n\n` +
+        `💡 _Tệp đã được đưa vào danh mục quản lý tài liệu. Bạn có thể mở Web App để xem trước trực tiếp hoặc bấm 1-Click để đẩy lên Google Drive cá nhân._`;
+
+      replyKeyboard = [
+        [
+          { text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' },
+          { text: '📋 Danh sách việc', callback_data: 'cmd:tasks' }
+        ]
+      ];
+    } catch (docErr: any) {
+      console.error('Telegram file error:', docErr);
+      botReply = `⚠️ *Lỗi khi lưu tệp:* ${docErr?.message || 'Không thể tải file từ Telegram'}`;
+    }
   } else {
-    // Case 2: Standard Text message
+    // Case 3: Standard Text message
     const rawInput = (
       msgObj?.text ||
       req.body.command ||
@@ -754,11 +973,12 @@ async function processAiChat(message: string, enableSearch: boolean = true) {
     const ai = getGeminiClient();
     const tasks = await getDbTasks();
     const notes = await getDbNotes();
+    const currentFiles = await getDbFiles();
 
     // RAG Context Retrieval from internal Firestore data
     const tasksContext = tasks.map(t => `- [ID: ${t.id}] [${t.priority.toUpperCase()}] ${t.title} | Deadline: ${t.deadline} | Status: ${t.status} | Tags: ${t.tags.join(',')}`).join('\n');
     const notesContext = notes.map(n => `- [ID: ${n.id}] Note: ${n.title} | Tags: ${n.tags.join(',')} | Snippet: ${n.content.slice(0, 180)}...`).join('\n');
-    const filesContext = files.map(f => `- File: ${f.name} (${f.category}) | Link: ${f.webViewLink}`).join('\n');
+    const filesContext = currentFiles.map(f => `- File: ${f.name} (${f.category}) | Link: ${f.webViewLink}`).join('\n');
 
     const currentTimeIso = new Date().toISOString();
 
@@ -784,13 +1004,12 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
 2. TRA CỨU INTERNET (Google Search): Nếu người dùng hỏi về kiến thức bên ngoài, thời tiết, lịch âm, tin tức, tài chính... Hãy chủ động tra cứu Google Search và trả lời chính xác.
 3. TRẢ LỜI: Trả lời bằng tiếng Việt lịch sự, thân thiện, rõ ràng, định dạng Markdown đẹp mắt.`;
 
-    const modelName = 'gemini-3.7-flash';
     let executedActionSummary = '';
 
-    // 1. First Pass: Call Gemini with Function Calling declarations
+    // 1. First Pass: Call Gemini with Function Calling declarations across fallback chain
     try {
-      const response1 = await ai.models.generateContent({
-        model: modelName,
+      const response1 = await safeGenerateContent({
+        gemini: ai,
         contents: message,
         config: {
           systemInstruction,
@@ -800,7 +1019,7 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
         },
       });
 
-      const functionCalls = response1.functionCalls;
+      const functionCalls = response1?.functionCalls;
       if (functionCalls && functionCalls.length > 0) {
         for (const fc of functionCalls) {
           const executionResult = await executeAiFunctionCall(fc.name, fc.args);
@@ -819,7 +1038,7 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
         };
       }
 
-      if (response1.text) {
+      if (response1?.text) {
         return {
           reply: response1.text,
           groundingSources: [],
@@ -831,27 +1050,40 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
         };
       }
     } catch (toolError) {
-      console.warn('Tool calling step error, falling back to Google Search grounding:', toolError);
+      console.warn('Tool calling step error, trying search grounding or plain text fallback...');
     }
 
-    // 2. Second Pass: Generate response with Google Search grounding
+    // 2. Second Pass: Generate response with Google Search grounding or plain text fallback
     let response: any = null;
     try {
-      const config: any = { systemInstruction };
       if (enableSearch) {
-        config.tools = [{ googleSearch: {} }];
+        try {
+          response = await safeGenerateContent({
+            gemini: ai,
+            contents: message,
+            config: {
+              systemInstruction,
+              tools: [{ googleSearch: {} }],
+            },
+          });
+        } catch (groundingErr) {
+          // If search grounding fails or is throttled, fall back to standard generation
+          response = await safeGenerateContent({
+            gemini: ai,
+            contents: message,
+            config: { systemInstruction },
+          });
+        }
+      } else {
+        response = await safeGenerateContent({
+          gemini: ai,
+          contents: message,
+          config: { systemInstruction },
+        });
       }
-      response = await ai.models.generateContent({
-        model: modelName,
-        contents: message,
-        config,
-      });
-    } catch (searchErr) {
-      response = await ai.models.generateContent({
-        model: 'gemini-flash-latest',
-        contents: message,
-        config: { systemInstruction },
-      });
+    } catch (generateErr) {
+      console.warn('Primary and fallback Gemini models temporarily unavailable, engaging local semantic engine.');
+      throw generateErr;
     }
 
     let replyText = response?.text || 'Rất tiếc, tôi chưa tạo được câu trả lời phù hợp.';

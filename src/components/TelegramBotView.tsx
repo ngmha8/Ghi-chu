@@ -1,25 +1,22 @@
 import React, { useState } from 'react';
 import { TelegramConfig, NotificationLog } from '../types/index.js';
-import { api } from '../services/api.js';
 import {
   Bot,
-  Send,
-  CheckCircle2,
   MessageSquare,
   Zap,
   Settings,
   Clock,
-  Link2,
-  Copy,
   Sparkles,
-  HelpCircle,
-  PlusCircle,
   Sun,
   Moon,
   Mic,
   Volume2,
   CalendarCheck2,
-  Radio
+  Radio,
+  ExternalLink,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
 interface TelegramBotViewProps {
@@ -28,6 +25,7 @@ interface TelegramBotViewProps {
   onUpdateConfig: (config: Partial<TelegramConfig>) => void;
   onSendTestMessage: (message?: string) => void;
   onSendTelegramCommand: (command: string) => Promise<{ success: boolean; reply: string }>;
+  onNavigateToSettings?: () => void;
 }
 
 export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
@@ -36,119 +34,83 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
   onUpdateConfig,
   onSendTestMessage,
   onSendTelegramCommand,
+  onNavigateToSettings
 }) => {
-  const [tokenInput, setTokenInput] = useState(telegramConfig.botToken || '');
-  const [chatIdInput, setChatIdInput] = useState(telegramConfig.chatId || '');
-  const [testMessageText, setTestMessageText] = useState('Xin chào! Đây là thông báo kiểm tra từ AI Assistant.');
-  const [webhookStatus, setWebhookStatus] = useState<string | null>(null);
-  const [isActivatingWebhook, setIsActivatingWebhook] = useState(false);
-  const [showCreateBotGuide, setShowCreateBotGuide] = useState(false);
-
   // Daily Briefing State
   const [isGeneratingBriefing, setIsGeneratingBriefing] = useState<'morning' | 'evening' | null>(null);
   const [briefingStatus, setBriefingStatus] = useState<string | null>(null);
   const [briefingPreview, setBriefingPreview] = useState<{ title: string; text: string } | null>(null);
 
-  const webhookUrl = `${window.location.origin}/api/telegram/webhook`;
-
   // Telegram 2-Way Bot Simulator Chat State
   const [simulatorChat, setSimulatorChat] = useState<Array<{ sender: 'user' | 'bot'; text: string; time: string }>>([
     {
       sender: 'bot',
-      text: '🤖 *Chào bạn! Tôi là Telegram AI Productivity Assistant (2-Way Chat & Voice).* \n\nBạn có thể gửi tin nhắn thoại hoặc tin nhắn văn bản (ví dụ: "Thời tiết hôm nay", "Thêm việc họp sáng mai", /morning, /evening) hoặc bấm các nút bên dưới.',
+      text: '🤖 *Chào bạn! Tôi là Telegram AI Productivity Assistant (2-Way Interactive Bot).* \n\nBạn có thể gửi tin nhắn thoại hoặc tin nhắn văn bản (ví dụ: "Thời tiết hôm nay", "Thêm việc họp sáng mai", /morning, /evening) hoặc bấm các nút bên dưới để điều khiển.',
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     }
   ]);
   const [customCommandInput, setCustomCommandInput] = useState('');
   const [isBotThinking, setIsBotThinking] = useState(false);
 
-  const [webhookInfo, setWebhookInfo] = useState<any>(null);
-  const [isCheckingWebhookInfo, setIsCheckingWebhookInfo] = useState(false);
+  // Handler for Interactive Telegram Command
+  const handleExecuteCommand = async (cmdText: string) => {
+    if (!cmdText.trim()) return;
 
-  const handleSetWebhook = async () => {
-    setIsActivatingWebhook(true);
-    setWebhookStatus(null);
-    try {
-      const res = await api.setTelegramWebhook(webhookUrl);
-      if (res.success) {
-        setWebhookStatus('✅ Đã kết nối Webhook 2 chiều Telegram thành công!');
-      }
-    } catch (err: any) {
-      setWebhookStatus(`❌ ${err.message || 'Chưa thể cài đặt Webhook. Hãy kiểm tra lại Bot Token.'}`);
-    } finally {
-      setIsActivatingWebhook(false);
-    }
-  };
-
-  const handleSaveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    onUpdateConfig({
-      botToken: tokenInput,
-      chatId: chatIdInput,
-      enabled: true,
-      isConnected: true,
-    });
-    if (tokenInput.trim()) {
-      await handleSetWebhook();
-    }
-  };
-
-  const handleCheckWebhookInfo = async () => {
-    setIsCheckingWebhookInfo(true);
-    setWebhookInfo(null);
-    try {
-      const res = await api.getTelegramWebhookInfo();
-      setWebhookInfo(res.info || res);
-    } catch (err: any) {
-      setWebhookInfo({ error: err.message });
-    } finally {
-      setIsCheckingWebhookInfo(false);
-    }
-  };
-
-  const handleTriggerBriefing = async (type: 'morning' | 'evening') => {
-    setIsGeneratingBriefing(type);
-    setBriefingStatus(null);
-    try {
-      const res = await api.generateBriefing(type, true);
-      if (res.success) {
-        setBriefingPreview({
-          title: res.briefing.title,
-          text: res.briefing.reportText,
-        });
-        setBriefingStatus(
-          res.delivered
-            ? `✅ Đã tổng hợp và gửi thành công ${type === 'morning' ? 'Bản Tin Sáng' : 'Báo Cáo Tối'} đến Telegram!`
-            : `⚠️ Đã tạo bản tin thành công, nhưng chưa gửi được đến Telegram (Vui lòng kiểm tra Bot Token & Chat ID).`
-        );
-      }
-    } catch (err: any) {
-      setBriefingStatus(`❌ Lỗi: ${err.message || 'Không thể tạo bản tin'}`);
-    } finally {
-      setIsGeneratingBriefing(null);
-    }
-  };
-
-  const handleExecuteCommand = async (cmd: string) => {
     const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    setSimulatorChat(prev => [...prev, { sender: 'user', text: cmd, time: timeStr }]);
+    setSimulatorChat(prev => [...prev, { sender: 'user', text: cmdText, time: timeStr }]);
     setIsBotThinking(true);
 
     try {
-      const res = await onSendTelegramCommand(cmd);
+      const response = await onSendTelegramCommand(cmdText);
       setSimulatorChat(prev => [
         ...prev,
-        { sender: 'bot', text: res.reply || 'Đã nhận câu hỏi từ bạn.', time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) }
+        {
+          sender: 'bot',
+          text: response.reply || '✅ Lệnh đã được xử lý thành công!',
+          time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        }
       ]);
     } catch (err: any) {
       setSimulatorChat(prev => [
         ...prev,
-        { sender: 'bot', text: `❌ Lỗi thực thi: ${err.message}`, time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) }
+        {
+          sender: 'bot',
+          text: `⚠️ Lỗi xử lý: ${err.message || 'Không thể kết nối dịch vụ AI Telegram'}`,
+          time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        }
       ]);
     } finally {
       setIsBotThinking(false);
     }
   };
+
+  // Handler to manually trigger Morning / Evening Briefings
+  const handleTriggerBriefing = async (type: 'morning' | 'evening') => {
+    setIsGeneratingBriefing(type);
+    setBriefingStatus(`⏳ Đang kích hoạt tổng hợp AI Briefing (${type === 'morning' ? 'Bản Tin Sáng' : 'Báo Cáo Tối'})...`);
+    setBriefingPreview(null);
+
+    try {
+      const cmd = type === 'morning' ? '/morning' : '/evening';
+      const result = await onSendTelegramCommand(cmd);
+
+      if (result.success) {
+        setBriefingStatus(`✅ Đã tạo và bắn thành công ${type === 'morning' ? 'Bản Tin Sáng' : 'Báo Cáo Tối'} tới Telegram của bạn!`);
+        setBriefingPreview({
+          title: type === 'morning' ? '☀️ AI Executive Morning Briefing' : '🌙 AI Executive Evening Report',
+          text: result.reply
+        });
+      } else {
+        setBriefingStatus(`❌ Lỗi gửi briefing: ${result.reply}`);
+      }
+    } catch (err: any) {
+      setBriefingStatus(`❌ Lỗi kết nối: ${err.message}`);
+    } finally {
+      setIsGeneratingBriefing(null);
+    }
+  };
+
+  const isConfigured = !!telegramConfig.botToken && !!telegramConfig.chatId;
 
   return (
     <div className="space-y-6 pb-12">
@@ -159,20 +121,44 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
             <Bot className="w-5 h-5 text-[#D4AF37]" />
           </div>
           <div>
-            <h1 className="text-xl font-editorial-serif font-bold text-white">Giao tiếp 2 chiều & Tự động hóa qua Telegram</h1>
-            <p className="text-xs text-[#888888] italic">Nhận diện tin nhắn thoại (Voice to Task), AI Daily Briefing buổi sáng/tối và nút bấm Inline tương tác tức thì</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-editorial-serif font-bold text-white">Trung Tâm Tương Tác & Trợ Lý Telegram</h1>
+              {isConfigured ? (
+                <span className="text-[10px] bg-[#0C0C0C] text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded font-mono flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Bot Đã Kết Nối
+                </span>
+              ) : (
+                <span className="text-[10px] bg-[#0C0C0C] text-amber-400 border border-amber-800/60 px-2 py-0.5 rounded font-mono flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> Chưa Có Token
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-[#888888] italic">
+              Nhận diện tin nhắn thoại (Voice to Task), AI Daily Briefing buổi sáng/tối và tương tác 2 chiều thời gian thực
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 text-xs font-bold uppercase tracking-wider">
+          {onNavigateToSettings && (
+            <button
+              onClick={onNavigateToSettings}
+              className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#E0E0E0] hover:text-[#D4AF37] border border-[#2A2A2A] hover:border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Đi tới trang Cài Đặt để chỉnh sửa Bot Token, Chat ID hoặc Webhook"
+            >
+              <Settings className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Cài Đặt Bot</span>
+            </button>
+          )}
+
+          <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 text-xs font-bold uppercase tracking-wider">
             <Radio className="w-3.5 h-3.5 text-[#D4AF37] animate-pulse" />
-            <span>Phase 3 Automation Active</span>
+            <span className="hidden sm:inline">2-Way Live Active</span>
           </span>
         </div>
       </div>
 
-      {/* PHASE 3 HIGHLIGHT SECTION: AI Daily Briefing & Voice to Task Overview */}
+      {/* AI Daily Briefing & Voice to Task Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Module 1: AI Daily Briefing Center */}
         <div className="bg-[#151515] border border-[#D4AF37]/40 p-5 rounded-sm space-y-4">
@@ -273,7 +259,7 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
             <div className="flex items-center gap-2 text-[10px] text-[#AAAAAA] flex-wrap">
               <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">🎙️ Telegram Voice (.oga/.ogg)</span>
               <span>➔</span>
-              <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">🧠 Gemini 3.7 Audio Decoding</span>
+              <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">🧠 Gemini Audio Decoding</span>
               <span>➔</span>
               <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">⚡ Function Calling (createTask)</span>
               <span>➔</span>
@@ -301,221 +287,11 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
         </div>
       </div>
 
-      {/* Group Chat & Direct Chat Fix Guide Banner */}
-      <div className="bg-[#151515] border border-[#2A2A2A] p-4 rounded-sm space-y-3">
-        <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2 text-[#D4AF37]">
-          <div className="flex items-center gap-2">
-            <HelpCircle className="w-4 h-4" />
-            <h2 className="text-sm font-bold uppercase tracking-wider">
-              💡 Hướng dẫn tạo Bot riêng & Mẹo đặt câu hỏi từ Điện thoại
-            </h2>
-          </div>
-          <button
-            onClick={() => setShowCreateBotGuide(!showCreateBotGuide)}
-            className="text-xs bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] px-2.5 py-1 rounded border border-[#D4AF37]/30 transition-colors cursor-pointer font-bold"
-          >
-            {showCreateBotGuide ? '▲ Đóng Hướng Dẫn' : '➕ Xem 4 Bước Tạo Bot Mới'}
-          </button>
-        </div>
-
-        {/* Expandable Step-by-Step Bot Creation Guide */}
-        {showCreateBotGuide && (
-          <div className="bg-[#0C0C0C] p-4 rounded-sm border border-[#2A2A2A] space-y-3 text-xs">
-            <h3 className="font-bold text-white text-sm flex items-center gap-2 text-[#D4AF37]">
-              <PlusCircle className="w-4 h-4" />
-              4 Bước Tạo Telegram Bot Mới Dành Riêng Cho App (Chưa tới 2 phút)
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
-              <div className="p-3 bg-[#151515] border border-[#2A2A2A] rounded-sm space-y-1">
-                <span className="font-bold text-[#D4AF37] uppercase tracking-wide">Bước 1: Mở @BotFather</span>
-                <p className="text-[#CCCCCC]">
-                  Mở ứng dụng Telegram trên điện thoại ➔ Tìm kiếm <strong>@BotFather</strong> (có tích xanh xác minh) ➔ Bấm <strong>Start</strong>.
-                </p>
-              </div>
-
-              <div className="p-3 bg-[#151515] border border-[#2A2A2A] rounded-sm space-y-1">
-                <span className="font-bold text-[#D4AF37] uppercase tracking-wide">Bước 2: Tạo Bot mới</span>
-                <p className="text-[#CCCCCC]">
-                  Gõ lệnh <code className="bg-black text-[#D4AF37] px-1 py-0.5 rounded font-mono">/newbot</code> ➔ Đặt tên hiển thị (vd: <em>AI Productivity Assistant</em>) ➔ Đặt username cho Bot kết thúc bằng <code className="bg-black text-[#D4AF37] px-1 py-0.5 rounded font-mono">bot</code> (vd: <em>MyPersonalAI_bot</em>).
-                </p>
-              </div>
-
-              <div className="p-3 bg-[#151515] border border-[#2A2A2A] rounded-sm space-y-1">
-                <span className="font-bold text-[#D4AF37] uppercase tracking-wide">Bước 3: Lấy HTTP API Token</span>
-                <p className="text-[#CCCCCC]">
-                  BotFather sẽ gửi cho bạn 1 dãy Token (vd: <code className="bg-black text-[#D4AF37] px-1 py-0.5 rounded font-mono">7891234560:AAH...</code>). Sao chép (Copy) chuỗi Token này.
-                </p>
-              </div>
-
-              <div className="p-3 bg-[#151515] border border-[#2A2A2A] rounded-sm space-y-1">
-                <span className="font-bold text-[#D4AF37] uppercase tracking-wide">Bước 4: Nhập vào App & Kích hoạt</span>
-                <p className="text-[#CCCCCC]">
-                  Dán Token vào ô <strong>Telegram Bot Token</strong> bên dưới ➔ Bấm <strong>Lưu Cấu Hình</strong> ➔ Bấm <strong>Kích hoạt Webhook</strong>. Nhắn `/start` cho Bot để hoàn tất!
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
+      {/* Interactive Telegram 2-Way Bot Simulator & Logs */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left Col (5 cols): Bot Setup Form & Webhook Settings */}
-        <div className="lg:col-span-5 space-y-6">
-          {/* Configuration Form */}
-          <div className="p-5 rounded-sm bg-[#151515] border border-[#2A2A2A] space-y-4">
-            <div className="flex items-center gap-2 border-b border-[#2A2A2A] pb-3">
-              <Settings className="w-4 h-4 text-[#D4AF37]" />
-              <h2 className="text-sm font-editorial-serif font-bold text-white">Cấu hình Telegram Bot</h2>
-            </div>
-
-            <form onSubmit={handleSaveConfig} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">Telegram Bot Token (từ @BotFather)</label>
-                <input
-                  type="password"
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="Ví dụ: 7891234560:AAH8xY_demo_token..."
-                  className="w-full p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px]">Telegram Chat ID / User ID</label>
-                  <span className="text-[10px] text-[#D4AF37]">✨ Tự động nhận diện khi nhắn tin</span>
-                </div>
-                <input
-                  type="text"
-                  value={chatIdInput}
-                  onChange={(e) => setChatIdInput(e.target.value)}
-                  placeholder="Ví dụ: 123456789 (Hệ thống tự động điền khi bạn chat)"
-                  className="w-full p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">Cảnh báo trước deadline (Phút)</label>
-                <select
-                  value={telegramConfig.alertOffsetMinutes}
-                  onChange={(e) => onUpdateConfig({ alertOffsetMinutes: Number(e.target.value) })}
-                  className="w-full p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
-                >
-                  <option value={15}>15 phút trước deadline</option>
-                  <option value={30}>30 phút trước deadline</option>
-                  <option value={60}>1 giờ trước deadline</option>
-                  <option value={120}>2 giờ trước deadline</option>
-                </select>
-              </div>
-
-              <div className="pt-2 flex items-center justify-between">
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-widest transition-colors cursor-pointer"
-                >
-                  Lưu Cấu Hình
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Webhook Connection Control */}
-          <div className="p-5 rounded-sm bg-[#151515] border border-[#2A2A2A] space-y-3">
-            <div className="flex items-center gap-2 border-b border-[#2A2A2A] pb-2">
-              <Link2 className="w-4 h-4 text-[#D4AF37]" />
-              <h3 className="text-sm font-editorial-serif font-bold text-white">Đường dẫn Webhook Telegram</h3>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 bg-[#0C0C0C] p-2 rounded-sm border border-[#2A2A2A]">
-                <input
-                  type="text"
-                  readOnly
-                  value={webhookUrl}
-                  className="bg-transparent text-[11px] font-mono text-[#AAAAAA] w-full focus:outline-none"
-                />
-                <button
-                  onClick={() => navigator.clipboard.writeText(webhookUrl)}
-                  title="Sao chép Webhook URL"
-                  className="p-1 hover:text-[#D4AF37] text-[#888888] transition-colors cursor-pointer"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handleSetWebhook}
-                  disabled={isActivatingWebhook}
-                  className="py-2 px-2 rounded-sm bg-[#1A1A1A] hover:bg-[#D4AF37] hover:text-black text-[#D4AF37] border border-[#D4AF37]/40 font-bold uppercase tracking-wider text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{isActivatingWebhook ? 'Đang bật...' : 'Kích hoạt Webhook'}</span>
-                </button>
-
-                <button
-                  onClick={handleCheckWebhookInfo}
-                  disabled={isCheckingWebhookInfo}
-                  className="py-2 px-2 rounded-sm bg-[#1A1A1A] hover:bg-white hover:text-black text-white border border-[#2A2A2A] font-bold uppercase tracking-wider text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>{isCheckingWebhookInfo ? 'Đang tra...' : 'Kiểm Tra Webhook'}</span>
-                </button>
-              </div>
-
-              {webhookStatus && (
-                <div className="text-xs p-2 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] font-medium leading-relaxed">
-                  {webhookStatus}
-                </div>
-              )}
-
-              {webhookInfo && (
-                <div className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] space-y-1 text-[11px] font-mono">
-                  <div className="font-bold text-[#D4AF37] uppercase">📊 Kết quả từ Telegram Server:</div>
-                  <div className="text-[#CCCCCC] break-all">
-                    URL: {webhookInfo.url || 'Chưa đăng ký'}
-                  </div>
-                  <div className="text-[#CCCCCC]">
-                    Pending Updates: {webhookInfo.pending_update_count ?? 0}
-                  </div>
-                  {webhookInfo.last_error_message && (
-                    <div className="text-red-400 font-sans mt-1">
-                      ⚠️ Lỗi Telegram gần nhất: {webhookInfo.last_error_message}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Test Telegram Alert Box */}
-          <div className="p-5 rounded-sm bg-[#151515] border border-[#2A2A2A] space-y-3">
-            <div className="flex items-center gap-2 border-b border-[#2A2A2A] pb-2">
-              <Zap className="w-4 h-4 text-[#D4AF37]" />
-              <h3 className="text-sm font-editorial-serif font-bold text-white">Gửi thông báo thử nghiệm</h3>
-            </div>
-
-            <textarea
-              value={testMessageText}
-              onChange={(e) => setTestMessageText(e.target.value)}
-              rows={2}
-              className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
-            />
-
-            <button
-              onClick={() => onSendTestMessage(testMessageText)}
-              className="w-full py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#D4AF37] hover:text-black text-[#D4AF37] border border-[#D4AF37]/40 font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>Gửi Ngay Telegram</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Right Col (7 cols): Interactive Telegram 2-Way Bot Simulator */}
-        <div className="lg:col-span-7 bg-[#151515] border border-[#2A2A2A] rounded-sm p-5 space-y-4">
+        {/* Left Simulator (8 cols) */}
+        <div className="lg:col-span-8 bg-[#151515] border border-[#2A2A2A] rounded-sm p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-[#D4AF37]" />
@@ -569,7 +345,7 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
           </div>
 
           {/* Telegram Simulator Chat Box */}
-          <div className="p-4 bg-[#0C0C0C] rounded-sm border border-[#2A2A2A] h-[340px] overflow-y-auto space-y-3">
+          <div className="p-4 bg-[#0C0C0C] rounded-sm border border-[#2A2A2A] h-[380px] overflow-y-auto space-y-3">
             {simulatorChat.map((msg, idx) => (
               <div
                 key={idx}
@@ -578,7 +354,7 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
                 <div
                   className={`max-w-[88%] p-3 rounded-sm text-xs leading-relaxed whitespace-pre-wrap ${
                     msg.sender === 'user'
-                      ? 'bg-[#D4AF37] text-black font-semibold'
+                      ? 'bg-[#D4AF37] text-black font-semibold shadow'
                       : 'bg-[#151515] border border-[#2A2A2A] text-[#E0E0E0] font-sans'
                   }`}
                 >
@@ -618,35 +394,59 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
                   setCustomCommandInput('');
                 }
               }}
-              className="px-4 py-2.5 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold uppercase tracking-widest text-xs transition-colors cursor-pointer"
+              className="px-5 py-2.5 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold uppercase tracking-widest text-xs transition-colors cursor-pointer"
             >
               Gửi
             </button>
           </div>
         </div>
 
-      </div>
-
-      {/* Notification Log History Stream */}
-      <div className="p-5 rounded-sm bg-[#151515] border border-[#2A2A2A] space-y-3">
-        <div className="flex items-center gap-2 border-b border-[#2A2A2A] pb-2">
-          <Clock className="w-4 h-4 text-[#D4AF37]" />
-          <h3 className="text-sm font-editorial-serif font-bold text-white">Lịch sử tương tác qua Telegram Bot (Notification Audit Trail)</h3>
-        </div>
-
-        <div className="space-y-2 max-h-48 overflow-y-auto">
-          {notificationLogs.map(log => (
-            <div key={log.id} className="p-3 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] flex items-center justify-between text-xs">
-              <div className="space-y-0.5">
-                <div className="font-editorial-serif font-bold text-white">{log.title}</div>
-                <div className="text-[#888888]">{log.message}</div>
+        {/* Right Notification Audit Trail (4 cols) */}
+        <div className="lg:col-span-4 bg-[#151515] border border-[#2A2A2A] rounded-sm p-5 space-y-3 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#D4AF37]" />
+                <h3 className="text-sm font-editorial-serif font-bold text-white">Lịch Sử Thông Báo</h3>
               </div>
-              <span className="text-[10px] font-mono text-[#666666] shrink-0">
-                {new Date(log.timestamp).toLocaleTimeString('vi-VN')}
-              </span>
+              <span className="text-[10px] text-[#666666] font-mono">{notificationLogs.length} events</span>
             </div>
-          ))}
+
+            <div className="space-y-2 max-h-[360px] overflow-y-auto">
+              {notificationLogs.length === 0 ? (
+                <div className="p-4 text-center text-xs text-[#666666] italic">
+                  Chưa có thông báo nào được ghi nhận.
+                </div>
+              ) : (
+                notificationLogs.map(log => (
+                  <div key={log.id} className="p-3 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-editorial-serif font-bold text-white truncate max-w-[170px]">{log.title}</span>
+                      <span className="text-[9px] font-mono text-[#666666]">
+                        {new Date(log.timestamp).toLocaleTimeString('vi-VN')}
+                      </span>
+                    </div>
+                    <p className="text-[#888888] text-[11px] leading-snug line-clamp-2">{log.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Settings Link Card */}
+          {onNavigateToSettings && (
+            <div className="pt-3 border-t border-[#2A2A2A]">
+              <button
+                onClick={onNavigateToSettings}
+                className="w-full py-2 bg-[#0C0C0C] hover:bg-[#1A1A1A] border border-[#2A2A2A] hover:border-[#D4AF37]/50 text-[#D4AF37] rounded-sm text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Mở Cài Đặt Token & Webhook</span>
+              </button>
+            </div>
+          )}
         </div>
+
       </div>
     </div>
   );

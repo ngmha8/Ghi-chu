@@ -48,6 +48,11 @@ export interface DriveFile {
   isSyncedToDrive: boolean;
   driveFileId?: string;
   uploadedAt: string;
+  syncStatus?: 'synced' | 'local_only' | 'syncing' | 'sync_error';
+  syncError?: string;
+  downloadUrl?: string;
+  previewUrl?: string;
+  textContent?: string;
 }
 
 export interface TelegramConfig {

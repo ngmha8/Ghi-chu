@@ -9,12 +9,13 @@ import {
   Search,
   HardDrive,
   ShieldCheck,
-  Bot
+  Bot,
+  Settings
 } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'architecture';
-  setActiveTab: (tab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'architecture') => void;
+  activeTab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'settings' | 'architecture';
+  setActiveTab: (tab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'settings' | 'architecture') => void;
   openNewTaskModal: () => void;
   openNewNoteModal: () => void;
   isAiDrawerOpen: boolean;
@@ -180,6 +181,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Bot className="w-3.5 h-3.5" />
             <span>Telegram Bot</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-3 py-2 font-medium flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'settings'
+                ? 'text-[#D4AF37] border-b-2 border-[#D4AF37] font-bold'
+                : 'text-[#888888] hover:text-[#E0E0E0]'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Cài Đặt</span>
           </button>
 
           <button

@@ -90,6 +90,16 @@ export const api = {
     return res.json();
   },
 
+  updateFile: async (id: string, fileData: Partial<DriveFile>): Promise<DriveFile> => {
+    const res = await fetch(`/api/files/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fileData),
+    });
+    if (!res.ok) throw new Error('Failed to update file');
+    return res.json();
+  },
+
   // Telegram Config & Webhook Bot Endpoints
   getTelegramConfig: async (): Promise<{ config: TelegramConfig; logs: NotificationLog[] }> => {
     const res = await fetch('/api/telegram/config');

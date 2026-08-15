@@ -59,6 +59,22 @@
         "read": { "type": "boolean" }
       },
       "required": ["title", "message", "type", "timestamp"]
+    },
+    "DriveFile": {
+      "title": "DriveFile",
+      "description": "Google Drive and cloud storage files",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "mimeType": { "type": "string" },
+        "size": { "type": "number" },
+        "webViewLink": { "type": "string" },
+        "category": { "type": "string" },
+        "isSyncedToDrive": { "type": "boolean" },
+        "driveFileId": { "type": "string" },
+        "uploadedAt": { "type": "string" }
+      },
+      "required": ["name", "size", "category"]
     }
   },
   "firestore": {
@@ -69,6 +85,10 @@
     "/notes/{noteId}": {
       "entity": "Note",
       "description": "User notes"
+    },
+    "/files/{fileId}": {
+      "entity": "DriveFile",
+      "description": "Uploaded documents and files"
     },
     "/config/{configId}": {
       "entity": "TelegramConfig",

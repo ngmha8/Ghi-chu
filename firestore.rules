@@ -7,6 +7,9 @@ service cloud.firestore {
     match /notes/{noteId} {
       allow read, write: if true;
     }
+    match /files/{fileId} {
+      allow read, write: if true;
+    }
     match /config/{configId} {
       allow read, write: if true;
     }

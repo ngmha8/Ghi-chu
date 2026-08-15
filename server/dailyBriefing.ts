@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { Task, Note } from '../src/types/index.ts';
+import { safeGenerateContent } from './geminiHelper.ts';
 
 export interface DailyBriefingResult {
   type: 'morning' | 'evening';
@@ -53,15 +54,23 @@ YÊU CẦU ĐỊNH DẠNG (Bắt buộc dùng Markdown đẹp cho Telegram):
 Viết bằng tiếng Việt, dùng emoji sinh động, định dạng Markdown rõ ràng.`;
 
     try {
-      const res = await gemini.models.generateContent({
-        model: 'gemini-3.7-flash',
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      });
+      let res: any = null;
+      try {
+        res = await safeGenerateContent({
+          gemini,
+          contents: prompt,
+          config: {
+            tools: [{ googleSearch: {} }],
+          },
+        });
+      } catch {
+        res = await safeGenerateContent({
+          gemini,
+          contents: prompt,
+        });
+      }
 
-      const reportText = res.text || `🌅 *BẢN TIN ĐIỂM HẸN BUỔI SÁNG*\n\nChào ngày mới ${dateStr}!\n\n📋 *Hôm nay bạn có ${todayTasks.length} công việc cần xử lý.*\nChúc bạn một ngày làm việc hiệu quả và tràn đầy năng lượng!`;
+      const reportText = res?.text || `🌅 *BẢN TIN ĐIỂM HẸN BUỔI SÁNG*\n\nChào ngày mới ${dateStr}!\n\n📋 *Hôm nay bạn có ${todayTasks.length} công việc cần xử lý.*\nChúc bạn một ngày làm việc hiệu quả và tràn đầy năng lượng!`;
 
       return {
         type: 'morning',
@@ -97,12 +106,12 @@ YÊU CẦU ĐỊNH DẠNG (Markdown Telegram):
 Viết ngắn gọn, chuyên nghiệp, tiếng Việt lịch thiệp, nhiều emoji ấm áp.`;
 
     try {
-      const res = await gemini.models.generateContent({
-        model: 'gemini-3.7-flash',
+      const res = await safeGenerateContent({
+        gemini,
         contents: prompt,
       });
 
-      const reportText = res.text || `🌙 *BÁO CÁO TỔNG KẾT BUỔI TỐI*\n\n${dateStr}\n\n🏆 Bạn đã hoàn thành ${completedToday.length} công việc hôm nay!\nChúc bạn có một buổi tối thư giãn và ngon giấc!`;
+      const reportText = res?.text || `🌙 *BÁO CÁO TỔNG KẾT BUỔI TỐI*\n\n${dateStr}\n\n🏆 Bạn đã hoàn thành ${completedToday.length} công việc hôm nay!\nChúc bạn có một buổi tối thư giãn và ngon giấc!`;
 
       return {
         type: 'evening',

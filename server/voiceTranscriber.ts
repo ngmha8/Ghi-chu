@@ -1,7 +1,9 @@
 import { GoogleGenAI } from '@google/genai';
+import { safeGenerateContent } from './geminiHelper.ts';
 
 /**
  * Transcribes a Telegram voice or audio message using Gemini Multimodal Audio
+ * with automated retries and multi-model fallback.
  */
 export async function transcribeTelegramVoice(
   botToken: string,
@@ -34,11 +36,11 @@ export async function transcribeTelegramVoice(
     else if (filePath.endsWith('.wav')) mimeType = 'audio/wav';
     else if (filePath.endsWith('.m4a')) mimeType = 'audio/m4a';
 
-    // 4. Multimodal Audio Transcription with Gemini 3.7 Flash
+    // 4. Multimodal Audio Transcription with resilient Gemini fallback
     const prompt = 'Bạn là chuyên gia nhận dạng giọng nói tiếng Việt độ chính xác cao. Hãy chuyển đổi toàn bộ âm thanh trong file ghi âm này thành văn bản tiếng Việt chuẩn ngữ pháp, dấu chấm phẩy rõ ràng. Chỉ trả về nội dung nguyên văn câu nói của người dùng, không thêm lời chào hay giải thích nào khác.';
 
-    const response = await gemini.models.generateContent({
-      model: 'gemini-3.7-flash',
+    const response = await safeGenerateContent({
+      gemini,
       contents: [
         {
           inlineData: {
@@ -48,9 +50,10 @@ export async function transcribeTelegramVoice(
         },
         prompt,
       ],
+      models: ['gemini-3.7-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'],
     });
 
-    const transcribed = (response.text || '').trim();
+    const transcribed = (response?.text || '').trim();
     return transcribed;
   } catch (err: any) {
     console.error('transcribeTelegramVoice error:', err);
