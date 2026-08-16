@@ -1,4 +1,4 @@
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage } from '../types/index.js';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage, DriveServiceAccountConfig } from '../types/index.js';
 
 export const api = {
   // Task Endpoints
@@ -213,5 +213,66 @@ export const api = {
     const res = await fetch('/api/system/schema');
     if (!res.ok) throw new Error('Failed to fetch system schema');
     return res.json();
+  },
+
+  // Google Drive Service Account API
+  getDriveServiceAccountConfig: async (): Promise<DriveServiceAccountConfig> => {
+    const res = await fetch('/api/drive-service-account/config');
+    if (!res.ok) throw new Error('Failed to fetch Drive Service Account config');
+    return res.json();
+  },
+
+  updateDriveServiceAccountConfig: async (config: Partial<DriveServiceAccountConfig>): Promise<{ success: boolean; config: DriveServiceAccountConfig }> => {
+    const res = await fetch('/api/drive-service-account/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Failed to update Drive Service Account config');
+    }
+    return res.json();
+  },
+
+  testDriveServiceAccount: async (payload: {
+    clientEmail?: string;
+    privateKey?: string;
+    folderId?: string;
+    serviceAccountRawJson?: string;
+  }): Promise<{
+    success: boolean;
+    folderName: string;
+    canEdit: boolean;
+    owners: string[];
+    message: string;
+  }> => {
+    const res = await fetch('/api/drive-service-account/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Kiểm tra kết nối Service Account thất bại');
+    }
+    return data;
+  },
+
+  syncDriveServiceAccount: async (): Promise<{
+    success: boolean;
+    syncedCount: number;
+    files: DriveFile[];
+    lastSyncAt: string;
+  }> => {
+    const res = await fetch('/api/drive-service-account/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Lỗi đồng bộ tệp từ Google Drive');
+    }
+    return data;
   }
 };

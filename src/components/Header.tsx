@@ -1,4 +1,6 @@
 import React from 'react';
+import { GlobalSearchInput } from './GlobalSearchInput.js';
+import { Task, Note, DriveFile } from '../types/index.js';
 import {
   CheckSquare,
   FileText,
@@ -6,7 +8,6 @@ import {
   Sparkles,
   Layers,
   Plus,
-  Search,
   HardDrive,
   ShieldCheck,
   Bot,
@@ -23,6 +24,13 @@ interface HeaderProps {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   unreadNotifsCount: number;
+  availableTags?: string[];
+  tasks?: Task[];
+  notes?: Note[];
+  files?: DriveFile[];
+  onSelectTask?: (task: Task) => void;
+  onSelectNote?: (note: Note) => void;
+  onSelectFile?: (file: DriveFile) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,6 +43,13 @@ export const Header: React.FC<HeaderProps> = ({
   searchQuery,
   setSearchQuery,
   unreadNotifsCount,
+  availableTags = ['Công việc', 'Báo cáo', 'Tài chính', 'Kế hoạch', 'Dự án', 'Architecture', 'AI'],
+  tasks = [],
+  notes = [],
+  files = [],
+  onSelectTask = () => {},
+  onSelectNote = () => {},
+  onSelectFile = () => {},
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-[#0F0F0F]/95 backdrop-blur border-b border-[#2A2A2A] text-[#E0E0E0]">
@@ -59,15 +74,19 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Global Search Input */}
-        <div className="flex-1 max-w-md hidden md:block relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#666666]" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm công việc, ghi chú, tệp tin..."
+        {/* Global Search Input with instant tasks, notes, files list results */}
+        <div className="flex-1 max-w-lg hidden md:block relative">
+          <GlobalSearchInput
+            placeholder="Tìm kiếm công việc, ghi chú, tài liệu (gõ # để gợi ý tag)..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-[#151515] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] placeholder-[#666666] focus:outline-none focus:border-[#D4AF37] transition-colors"
+            onChange={setSearchQuery}
+            tasks={tasks}
+            notes={notes}
+            files={files}
+            availableTags={availableTags}
+            onSelectTask={onSelectTask}
+            onSelectNote={onSelectNote}
+            onSelectFile={onSelectFile}
           />
         </div>
 

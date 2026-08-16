@@ -1,5 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { DriveFile, Task, Note } from '../types/index.ts';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { DriveFile, Task, Note, DriveServiceAccountConfig } from '../types/index.ts';
+import { TagSearchInput } from './TagSearchInput.js';
+import { api } from '../services/api.js';
 import {
   FolderSync,
   UploadCloud,
@@ -43,6 +45,8 @@ import {
 } from 'lucide-react';
 import {
   signInWithGoogle,
+  signInWithGoogleGIS,
+  refreshAccessTokenSilently,
   logOutGoogle,
   initGoogleAuth,
   uploadFileToGoogleDrive,
@@ -96,6 +100,10 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const [isChangingFolder, setIsChangingFolder] = useState(false);
   const [customFolderNameInput, setCustomFolderNameInput] = useState('');
 
+  // Service Account State
+  const [saConfig, setSaConfig] = useState<DriveServiceAccountConfig | null>(null);
+  const [isSyncingSa, setIsSyncingSa] = useState(false);
+
   // Syncing state per file
   const [syncingFileIds, setSyncingFileIds] = useState<Record<string, boolean>>({});
 
@@ -123,8 +131,15 @@ export const FilesView: React.FC<FilesViewProps> = ({
   // Delete Confirmation Modal
   const [fileToDelete, setFileToDelete] = useState<DriveFile | null>(null);
 
-  // Initialize and observe Google Auth changes
+  // Initialize and observe Google Auth changes & SA config
   useEffect(() => {
+    // Load Service Account config
+    api.getDriveServiceAccountConfig()
+      .then(cfg => {
+        setSaConfig(cfg);
+      })
+      .catch(e => console.warn('Could not load SA config:', e));
+
     const unsubscribe = initGoogleAuth((user, token) => {
       setGoogleUser(user);
       setAccessToken(token);
@@ -142,6 +157,25 @@ export const FilesView: React.FC<FilesViewProps> = ({
     });
     return () => unsubscribe();
   }, []);
+
+  // Handle Sync with Service Account
+  const handleSyncFromServiceAccount = async () => {
+    setIsSyncingSa(true);
+    setSyncStatusMsg('Đang quét và đồng bộ tệp từ Google Drive (Service Account)...');
+    try {
+      const res = await api.syncDriveServiceAccount();
+      setSyncStatusMsg(`✅ Đã đồng bộ thành công ${res.syncedCount} tệp từ Google Drive!`);
+      // Reload updated SA config
+      const cfg = await api.getDriveServiceAccountConfig();
+      setSaConfig(cfg);
+      // Reload page data by window reload or parent notification
+      window.location.reload();
+    } catch (err: any) {
+      setSyncStatusMsg(`❌ ${err.message || 'Lỗi khi đồng bộ từ Google Drive'}`);
+    } finally {
+      setIsSyncingSa(false);
+    }
+  };
 
   // Fetch preview content when preview modal opens
   useEffect(() => {
@@ -168,12 +202,36 @@ export const FilesView: React.FC<FilesViewProps> = ({
       .finally(() => setIsLoadingPreview(false));
   }, [previewFile]);
 
-  // Handle Google OAuth Sign In
+  // Handle Google OAuth Sign In or Token Renewal
   const handleGoogleLogin = async () => {
     setIsAuthenticating(true);
     setAuthError(null);
     try {
-      const { user, accessToken: token } = await signInWithGoogle();
+      let token = accessToken;
+      let user = googleUser;
+
+      // 1. Try silent refresh first if user was already connected
+      try {
+        const freshToken = await refreshAccessTokenSilently();
+        if (freshToken) {
+          token = freshToken;
+          setAccessToken(freshToken);
+          setTokenExpired(false);
+          const folder = await getOrCreateAppFolder(freshToken);
+          setAppFolder(folder);
+          setSyncStatusMsg(`Đã tự động gia hạn phiên Google Drive thành công! Thư mục: 📁 ${folder.name}`);
+          setTimeout(() => setSyncStatusMsg(null), 4000);
+          return;
+        }
+      } catch (silentErr) {
+        console.log('Silent refresh unavailable, proceeding with standard sign in...', silentErr);
+      }
+
+      // 2. Standard Google Sign In / GIS
+      const result = await signInWithGoogleGIS().catch(() => signInWithGoogle());
+      user = result.user;
+      token = result.accessToken;
+
       setGoogleUser(user);
       setAccessToken(token);
       setTokenExpired(false);
@@ -475,10 +533,42 @@ export const FilesView: React.FC<FilesViewProps> = ({
     setInputUrl('');
   };
 
+  // Collect available tags across linked tasks and notes
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    const defaults = ['Tài liệu', 'Báo cáo', 'Tài chính', 'Kế hoạch', 'Dự án', 'Architecture', 'AI', 'Google Drive'];
+    defaults.forEach(t => set.add(t));
+    tasks?.forEach(t => t.tags?.forEach(tag => tag && set.add(tag.trim())));
+    notes?.forEach(n => n.tags?.forEach(tag => tag && set.add(tag.trim())));
+    return Array.from(set).filter(Boolean);
+  }, [tasks, notes]);
+
   const filteredFiles = files.filter(f => {
     if (categoryFilter !== 'all' && f.category !== categoryFilter) return false;
     if (search.trim()) {
-      return f.name.toLowerCase().includes(search.toLowerCase());
+      const q = search.toLowerCase();
+      // Handle #tag query
+      const tagQueries = q.match(/#([\w\p{L}]+)/gu)?.map(t => t.slice(1).toLowerCase()) || [];
+      const nonTagQ = q.replace(/#([\w\p{L}]+)/gu, '').trim();
+
+      const matchName = !nonTagQ || f.name.toLowerCase().includes(nonTagQ);
+
+      // Check if linked tasks or notes have the tag
+      const linkedTasks = tasks.filter(t => t.attachedFileIds?.includes(f.id));
+      const linkedNotes = notes.filter(n => n.attachedFileIds?.includes(f.id));
+      const fileTags = [
+        ...linkedTasks.flatMap(t => t.tags || []),
+        ...linkedNotes.flatMap(n => n.tags || []),
+        f.category
+      ];
+
+      const matchAllTags = tagQueries.length === 0 || tagQueries.every(tq => 
+        fileTags.some(t => t.toLowerCase().includes(tq))
+      );
+
+      const matchAnyTag = fileTags.some(t => t.toLowerCase().includes(q));
+
+      return (matchName && matchAllTags) || matchAnyTag;
     }
     return true;
   });
@@ -510,23 +600,32 @@ export const FilesView: React.FC<FilesViewProps> = ({
             <FolderLock className="w-5 h-5 text-[#D4AF37]" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-editorial-serif font-bold text-white">Quản lý Tài liệu & Kho Tệp</h1>
-              <span className="text-[10px] bg-[#0C0C0C] text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded font-mono">
-                📁 {appFolder?.name || DEFAULT_APP_FOLDER_NAME}
-              </span>
+              {saConfig?.isConnected ? (
+                <span className="text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-700/80 px-2.5 py-0.5 rounded font-mono font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span>Google Drive SA: {saConfig.folderName || 'Thư Mục Cố Định'}</span>
+                </span>
+              ) : (
+                <span className="text-[10px] bg-[#0C0C0C] text-[#AAAAAA] border border-[#2A2A2A] px-2 py-0.5 rounded font-mono">
+                  📁 {appFolder?.name || DEFAULT_APP_FOLDER_NAME}
+                </span>
+              )}
             </div>
             <p className="text-xs text-[#888888] italic">
-              Tài liệu được lưu trữ cách ly an toàn trong một thư mục chuyên biệt trên Google Drive
+              {saConfig?.isConnected
+                ? 'Tất cả tệp được tự động tải lên và đồng bộ với thư mục Google Drive chung cho mọi máy tính'
+                : 'Tài liệu được lưu trữ cách ly an toàn trong một thư mục chuyên biệt trên Google Drive'}
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Quick External Link to Google Drive folder */}
-          {appFolder?.webViewLink && (
+          {(saConfig?.folderId || appFolder?.webViewLink) && (
             <a
-              href={appFolder.webViewLink}
+              href={saConfig?.folderId ? `https://drive.google.com/drive/folders/${saConfig.folderId}` : (appFolder?.webViewLink || '#')}
               target="_blank"
               rel="noreferrer"
               className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
@@ -538,28 +637,43 @@ export const FilesView: React.FC<FilesViewProps> = ({
             </a>
           )}
 
+          {/* Service Account Direct Sync Button */}
+          {saConfig?.isConnected && (
+            <button
+              onClick={handleSyncFromServiceAccount}
+              disabled={isSyncingSa}
+              className="px-3 py-2 rounded-sm bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/80 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              title="Đồng bộ lại toàn bộ tài liệu từ Google Drive của Service Account"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSa ? 'animate-spin' : ''}`} />
+              <span>{isSyncingSa ? 'Đang đồng bộ...' : 'Đồng Bộ Drive SA'}</span>
+            </button>
+          )}
+
           {/* Shortcut to Settings */}
           {onNavigateToSettings && (
             <button
               onClick={onNavigateToSettings}
               className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] hover:border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Đi tới trang Cài Đặt để cấu hình tài khoản Google hoặc đổi tên thư mục"
+              title="Đi tới trang Cài Đặt để cấu hình tài khoản Google hoặc Service Account"
             >
               <Settings className="w-3.5 h-3.5 text-[#D4AF37]" />
               <span>Cài Đặt Drive</span>
             </button>
           )}
 
-          {/* Sync from Google Drive Dedicated Folder */}
-          <button
-            onClick={handleSyncFromDrive}
-            disabled={isSyncing}
-            className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Đồng bộ danh sách tệp từ thư mục riêng về ứng dụng"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#D4AF37] ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'Đang tải...' : 'Lấy tệp từ Drive'}</span>
-          </button>
+          {/* Sync from Google Drive Dedicated Folder (OAuth) */}
+          {!saConfig?.isConnected && (
+            <button
+              onClick={handleSyncFromDrive}
+              disabled={isSyncing}
+              className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Đồng bộ danh sách tệp từ thư mục riêng về ứng dụng"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#D4AF37] ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Đang tải...' : 'Lấy tệp từ Drive'}</span>
+            </button>
+          )}
 
           {/* 1-Click Sync All Unsynced */}
           {googleUser && localOnlyCount > 0 && (
@@ -714,14 +828,12 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
       {/* Search & Category Filter */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#151515] p-3 rounded-sm border border-[#2A2A2A]">
-        <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#666666]" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm tài liệu trong thư mục theo tên tệp..."
+        <div className="flex-1 w-full">
+          <TagSearchInput
+            placeholder="Tìm kiếm tài liệu (gõ # để lọc theo tag liên kết)..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
+            onChange={setSearch}
+            availableTags={availableTags}
           />
         </div>
 

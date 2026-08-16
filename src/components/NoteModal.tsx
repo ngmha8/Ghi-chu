@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Note, Task, DriveFile } from '../types/index.js';
 import { X, FileText, Paperclip } from 'lucide-react';
+import { TagAutocompleteInput } from './TagAutocompleteInput.js';
 
 interface NoteModalProps {
   isOpen: boolean;
@@ -8,6 +9,7 @@ interface NoteModalProps {
   onSave: (noteData: Partial<Note>) => void;
   tasks: Task[];
   files: DriveFile[];
+  existingNotes?: Note[];
 }
 
 export const NoteModal: React.FC<NoteModalProps> = ({
@@ -16,12 +18,39 @@ export const NoteModal: React.FC<NoteModalProps> = ({
   onSave,
   tasks,
   files,
+  existingNotes = [],
 }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+
+  // Collect all unique tags for suggestions
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    const defaults = ['Ghi chú', 'Kế hoạch', 'Ý tưởng', 'Cuộc họp', 'Tài liệu', 'Khảo sát', 'Dự án'];
+    defaults.forEach(t => set.add(t));
+    tasks.forEach(t => t.tags?.forEach(tag => tag && set.add(tag.trim())));
+    existingNotes.forEach(n => n.tags?.forEach(tag => tag && set.add(tag.trim())));
+    return Array.from(set).filter(Boolean);
+  }, [tasks, existingNotes]);
+
+  // Current tags array
+  const currentTags = useMemo(() => {
+    return tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+  }, [tagsInput]);
+
+  const handleToggleTag = (tagToAdd: string) => {
+    const exists = currentTags.some(t => t.toLowerCase() === tagToAdd.toLowerCase());
+    if (exists) {
+      const updated = currentTags.filter(t => t.toLowerCase() !== tagToAdd.toLowerCase());
+      setTagsInput(updated.join(', '));
+    } else {
+      const updated = [...currentTags, tagToAdd];
+      setTagsInput(updated.join(', '));
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -103,13 +132,19 @@ export const NoteModal: React.FC<NoteModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-[#E0E0E0] font-editorial-serif font-bold mb-1">Tags (phân cách bằng dấu phẩy)</label>
-            <input
-              type="text"
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[#E0E0E0] font-editorial-serif font-bold">
+                Tags (Gõ # để mở danh sách gợi ý & tìm kiếm)
+              </label>
+              <span className="text-[10px] text-[#888888] italic">
+                Phân cách bằng dấu phẩy
+              </span>
+            </div>
+            <TagAutocompleteInput
               value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="vd: Kế hoạch, AI, Khảo sát"
-              className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
+              onChange={setTagsInput}
+              availableTags={availableTags}
+              placeholder="vd: #Kế hoạch, #AI (gõ # để gợi ý danh sách)..."
             />
           </div>
 

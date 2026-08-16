@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage } from './types/index.js';
 import { api } from './services/api.js';
 import {
@@ -54,6 +54,16 @@ export default function App() {
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Collect all available tags across tasks and notes
+  const allAvailableTags = useMemo(() => {
+    const set = new Set<string>();
+    const defaults = ['Công việc', 'Báo cáo', 'Tài chính', 'Họp', 'Kế hoạch', 'Dự án', 'Architecture', 'AI', 'Google Drive'];
+    defaults.forEach(t => set.add(t));
+    tasks.forEach(t => t.tags?.forEach(tag => tag && set.add(tag.trim())));
+    notes.forEach(n => n.tags?.forEach(tag => tag && set.add(tag.trim())));
+    return Array.from(set).filter(Boolean);
+  }, [tasks, notes]);
 
   // Initial Fetching & Firestore Realtime Subscriptions
   useEffect(() => {
@@ -297,6 +307,21 @@ export default function App() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         unreadNotifsCount={notificationLogs.length}
+        availableTags={allAvailableTags}
+        tasks={tasks}
+        notes={notes}
+        files={files}
+        onSelectTask={(task) => {
+          setEditingTask(task);
+          setIsTaskModalOpen(true);
+          setActiveTab('tasks');
+        }}
+        onSelectNote={(_note) => {
+          setActiveTab('notes');
+        }}
+        onSelectFile={(_file) => {
+          setActiveTab('files');
+        }}
       />
 
       {/* Main Content Area */}
@@ -404,6 +429,8 @@ export default function App() {
         }}
         initialTask={editingTask}
         files={files}
+        existingTasks={tasks}
+        existingNotes={notes}
       />
 
       {/* Note Creation Modal */}
@@ -413,6 +440,7 @@ export default function App() {
         onSave={handleNoteCreate}
         tasks={tasks}
         files={files}
+        existingNotes={notes}
       />
     </div>
   );

@@ -23,6 +23,7 @@ const STORAGE_FOLDER_NAME_KEY = 'ai_app_drive_folder_name';
 const STORAGE_TOKEN_KEY = 'ai_app_google_drive_access_token';
 const STORAGE_USER_KEY = 'ai_app_google_user_info';
 const STORAGE_CLIENT_ID_KEY = 'ai_app_custom_google_client_id';
+const STORAGE_TOKEN_TIMESTAMP_KEY = 'ai_app_google_token_timestamp';
 
 export function getCustomGoogleClientId(): string {
   return localStorage.getItem(STORAGE_CLIENT_ID_KEY) || '';
@@ -59,12 +60,56 @@ let cachedUser: any | null = (() => {
   }
 })();
 
+// Auto-refresh timer reference
+let autoRefreshTimer: any = null;
+
+function saveTokenWithTimestamp(token: string) {
+  cachedAccessToken = token;
+  localStorage.setItem(STORAGE_TOKEN_KEY, token);
+  localStorage.setItem(STORAGE_TOKEN_TIMESTAMP_KEY, Date.now().toString());
+  startAutoRefreshScheduler();
+}
+
+export function isTokenNearingExpiry(): boolean {
+  const ts = localStorage.getItem(STORAGE_TOKEN_TIMESTAMP_KEY);
+  if (!ts) return false;
+  const ageMs = Date.now() - parseInt(ts, 10);
+  // Near expiry if older than 50 minutes (3000 seconds)
+  return ageMs > 50 * 60 * 1000;
+}
+
+/**
+ * Start background timer to auto-refresh token every 45 minutes
+ */
+export function startAutoRefreshScheduler() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+  }
+  // Check every 10 minutes, refresh if older than 45 minutes
+  autoRefreshTimer = setInterval(async () => {
+    if (getAccessToken() && isTokenNearingExpiry()) {
+      console.log('🔄 [Google OAuth] Token is nearing 50-minute threshold. Attempting background auto-refresh...');
+      try {
+        await refreshAccessTokenSilently();
+        console.log('✅ [Google OAuth] Token successfully auto-refreshed in background!');
+      } catch (err) {
+        console.warn('⚠️ [Google OAuth] Background silent refresh failed, will prompt when active:', err);
+      }
+    }
+  }, 10 * 60 * 1000);
+}
+
 export const initGoogleAuth = (
   onAuthChange?: (user: User | null, token: string | null) => void
 ) => {
   // If we have cached token and user in localStorage, notify immediately
   if (cachedUser && cachedAccessToken && onAuthChange) {
     onAuthChange(cachedUser as User, cachedAccessToken);
+  }
+
+  // Start background auto-refresh if logged in
+  if (cachedAccessToken) {
+    startAutoRefreshScheduler();
   }
 
   return onAuthStateChanged(auth, async (user: User | null) => {
@@ -86,6 +131,60 @@ export const initGoogleAuth = (
 };
 
 /**
+ * Silent Token Refresh using Google Identity Services (GIS)
+ * Seamlessly renews Google Drive Access Token without popup interaction.
+ */
+export async function refreshAccessTokenSilently(): Promise<string> {
+  const customId = getCustomGoogleClientId();
+  const effectiveClientId = customId || (firebaseConfig as any).oAuthClientId || '797950767923-2ibe3kgt6hl8uahlmn0pk1vh5u5qlmr5.apps.googleusercontent.com';
+
+  return new Promise((resolve, reject) => {
+    const initClient = () => {
+      try {
+        const client = (window as any).google?.accounts?.oauth2?.initTokenClient({
+          client_id: effectiveClientId,
+          scope: SCOPES.join(' '),
+          prompt: '', // Silent renew
+          callback: async (response: any) => {
+            if (response.error) {
+              reject(new Error(response.error_description || response.error));
+              return;
+            }
+            if (response.access_token) {
+              saveTokenWithTimestamp(response.access_token);
+              resolve(response.access_token);
+            } else {
+              reject(new Error('Silent refresh did not return access token'));
+            }
+          }
+        });
+
+        if (!client) {
+          throw new Error('GIS client not available');
+        }
+
+        client.requestAccessToken({ prompt: '' });
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    if ((window as any).google?.accounts?.oauth2) {
+      initClient();
+    } else {
+      const script = document.getElementById('google-gis-script') || document.createElement('script');
+      script.id = 'google-gis-script';
+      (script as HTMLScriptElement).src = 'https://accounts.google.com/gsi/client';
+      script.onload = () => initClient();
+      script.onerror = () => reject(new Error('Could not load Google GIS'));
+      if (!document.getElementById('google-gis-script')) {
+        document.body.appendChild(script);
+      }
+    }
+  });
+}
+
+/**
  * Direct Google OAuth flow using Google Identity Services (GIS)
  * Works as a robust fallback without being blocked by Firebase Auth unauthorized domain.
  */
@@ -105,8 +204,7 @@ export async function signInWithGoogleGIS(clientId?: string): Promise<{ user: an
               return;
             }
             if (response.access_token) {
-              cachedAccessToken = response.access_token;
-              localStorage.setItem(STORAGE_TOKEN_KEY, response.access_token);
+              saveTokenWithTimestamp(response.access_token);
 
               let fakeUser: any = {
                 uid: 'google-oauth-user',
@@ -180,9 +278,8 @@ export const signInWithGoogle = async (): Promise<{ user: User; accessToken: str
       throw new Error('Không lấy được Access Token từ Google Auth. Hãy cấp quyền truy cập Drive.');
     }
 
-    cachedAccessToken = credential.accessToken;
+    saveTokenWithTimestamp(credential.accessToken);
     cachedUser = result.user;
-    localStorage.setItem(STORAGE_TOKEN_KEY, credential.accessToken);
     localStorage.setItem(STORAGE_USER_KEY, JSON.stringify({
       uid: result.user.uid,
       email: result.user.email,
@@ -223,8 +320,7 @@ export const setCustomAccessToken = async (token: string): Promise<{ user: any; 
     throw new Error('Access Token không hợp lệ hoặc đã hết hạn. Hãy kiểm tra lại.');
   }
 
-  cachedAccessToken = cleanToken;
-  localStorage.setItem(STORAGE_TOKEN_KEY, cleanToken);
+  saveTokenWithTimestamp(cleanToken);
 
   let fakeUser: any = {
     uid: 'custom-token-user',

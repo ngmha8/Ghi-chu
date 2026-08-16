@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { TelegramConfig, DriveFile } from '../types/index.js';
+import { TelegramConfig, DriveFile, DriveServiceAccountConfig } from '../types/index.js';
 import { api } from '../services/api.js';
 import {
   signInWithGoogle,
   signInWithGoogleGIS,
+  refreshAccessTokenSilently,
   setCustomAccessToken,
   getCustomGoogleClientId,
   setCustomGoogleClientId,
@@ -102,10 +103,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [clientIdInput, setClientIdInput] = useState(getCustomGoogleClientId());
   const [isSubmittingManualToken, setIsSubmittingManualToken] = useState(false);
 
+  // --- Service Account (Multi-Device Fixed Folder) State ---
+  const [saConfig, setSaConfig] = useState<DriveServiceAccountConfig>({
+    clientEmail: '',
+    privateKey: '',
+    folderId: '',
+    isEnabled: true,
+    isConnected: false,
+  });
+  const [saEmailInput, setSaEmailInput] = useState('');
+  const [saKeyInput, setSaKeyInput] = useState('');
+  const [saFolderIdInput, setSaFolderIdInput] = useState('');
+  const [saJsonInput, setSaJsonInput] = useState('');
+  const [saInputMode, setSaInputMode] = useState<'json' | 'manual'>('json');
+  const [isTestingSa, setIsTestingSa] = useState(false);
+  const [isSyncingSa, setIsSyncingSa] = useState(false);
+  const [isSavingSa, setIsSavingSa] = useState(false);
+  const [saTestResult, setSaTestResult] = useState<any>(null);
+  const [saError, setSaError] = useState<string | null>(null);
+  const [saSuccessMsg, setSaSuccessMsg] = useState<string | null>(null);
+  const [showSaKey, setShowSaKey] = useState(false);
+  const [showSaGuide, setShowSaGuide] = useState(false);
+
   const currentHostname = window.location.hostname;
   const currentOrigin = window.location.origin;
   const firebaseProjectId = (firebaseConfig as any).projectId || 'amplified-rhythm-nlsxp';
   const firebaseAuthDomainUrl = `https://console.firebase.google.com/project/${firebaseProjectId}/authentication/providers`;
+
+  // Load Service Account Config on mount
+  useEffect(() => {
+    api.getDriveServiceAccountConfig()
+      .then(cfg => {
+        setSaConfig(cfg);
+        setSaEmailInput(cfg.clientEmail || '');
+        setSaFolderIdInput(cfg.folderId || '');
+      })
+      .catch(err => console.warn('Could not load Service Account config:', err));
+  }, []);
 
   // Sync token and chatId if updated externally
   useEffect(() => {
@@ -179,12 +213,111 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  // Service Account Handlers
+  const handleSaveSaConfig = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingSa(true);
+    setSaError(null);
+    setSaSuccessMsg(null);
+    try {
+      const payload: Partial<DriveServiceAccountConfig> = {
+        folderId: saFolderIdInput.trim(),
+        isEnabled: true,
+      };
+
+      if (saInputMode === 'json' && saJsonInput.trim()) {
+        payload.serviceAccountRawJson = saJsonInput.trim();
+      } else {
+        payload.clientEmail = saEmailInput.trim();
+        if (saKeyInput.trim() && !saKeyInput.includes('********')) {
+          payload.privateKey = saKeyInput.trim();
+        }
+      }
+
+      const res = await api.updateDriveServiceAccountConfig(payload);
+      setSaConfig(res.config);
+      setSaEmailInput(res.config.clientEmail || '');
+      setSaSuccessMsg('✅ Đã lưu cấu hình Google Service Account thành công!');
+      setTimeout(() => setSaSuccessMsg(null), 4000);
+    } catch (err: any) {
+      setSaError(err.message || 'Lỗi lưu cấu hình Service Account');
+    } finally {
+      setIsSavingSa(false);
+    }
+  };
+
+  const handleTestSaConnection = async () => {
+    setIsTestingSa(true);
+    setSaError(null);
+    setSaSuccessMsg(null);
+    setSaTestResult(null);
+    try {
+      const payload: any = {
+        folderId: saFolderIdInput.trim() || saConfig.folderId,
+      };
+      if (saInputMode === 'json' && saJsonInput.trim()) {
+        payload.serviceAccountRawJson = saJsonInput.trim();
+      } else {
+        if (saEmailInput.trim()) payload.clientEmail = saEmailInput.trim();
+        if (saKeyInput.trim() && !saKeyInput.includes('********')) payload.privateKey = saKeyInput.trim();
+      }
+
+      const res = await api.testDriveServiceAccount(payload);
+      setSaTestResult(res);
+      setSaSuccessMsg(`🎉 Kết nối thành công! Thư mục Drive: "${res.folderName}"`);
+      const updatedCfg = await api.getDriveServiceAccountConfig();
+      setSaConfig(updatedCfg);
+      setSaEmailInput(updatedCfg.clientEmail || '');
+      setSaFolderIdInput(updatedCfg.folderId || '');
+    } catch (err: any) {
+      setSaError(err.message || 'Kiểm tra kết nối Service Account thất bại');
+    } finally {
+      setIsTestingSa(false);
+    }
+  };
+
+  const handleSyncSaFiles = async () => {
+    setIsSyncingSa(true);
+    setSaError(null);
+    setSaSuccessMsg(null);
+    try {
+      const res = await api.syncDriveServiceAccount();
+      setSaSuccessMsg(`✅ Đã đồng bộ thành công ${res.syncedCount} tệp từ Google Drive vào hệ thống!`);
+      const updatedCfg = await api.getDriveServiceAccountConfig();
+      setSaConfig(updatedCfg);
+      setTimeout(() => setSaSuccessMsg(null), 5000);
+    } catch (err: any) {
+      setSaError(err.message || 'Lỗi đồng bộ tệp từ Google Drive');
+    } finally {
+      setIsSyncingSa(false);
+    }
+  };
+
   // Google Login & Folder Setup
   const handleGoogleLogin = async () => {
     setIsAuthenticating(true);
     setDriveAuthError(null);
     try {
-      const { user, accessToken: token } = await signInWithGoogle();
+      // If already connected, attempt seamless silent refresh first
+      if (googleUser || accessToken) {
+        try {
+          const freshToken = await refreshAccessTokenSilently();
+          if (freshToken) {
+            setAccessToken(freshToken);
+            const folder = await getOrCreateAppFolder(freshToken);
+            setAppFolder(folder);
+            setCustomFolderName(folder.name);
+            setDriveStatusMsg(`Đã tự động gia hạn token Google Drive thành công! Thư mục: 📁 ${folder.name}`);
+            setTimeout(() => setDriveStatusMsg(null), 5000);
+            return;
+          }
+        } catch (silentErr) {
+          console.log('Silent refresh unavailable, proceeding with standard sign in...', silentErr);
+        }
+      }
+
+      const result = await signInWithGoogleGIS().catch(() => signInWithGoogle());
+      const { user, accessToken: token } = result;
       setGoogleUser(user);
       setAccessToken(token);
 
@@ -637,17 +770,286 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* SECTION 2: GOOGLE DRIVE CONFIGURATION */}
       {/* ======================================================== */}
       {(activeSection === 'all' || activeSection === 'drive') && (
-        <section className="space-y-4 pt-4">
+        <section className="space-y-6 pt-4">
           <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
             <div className="flex items-center gap-2 text-[#D4AF37]">
               <HardDrive className="w-5 h-5" />
               <h2 className="text-base font-editorial-serif font-bold text-white tracking-wide">
-                2. Cấu Hình Google Drive & Thư Mục Chuyên Biệt
+                2. Cấu Hình Google Drive & Thư Mục Cố Định Cho Mọi Máy Tính
               </h2>
             </div>
-            <span className="text-[11px] text-emerald-400 font-mono px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-800/40">
-              Single-Folder Isolation
+            <span className="text-[11px] text-[#D4AF37] font-mono px-2.5 py-0.5 rounded bg-[#D4AF37]/10 border border-[#D4AF37]/30">
+              Server-Side Service Account + Client OAuth
             </span>
+          </div>
+
+          {/* ------------------------------------------------------------- */}
+          {/* METHOD 1: GOOGLE SERVICE ACCOUNT (SERVER-SIDE MULTI-DEVICE) */}
+          {/* ------------------------------------------------------------- */}
+          <div className="bg-[#151515] border border-[#D4AF37]/50 rounded-sm p-5 space-y-4 shadow-lg">
+            <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37]">
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                      Google Service Account (Tài Khoản Dịch Vụ - Tối Ưu Nhất)
+                    </h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono font-bold border border-emerald-800">
+                      Khuyên Dùng
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#AAAAAA] mt-0.5">
+                    Cố định 1 thư mục duy nhất trên Google Drive cho <strong className="text-[#D4AF37]">mọi máy tính</strong> mà không cần người dùng phải đăng nhập Google.
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex items-center gap-2">
+                <span className={`text-[11px] px-2.5 py-1 rounded font-mono font-bold flex items-center gap-1.5 ${
+                  saConfig.isConnected
+                    ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-700'
+                    : 'bg-[#0C0C0C] text-[#888888] border border-[#2A2A2A]'
+                }`}>
+                  {saConfig.isConnected ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Đã Kết Nối Thư Mục: {saConfig.folderName || 'Drive Folder'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>Chưa Kết Nối</span>
+                    </>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSaGuide(!showSaGuide)}
+                  className="text-xs text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer ml-1"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  <span>{showSaGuide ? 'Ẩn Hướng Dẫn' : 'Xem Hướng Dẫn 4 Bước'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Guide Step-by-Step Box */}
+            {showSaGuide && (
+              <div className="p-4 bg-[#0C0C0C] border border-[#D4AF37]/30 rounded-sm space-y-3 animate-in fade-in">
+                <div className="text-xs font-bold text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" />
+                  <span>Hướng dẫn thiết lập Google Service Account trong 2 phút:</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-[11px] text-[#CCCCCC]">
+                  <div className="p-2.5 bg-[#151515] border border-[#2A2A2A] rounded space-y-1">
+                    <div className="font-bold text-[#D4AF37]">Bước 1: Tạo Service Account</div>
+                    <p className="text-[#AAAAAA]">
+                      Vào <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noreferrer" className="text-[#D4AF37] underline">GCP Service Accounts <ExternalLink className="w-2.5 h-2.5 inline" /></a> ➔ Bấm <strong>Create Service Account</strong> (Đặt tên tùy ý, ví dụ: <code>drive-bot</code>).
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-[#151515] border border-[#2A2A2A] rounded space-y-1">
+                    <div className="font-bold text-[#D4AF37]">Bước 2: Bật Google Drive API</div>
+                    <p className="text-[#AAAAAA]">
+                      Vào <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noreferrer" className="text-[#D4AF37] underline">Google Drive API <ExternalLink className="w-2.5 h-2.5 inline" /></a> ➔ Bấm <strong>Enable (Bật)</strong>.
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-[#151515] border border-[#2A2A2A] rounded space-y-1">
+                    <div className="font-bold text-[#D4AF37]">Bước 3: Tải Key JSON</div>
+                    <p className="text-[#AAAAAA]">
+                      Chọn Service Account vừa tạo ➔ Tab <strong>Keys</strong> ➔ <strong>Add Key ➔ Create new key (JSON)</strong> ➔ Tải file về máy.
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-[#151515] border border-[#2A2A2A] rounded space-y-1">
+                    <div className="font-bold text-[#D4AF37]">Bước 4: Share Thư Mục Drive</div>
+                    <p className="text-[#AAAAAA]">
+                      Mở Google Drive cá nhân ➔ Chuột phải vào Thư mục cần dùng ➔ Chọn <strong>Chia sẻ (Share)</strong> ➔ Dán email Service Account vào với quyền <strong>Người chỉnh sửa (Editor)</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Success & Error alerts */}
+            {saSuccessMsg && (
+              <div className="p-3 bg-emerald-950/60 border border-emerald-600/80 rounded text-xs text-emerald-300 font-bold flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{saSuccessMsg}</span>
+                </div>
+                <button onClick={() => setSaSuccessMsg(null)} className="text-xs text-emerald-400 hover:text-white">✕</button>
+              </div>
+            )}
+
+            {saError && (
+              <div className="p-3 bg-rose-950/60 border border-rose-700/80 rounded text-xs text-rose-300 font-bold flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{saError}</span>
+                </div>
+                <button onClick={() => setSaError(null)} className="text-xs text-rose-300 hover:text-white">✕</button>
+              </div>
+            )}
+
+            {/* Service Account Form */}
+            <div className="space-y-4">
+              {/* Folder ID Input */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px]">
+                    Google Drive Folder ID (ID Thư mục cần cố định) <span className="text-[#D4AF37]">*</span>
+                  </label>
+                  <span className="text-[10px] text-[#888888]">
+                    Lấy chuỗi sau <code className="text-[#D4AF37] font-mono font-bold">/folders/ID_Ở_ĐÂY</code> trên thanh URL trình duyệt
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={saFolderIdInput}
+                    onChange={(e) => setSaFolderIdInput(e.target.value)}
+                    placeholder="Ví dụ: 1a2B3c4D5e6F7g8H9i0JkLmNoPqRsTuVw"
+                    className="flex-1 p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                  />
+                  {saFolderIdInput && (
+                    <a
+                      href={`https://drive.google.com/drive/folders/${saFolderIdInput.trim()}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-2.5 bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#2A2A2A] rounded-sm text-xs flex items-center gap-1 shrink-0"
+                      title="Mở thư mục trên Google Drive"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5" />
+                      <span>Mở</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Mode Switch: JSON vs Manual */}
+              <div className="flex items-center gap-3 border-b border-[#222222] pb-2">
+                <button
+                  type="button"
+                  onClick={() => setSaInputMode('json')}
+                  className={`text-xs font-bold pb-1 cursor-pointer transition-colors ${
+                    saInputMode === 'json' ? 'text-[#D4AF37] border-b-2 border-[#D4AF37]' : 'text-[#888888] hover:text-white'
+                  }`}
+                >
+                  📄 Dán Trực Tiếp File JSON Key Tải Về (Nhanh nhất)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSaInputMode('manual')}
+                  className={`text-xs font-bold pb-1 cursor-pointer transition-colors ${
+                    saInputMode === 'manual' ? 'text-[#D4AF37] border-b-2 border-[#D4AF37]' : 'text-[#888888] hover:text-white'
+                  }`}
+                >
+                  ✏️ Nhập Client Email & Private Key Riêng
+                </button>
+              </div>
+
+              {saInputMode === 'json' ? (
+                <div>
+                  <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
+                    Nội dung File JSON Key Service Account:
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={saJsonInput}
+                    onChange={(e) => setSaJsonInput(e.target.value)}
+                    placeholder='Mở file .json tải về từ Google Cloud, copy toàn bộ nội dung và dán vào đây (dạng: {"type": "service_account", "client_email": "...", "private_key": "..."})'
+                    className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
+                      Service Account Client Email
+                    </label>
+                    <input
+                      type="text"
+                      value={saEmailInput}
+                      onChange={(e) => setSaEmailInput(e.target.value)}
+                      placeholder="Ví dụ: drive-bot@project-id.iam.gserviceaccount.com"
+                      className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px]">
+                        Private Key (RSA PEM)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSaKey(!showSaKey)}
+                        className="text-[10px] text-[#888888] hover:text-[#D4AF37] flex items-center gap-1"
+                      >
+                        {showSaKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        <span>{showSaKey ? 'Ẩn' : 'Hiện'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showSaKey ? 'text' : 'password'}
+                      value={saKeyInput}
+                      onChange={(e) => setSaKeyInput(e.target.value)}
+                      placeholder="-----BEGIN PRIVATE KEY----- ... -----END PRIVATE KEY-----"
+                      className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-[#2A2A2A]">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTestSaConnection}
+                    disabled={isTestingSa || (!saFolderIdInput.trim() && !saConfig.folderId)}
+                    className="py-2 px-4 rounded-sm bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingSa ? 'animate-spin' : ''}`} />
+                    <span>{isTestingSa ? 'Đang kiểm tra...' : '1. Kiểm Tra Kết Nối'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSaConfig()}
+                    disabled={isSavingSa}
+                    className="py-2 px-4 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{isSavingSa ? 'Đang lưu...' : '2. Lưu Cấu Hình'}</span>
+                  </button>
+                </div>
+
+                {saConfig.isConnected && (
+                  <button
+                    type="button"
+                    onClick={handleSyncSaFiles}
+                    disabled={isSyncingSa}
+                    className="py-2 px-4 rounded-sm bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 border border-emerald-600 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    <span>{isSyncingSa ? 'Đang đồng bộ...' : 'Đồng Bộ Tệp Drive Ngay'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ------------------------------------------------------------- */}
+          {/* METHOD 2: CLIENT GOOGLE OAUTH ACCOUNT (OPTIONAL) */}
+          {/* ------------------------------------------------------------- */}
+          <div className="pt-2">
+            <div className="text-xs font-bold text-[#888888] uppercase tracking-wider mb-2">
+              Tùy Chọn Khác: Đăng Nhập Tài Khoản Google Cá Nhân (Client-Side OAuth)
+            </div>
           </div>
 
           {/* Drive Status Alert */}

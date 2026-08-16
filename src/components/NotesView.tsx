@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Note, Task, DriveFile } from '../types/index.js';
+import { TagSearchInput } from './TagSearchInput.js';
+import { TagAutocompleteInput } from './TagAutocompleteInput.js';
 import {
   FileText,
   Plus,
@@ -78,14 +80,35 @@ export const NotesView: React.FC<NotesViewProps> = ({
     setEditorContent(prev => `${prev}\n${prefix} Text ${suffix}`);
   };
 
-  // Collect all unique tags across notes
-  const allTags = Array.from(new Set(notes.flatMap(n => n.tags)));
+  // Collect all unique tags across notes & tasks
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    const defaults = ['Ghi chú', 'Kế hoạch', 'Ý tưởng', 'Cuộc họp', 'Tài liệu', 'Khảo sát', 'Dự án'];
+    defaults.forEach(t => set.add(t));
+    notes.forEach(n => n.tags?.forEach(tag => tag && set.add(tag.trim())));
+    tasks?.forEach(t => t.tags?.forEach(tag => tag && set.add(tag.trim())));
+    return Array.from(set).filter(Boolean);
+  }, [notes, tasks]);
 
   const filteredNotes = notes.filter(note => {
     if (selectedTag !== 'all' && !note.tags.includes(selectedTag)) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
-      return note.title.toLowerCase().includes(q) || note.content.toLowerCase().includes(q);
+      // Handle #tag query
+      const tagQueries = q.match(/#([\w\p{L}]+)/gu)?.map(t => t.slice(1).toLowerCase()) || [];
+      const nonTagQ = q.replace(/#([\w\p{L}]+)/gu, '').trim();
+
+      const matchTitle = !nonTagQ || note.title.toLowerCase().includes(nonTagQ);
+      const matchContent = !nonTagQ || note.content.toLowerCase().includes(nonTagQ);
+      const matchText = matchTitle || matchContent;
+
+      const matchAllTags = tagQueries.length === 0 || tagQueries.every(tq => 
+        note.tags.some(t => t.toLowerCase().includes(tq))
+      );
+
+      const matchAnyTag = note.tags.some(t => t.toLowerCase().includes(q));
+
+      return (matchText && matchAllTags) || matchAnyTag;
     }
     return true;
   });
@@ -120,16 +143,12 @@ export const NotesView: React.FC<NotesViewProps> = ({
         <div className="lg:col-span-4 space-y-3">
           {/* Search & Tag Filter */}
           <div className="p-3 bg-[#151515] rounded-sm border border-[#2A2A2A] space-y-2">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#666666]" />
-              <input
-                type="text"
-                placeholder="Tìm ghi chú..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
-              />
-            </div>
+            <TagSearchInput
+              placeholder="Tìm ghi chú (gõ # để lọc tag)..."
+              value={search}
+              onChange={setSearch}
+              availableTags={allTags}
+            />
 
             <div className="flex items-center gap-1.5 overflow-x-auto pt-1 no-scrollbar">
               <button
@@ -259,14 +278,18 @@ export const NotesView: React.FC<NotesViewProps> = ({
                   className="w-full text-xl font-editorial-serif font-bold text-white bg-transparent border-b border-[#2A2A2A] focus:border-[#D4AF37] pb-2 focus:outline-none"
                 />
 
-                <div className="flex items-center gap-2 text-xs text-[#888888]">
-                  <Tag className="w-3.5 h-3.5 text-[#D4AF37]" />
-                  <input
-                    type="text"
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-[#888888]">
+                    <span className="flex items-center gap-1 font-editorial-serif font-bold text-[#E0E0E0]">
+                      <Tag className="w-3.5 h-3.5 text-[#D4AF37]" /> Tags (Gõ # để gợi ý danh sách)
+                    </span>
+                    <span className="text-[10px] italic">Phân cách bằng dấu phẩy</span>
+                  </div>
+                  <TagAutocompleteInput
                     value={editorTags}
-                    onChange={(e) => setEditorTags(e.target.value)}
-                    placeholder="Tags phân cách bởi dấu phẩy (vd: AI, Kế hoạch, Architecture)"
-                    className="w-full bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm px-2 py-1 text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
+                    onChange={setEditorTags}
+                    availableTags={allTags}
+                    placeholder="Gõ # để gợi ý tag (vd: #AI, #Kế hoạch)..."
                   />
                 </div>
               </div>

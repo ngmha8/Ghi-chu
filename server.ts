@@ -12,7 +12,7 @@ import {
   initialNotificationLogs,
   initialUserProfile
 } from './server/initialData.ts';
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog } from './src/types/index.ts';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig } from './src/types/index.ts';
 import {
   initializeFirestoreData,
   getDbTasks,
@@ -28,12 +28,23 @@ import {
   saveDbTelegramConfig,
   getDbNotificationLogs,
   addDbNotificationLog,
+  getDbDriveServiceAccountConfig,
+  saveDbDriveServiceAccountConfig,
   cachedTasks,
   cachedNotes,
   cachedFiles,
   cachedTelegramConfig,
-  cachedNotificationLogs
+  cachedNotificationLogs,
+  cachedDriveServiceAccountConfig
 } from './server/firebaseDb.ts';
+import {
+  testServiceAccountFolderAccess,
+  listFilesInDriveFolder,
+  uploadFileToDriveFolder,
+  deleteFileFromDrive,
+  downloadFileFromDrive,
+  parseServiceAccountJson
+} from './server/googleDriveServiceAccount.ts';
 import { aiFunctionDeclarations, executeAiFunctionCall } from './server/aiTools.ts';
 import {
   sendTelegramMessage,
@@ -214,20 +225,43 @@ app.post('/api/files', async (req: Request, res: Response) => {
   const fileName = req.body.name || 'document.pdf';
   const mimeType = req.body.mimeType || 'application/pdf';
   const size = req.body.size || 102400;
-  const isSynced = req.body.isSyncedToDrive ?? false;
-  const driveFileId = req.body.driveFileId;
-  const webViewLink = req.body.webViewLink;
+  let isSynced = req.body.isSyncedToDrive ?? false;
+  let driveFileId = req.body.driveFileId;
+  let webViewLink = req.body.webViewLink;
   const textContent = req.body.textContent;
   const base64Data = req.body.base64Data;
 
   // Save binary to server uploads directory if provided
+  let fileBuffer: Buffer | null = null;
   if (base64Data) {
     try {
-      const buffer = Buffer.from(base64Data.replace(/^data:.*?;base64,/, ''), 'base64');
+      fileBuffer = Buffer.from(base64Data.replace(/^data:.*?;base64,/, ''), 'base64');
       const filePath = path.join(UPLOADS_DIR, `${fileId}_${path.basename(fileName)}`);
-      fs.writeFileSync(filePath, buffer);
+      fs.writeFileSync(filePath, fileBuffer);
     } catch (e) {
       console.warn('Error saving uploaded file binary to disk:', e);
+    }
+  } else if (textContent) {
+    fileBuffer = Buffer.from(textContent, 'utf-8');
+  }
+
+  // Automatic Service Account Google Drive Upload if active
+  const saConfig = await getDbDriveServiceAccountConfig();
+  if (saConfig.isEnabled && saConfig.isConnected && saConfig.folderId && fileBuffer && !driveFileId) {
+    try {
+      const uploadedToDrive = await uploadFileToDriveFolder(
+        saConfig,
+        fileName,
+        mimeType,
+        fileBuffer
+      );
+      if (uploadedToDrive?.id) {
+        driveFileId = uploadedToDrive.id;
+        webViewLink = uploadedToDrive.webViewLink;
+        isSynced = true;
+      }
+    } catch (driveErr) {
+      console.warn('Background Service Account Drive upload notice:', driveErr);
     }
   }
 
@@ -241,8 +275,8 @@ app.post('/api/files', async (req: Request, res: Response) => {
     isSyncedToDrive: isSynced,
     driveFileId: driveFileId,
     syncStatus: isSynced ? 'synced' : 'local_only',
-    downloadUrl: `/api/files/download/${fileId}`,
-    previewUrl: `/api/files/preview/${fileId}`,
+    downloadUrl: driveFileId ? `/api/drive-service-account/download/${driveFileId}` : `/api/files/download/${fileId}`,
+    previewUrl: webViewLink || `/api/files/preview/${fileId}`,
     textContent: textContent,
     uploadedAt: req.body.uploadedAt || new Date().toISOString(),
   };
@@ -258,6 +292,21 @@ app.get('/api/files/download/:id', async (req: Request, res: Response) => {
 
   if (!file) {
     return res.status(404).send('Không tìm thấy tệp yêu cầu');
+  }
+
+  // If has driveFileId and Service Account is connected, download from Drive
+  if (file.driveFileId) {
+    try {
+      const saConfig = await getDbDriveServiceAccountConfig();
+      if (saConfig.clientEmail && saConfig.privateKey) {
+        const { buffer, mimeType, fileName } = await downloadFileFromDrive(saConfig, file.driveFileId);
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName || file.name)}"`);
+        res.setHeader('Content-Type', mimeType || file.mimeType || 'application/octet-stream');
+        return res.send(buffer);
+      }
+    } catch (e) {
+      console.warn('Fallback to local disk download:', e);
+    }
   }
 
   // Look for stored file on disk
@@ -356,6 +405,21 @@ app.put('/api/files/:id', async (req: Request, res: Response) => {
 
 app.delete('/api/files/:id', async (req: Request, res: Response) => {
   const fileId = req.params.id;
+  const currentFiles = await getDbFiles();
+  const file = currentFiles.find(f => f.id === fileId);
+
+  // If connected to Drive via Service Account, also delete on Drive
+  if (file?.driveFileId) {
+    try {
+      const saConfig = await getDbDriveServiceAccountConfig();
+      if (saConfig.isEnabled && saConfig.isConnected) {
+        await deleteFileFromDrive(saConfig, file.driveFileId);
+      }
+    } catch (e) {
+      console.warn('Drive file deletion error (non-fatal):', e);
+    }
+  }
+
   await deleteDbFile(fileId);
   // Clean up from uploads folder
   try {
@@ -366,6 +430,174 @@ app.delete('/api/files/:id', async (req: Request, res: Response) => {
     }
   } catch (e) {}
   res.json({ success: true, id: fileId });
+});
+
+// -------------------------------------------------------------
+// 3.5. GOOGLE DRIVE SERVICE ACCOUNT API ROUTES (SERVER-SIDE)
+// -------------------------------------------------------------
+app.get('/api/drive-service-account/config', async (req: Request, res: Response) => {
+  const config = await getDbDriveServiceAccountConfig();
+  res.json({
+    ...config,
+    privateKey: config.privateKey ? '******** (Đã lưu an toàn trên Server)' : '',
+    hasPrivateKey: !!config.privateKey,
+  });
+});
+
+app.post('/api/drive-service-account/config', async (req: Request, res: Response) => {
+  try {
+    let { clientEmail, privateKey, projectId, folderId, isEnabled, serviceAccountRawJson } = req.body;
+    const currentConfig = await getDbDriveServiceAccountConfig();
+
+    if (serviceAccountRawJson && serviceAccountRawJson.trim()) {
+      const parsed = parseServiceAccountJson(serviceAccountRawJson);
+      if (parsed) {
+        clientEmail = parsed.clientEmail;
+        privateKey = parsed.privateKey;
+        if (parsed.projectId) projectId = parsed.projectId;
+      }
+    }
+
+    if (!privateKey || privateKey.includes('********')) {
+      privateKey = currentConfig.privateKey;
+    }
+
+    const updated = await saveDbDriveServiceAccountConfig({
+      clientEmail: clientEmail !== undefined ? clientEmail.trim() : currentConfig.clientEmail,
+      privateKey: privateKey !== undefined ? privateKey : currentConfig.privateKey,
+      projectId: projectId !== undefined ? projectId : currentConfig.projectId,
+      folderId: folderId !== undefined ? folderId.trim() : currentConfig.folderId,
+      isEnabled: isEnabled !== undefined ? isEnabled : currentConfig.isEnabled,
+    });
+
+    res.json({
+      success: true,
+      config: {
+        ...updated,
+        privateKey: updated.privateKey ? '******** (Đã lưu an toàn)' : '',
+        hasPrivateKey: !!updated.privateKey,
+      },
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err?.message || 'Lỗi lưu cấu hình Google Drive Service Account' });
+  }
+});
+
+app.post('/api/drive-service-account/test', async (req: Request, res: Response) => {
+  try {
+    let { clientEmail, privateKey, folderId, serviceAccountRawJson } = req.body;
+    const currentConfig = await getDbDriveServiceAccountConfig();
+
+    if (serviceAccountRawJson && serviceAccountRawJson.trim()) {
+      const parsed = parseServiceAccountJson(serviceAccountRawJson);
+      if (parsed) {
+        clientEmail = parsed.clientEmail;
+        privateKey = parsed.privateKey;
+      }
+    }
+
+    if (!privateKey || privateKey.includes('********')) {
+      privateKey = currentConfig.privateKey;
+    }
+    if (!clientEmail) clientEmail = currentConfig.clientEmail;
+    if (!folderId) folderId = currentConfig.folderId;
+
+    const testConfig: DriveServiceAccountConfig = {
+      ...currentConfig,
+      clientEmail,
+      privateKey,
+      folderId,
+    };
+
+    const result = await testServiceAccountFolderAccess(testConfig);
+
+    await saveDbDriveServiceAccountConfig({
+      clientEmail,
+      privateKey,
+      folderId,
+      isConnected: true,
+      folderName: result.folderName,
+      lastTestedAt: new Date().toISOString(),
+      errorMessage: undefined,
+    });
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (err: any) {
+    await saveDbDriveServiceAccountConfig({
+      isConnected: false,
+      errorMessage: err?.message,
+    });
+    res.status(400).json({
+      success: false,
+      error: err?.message || 'Lỗi kiểm tra kết nối Service Account với Google Drive',
+    });
+  }
+});
+
+app.post('/api/drive-service-account/sync', async (req: Request, res: Response) => {
+  try {
+    const config = await getDbDriveServiceAccountConfig();
+    if (!config.clientEmail || !config.privateKey || !config.folderId) {
+      return res.status(400).json({ error: 'Chưa cấu hình Service Account hoặc Folder ID' });
+    }
+
+    const driveFiles = await listFilesInDriveFolder(config);
+    const existingDbFiles = await getDbFiles();
+
+    const mergedFiles = [...existingDbFiles];
+    for (const df of driveFiles) {
+      const existingIdx = mergedFiles.findIndex(
+        f => f.driveFileId === df.driveFileId || f.name.toLowerCase() === df.name.toLowerCase()
+      );
+      if (existingIdx >= 0) {
+        mergedFiles[existingIdx] = {
+          ...mergedFiles[existingIdx],
+          driveFileId: df.driveFileId,
+          webViewLink: df.webViewLink,
+          isSyncedToDrive: true,
+          syncStatus: 'synced',
+          size: df.size || mergedFiles[existingIdx].size,
+        };
+      } else {
+        mergedFiles.unshift(df);
+      }
+    }
+
+    for (const f of mergedFiles) {
+      await saveDbFile(f);
+    }
+
+    await saveDbDriveServiceAccountConfig({
+      lastSyncAt: new Date().toISOString(),
+      isConnected: true,
+    });
+
+    res.json({
+      success: true,
+      syncedCount: driveFiles.length,
+      files: mergedFiles,
+      lastSyncAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Lỗi đồng bộ tệp từ Google Drive' });
+  }
+});
+
+app.get('/api/drive-service-account/download/:driveFileId', async (req: Request, res: Response) => {
+  try {
+    const config = await getDbDriveServiceAccountConfig();
+    const driveFileId = req.params.driveFileId;
+    const { buffer, mimeType, fileName } = await downloadFileFromDrive(config, driveFileId);
+
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName || 'document')}"`);
+    res.setHeader('Content-Type', mimeType || 'application/octet-stream');
+    res.send(buffer);
+  } catch (err: any) {
+    res.status(500).send('Không thể tải tệp từ Google Drive');
+  }
 });
 
 // -------------------------------------------------------------

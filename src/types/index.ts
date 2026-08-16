@@ -92,6 +92,20 @@ export interface ChatMessage {
   isLoading?: boolean;
 }
 
+export interface DriveServiceAccountConfig {
+  clientEmail: string;
+  privateKey: string;
+  projectId?: string;
+  folderId: string;
+  folderName?: string;
+  isEnabled: boolean;
+  isConnected: boolean;
+  lastTestedAt?: string;
+  lastSyncAt?: string;
+  serviceAccountRawJson?: string;
+  errorMessage?: string;
+}
+
 export interface UserProfile {
   name: string;
   email: string;

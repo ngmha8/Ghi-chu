@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Task, DriveFile, Note } from '../types/index.js';
+import { TagSearchInput } from './TagSearchInput.js';
 import {
   Plus,
   Search,
@@ -27,6 +28,7 @@ interface TasksViewProps {
 
 export const TasksView: React.FC<TasksViewProps> = ({
   tasks,
+  notes,
   onTaskUpdate,
   onTaskDelete,
   openAiChatWithPrompt,
@@ -38,15 +40,37 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const [search, setSearch] = useState<string>('');
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar'>('list');
 
+  // Collect all unique available tags
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    const defaults = ['Công việc', 'Báo cáo', 'Tài chính', 'Họp', 'Quan trọng', 'Khẩn cấp', 'Dự án', 'Cá nhân'];
+    defaults.forEach(t => set.add(t));
+    tasks.forEach(t => t.tags?.forEach(tag => tag && set.add(tag.trim())));
+    notes?.forEach(n => n.tags?.forEach(tag => tag && set.add(tag.trim())));
+    return Array.from(set).filter(Boolean);
+  }, [tasks, notes]);
+
   const filteredTasks = tasks.filter(task => {
     if (filterStatus !== 'all' && task.status !== filterStatus) return false;
     if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
-      const matchTitle = task.title.toLowerCase().includes(q);
-      const matchDesc = task.description.toLowerCase().includes(q);
-      const matchTags = task.tags.some(t => t.toLowerCase().includes(q));
-      return matchTitle || matchDesc || matchTags;
+      // Handle #tag query
+      const tagQueries = q.match(/#([\w\p{L}]+)/gu)?.map(t => t.slice(1).toLowerCase()) || [];
+      const nonTagQ = q.replace(/#([\w\p{L}]+)/gu, '').trim();
+
+      const matchTitle = !nonTagQ || task.title.toLowerCase().includes(nonTagQ);
+      const matchDesc = !nonTagQ || task.description.toLowerCase().includes(nonTagQ);
+      const matchText = matchTitle || matchDesc;
+
+      const matchAllTags = tagQueries.length === 0 || tagQueries.every(tq => 
+        task.tags.some(t => t.toLowerCase().includes(tq))
+      );
+
+      // Simple fallback if no explicit #
+      const matchAnyTag = task.tags.some(t => t.toLowerCase().includes(q));
+
+      return (matchText && matchAllTags) || matchAnyTag;
     }
     return true;
   });
@@ -106,14 +130,12 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
       {/* Filters Bar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#151515] p-3 rounded-sm border border-[#2A2A2A]">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#666666]" />
-          <input
-            type="text"
-            placeholder="Lọc công việc theo từ khóa, tag..."
+        <div className="flex-1">
+          <TagSearchInput
+            placeholder="Lọc công việc theo từ khóa hoặc gõ # để chọn tag..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] placeholder-[#666666] focus:outline-none focus:border-[#D4AF37]"
+            onChange={setSearch}
+            availableTags={availableTags}
           />
         </div>
 

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Task, DriveFile, RecurringType } from '../types/index.js';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Task, DriveFile, Note, RecurringType } from '../types/index.js';
 import { X, CheckSquare, Paperclip } from 'lucide-react';
+import { TagAutocompleteInput } from './TagAutocompleteInput.js';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -8,6 +9,8 @@ interface TaskModalProps {
   onSave: (taskData: Partial<Task>) => void;
   initialTask?: Task | null;
   files: DriveFile[];
+  existingTasks?: Task[];
+  existingNotes?: Note[];
 }
 
 export const TaskModal: React.FC<TaskModalProps> = ({
@@ -16,6 +19,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   onSave,
   initialTask,
   files,
+  existingTasks = [],
+  existingNotes = [],
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -26,6 +31,35 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [recurringType, setRecurringType] = useState<RecurringType>('none');
   const [reminderOffset, setReminderOffset] = useState<number>(15);
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+
+  // Collect all unique existing tags across tasks and notes
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    const defaults = ['Công việc', 'Báo cáo', 'Tài chính', 'Họp', 'Quan trọng', 'Khẩn cấp', 'Dự án', 'Cá nhân'];
+    defaults.forEach(t => set.add(t));
+    existingTasks.forEach(t => t.tags?.forEach(tag => tag && set.add(tag.trim())));
+    existingNotes.forEach(n => n.tags?.forEach(tag => tag && set.add(tag.trim())));
+    return Array.from(set).filter(Boolean);
+  }, [existingTasks, existingNotes]);
+
+  // Current entered tags array
+  const currentTags = useMemo(() => {
+    return tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+  }, [tagsInput]);
+
+  // Quick toggle / add a tag
+  const handleToggleTag = (tagToAdd: string) => {
+    const exists = currentTags.some(t => t.toLowerCase() === tagToAdd.toLowerCase());
+    if (exists) {
+      // Remove tag
+      const updated = currentTags.filter(t => t.toLowerCase() !== tagToAdd.toLowerCase());
+      setTagsInput(updated.join(', '));
+    } else {
+      // Add tag
+      const updated = [...currentTags, tagToAdd];
+      setTagsInput(updated.join(', '));
+    }
+  };
 
   useEffect(() => {
     if (initialTask) {
@@ -185,13 +219,19 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-[#E0E0E0] font-editorial-serif font-bold mb-1">Tags (phân cách bằng dấu phẩy)</label>
-            <input
-              type="text"
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[#E0E0E0] font-editorial-serif font-bold">
+                Tags (Gõ # để mở danh sách gợi ý & tìm kiếm)
+              </label>
+              <span className="text-[10px] text-[#888888] italic">
+                Phân cách bằng dấu phẩy
+              </span>
+            </div>
+            <TagAutocompleteInput
               value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="vd: Báo cáo, Tài chính, Họp"
-              className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
+              onChange={setTagsInput}
+              availableTags={availableTags}
+              placeholder="vd: #Báo cáo, #Tài chính (gõ # để gợi ý danh sách)..."
             />
           </div>
 

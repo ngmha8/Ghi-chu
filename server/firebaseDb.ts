@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog } from '../src/types/index.ts';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig } from '../src/types/index.ts';
 import {
   initialTasks,
   initialNotes,
@@ -11,12 +11,23 @@ import {
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 
+export const initialDriveServiceAccountConfig: DriveServiceAccountConfig = {
+  clientEmail: '',
+  privateKey: '',
+  projectId: '',
+  folderId: '',
+  folderName: '',
+  isEnabled: false,
+  isConnected: false,
+};
+
 // In-Memory cache for high-speed access & offline resilience
 export let cachedTasks: Task[] = [...initialTasks];
 export let cachedNotes: Note[] = [...initialNotes];
 export let cachedFiles: DriveFile[] = [...initialFiles];
 export let cachedTelegramConfig: TelegramConfig = { ...initialTelegramConfig };
 export let cachedNotificationLogs: NotificationLog[] = [...initialNotificationLogs];
+export let cachedDriveServiceAccountConfig: DriveServiceAccountConfig = { ...initialDriveServiceAccountConfig };
 
 // Local JSON file backup path
 const DATA_DIR = path.join(_dirname, 'data');
@@ -24,6 +35,7 @@ const LOCAL_CONFIG_FILE = path.join(DATA_DIR, 'telegram_config.json');
 const LOCAL_TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const LOCAL_NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const LOCAL_FILES_FILE = path.join(DATA_DIR, 'files.json');
+const LOCAL_DRIVE_SA_FILE = path.join(DATA_DIR, 'drive_service_account.json');
 
 if (!fs.existsSync(DATA_DIR)) {
   try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
@@ -34,6 +46,10 @@ try {
   if (fs.existsSync(LOCAL_CONFIG_FILE)) {
     const data = JSON.parse(fs.readFileSync(LOCAL_CONFIG_FILE, 'utf-8'));
     cachedTelegramConfig = { ...cachedTelegramConfig, ...data };
+  }
+  if (fs.existsSync(LOCAL_DRIVE_SA_FILE)) {
+    const data = JSON.parse(fs.readFileSync(LOCAL_DRIVE_SA_FILE, 'utf-8'));
+    cachedDriveServiceAccountConfig = { ...cachedDriveServiceAccountConfig, ...data };
   }
   if (fs.existsSync(LOCAL_TASKS_FILE)) {
     const data = JSON.parse(fs.readFileSync(LOCAL_TASKS_FILE, 'utf-8'));
@@ -54,6 +70,7 @@ try {
 function saveLocalBackups() {
   try {
     fs.writeFileSync(LOCAL_CONFIG_FILE, JSON.stringify(cachedTelegramConfig, null, 2), 'utf-8');
+    fs.writeFileSync(LOCAL_DRIVE_SA_FILE, JSON.stringify(cachedDriveServiceAccountConfig, null, 2), 'utf-8');
     fs.writeFileSync(LOCAL_TASKS_FILE, JSON.stringify(cachedTasks, null, 2), 'utf-8');
     fs.writeFileSync(LOCAL_NOTES_FILE, JSON.stringify(cachedNotes, null, 2), 'utf-8');
     fs.writeFileSync(LOCAL_FILES_FILE, JSON.stringify(cachedFiles, null, 2), 'utf-8');
@@ -166,6 +183,24 @@ export async function saveDbTelegramConfig(config: Partial<TelegramConfig>): Pro
 }
 
 // -------------------------------------------------------------
+// CRUD METHODS (GOOGLE DRIVE SERVICE ACCOUNT CONFIG)
+// -------------------------------------------------------------
+export async function getDbDriveServiceAccountConfig(): Promise<DriveServiceAccountConfig> {
+  return cachedDriveServiceAccountConfig;
+}
+
+export async function saveDbDriveServiceAccountConfig(
+  config: Partial<DriveServiceAccountConfig>
+): Promise<DriveServiceAccountConfig> {
+  cachedDriveServiceAccountConfig = {
+    ...cachedDriveServiceAccountConfig,
+    ...config,
+  };
+  saveLocalBackups();
+  return cachedDriveServiceAccountConfig;
+}
+
+// -------------------------------------------------------------
 // CRUD METHODS (NOTIFICATIONS)
 // -------------------------------------------------------------
 export async function getDbNotificationLogs(): Promise<NotificationLog[]> {
@@ -179,3 +214,4 @@ export async function addDbNotificationLog(log: NotificationLog): Promise<Notifi
   }
   return log;
 }
+
