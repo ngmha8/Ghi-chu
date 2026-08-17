@@ -187,12 +187,12 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
               <div className="flex items-center justify-between mb-1">
                 <span className="font-bold text-amber-400 text-xs flex items-center gap-1.5">
                   <Sun className="w-4 h-4 text-amber-400" />
-                  Bản Tin Sáng (07:30)
+                  Bản Tin Sáng ({(telegramConfig.morningBriefingHour ?? 7).toString().padStart(2, '0')}:{(telegramConfig.morningBriefingMinute ?? 0).toString().padStart(2, '0')})
                 </span>
                 <span className="text-[10px] text-[#666666] group-hover:text-[#D4AF37]">Gửi Ngay →</span>
               </div>
               <p className="text-[11px] text-[#888888]">
-                {isGeneratingBriefing === 'morning' ? '⏳ Đang tổng hợp AI...' : 'Thời tiết, việc ưu tiên hôm nay, mẹo tập trung'}
+                {isGeneratingBriefing === 'morning' ? '⏳ Đang tổng hợp AI...' : 'Thời tiết, việc ưu tiên hôm nay, mẹo tập trung (Giờ VN)'}
               </p>
             </button>
 
@@ -204,12 +204,12 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
               <div className="flex items-center justify-between mb-1">
                 <span className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
                   <Moon className="w-4 h-4 text-indigo-300" />
-                  Báo Cáo Tối (21:30)
+                  Báo Cáo Tối ({(telegramConfig.eveningBriefingHour ?? 21).toString().padStart(2, '0')}:{(telegramConfig.eveningBriefingMinute ?? 0).toString().padStart(2, '0')})
                 </span>
                 <span className="text-[10px] text-[#666666] group-hover:text-[#D4AF37]">Gửi Ngay →</span>
               </div>
               <p className="text-[11px] text-[#888888]">
-                {isGeneratingBriefing === 'evening' ? '⏳ Đang tổng hợp AI...' : 'Tổng kết việc đã xong, việc tồn & kế hoạch mai'}
+                {isGeneratingBriefing === 'evening' ? '⏳ Đang tổng hợp AI...' : 'Tổng kết việc đã xong, việc tồn & kế hoạch mai (Giờ VN)'}
               </p>
             </button>
           </div>

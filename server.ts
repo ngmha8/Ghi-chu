@@ -827,14 +827,19 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
     if (data === 'cmd:today') {
       await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
       const currentTasks = await getDbTasks();
-      const todayStr = new Date().toISOString().split('T')[0];
-      const todayTasks = currentTasks.filter(t => t.deadline.startsWith(todayStr) && t.status !== 'completed' && t.status !== 'canceled');
+      const tzInfo = getTimeInZone(new Date(), telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
+      const todayStr = tzInfo.dateStr;
+      const todayTasks = currentTasks.filter(t => {
+        if (!t.deadline || t.status === 'completed' || t.status === 'canceled') return false;
+        const taskTz = getTimeInZone(new Date(t.deadline), telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
+        return taskTz.dateStr === todayStr;
+      });
       let msg = '';
       if (todayTasks.length === 0) {
         msg = '🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*';
       } else {
         msg = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
-          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleString('vi-VN')}`).join('\n\n');
+          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}`).join('\n\n');
       }
       await sendTelegramMessage(telegramConfig.botToken, chatId, msg, buildTaskListKeyboard(currentTasks));
       return res.json({ success: true, action: 'today' });
@@ -1035,13 +1040,18 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
         ]
       ];
     } else if (cleanInput.match(/^\/today\b/i)) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const todayTasks = tasks.filter(t => t.deadline.startsWith(todayStr) && t.status !== 'completed' && t.status !== 'canceled');
+      const tzInfo = getTimeInZone(new Date(), telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
+      const todayStr = tzInfo.dateStr;
+      const todayTasks = tasks.filter(t => {
+        if (!t.deadline || t.status === 'completed' || t.status === 'canceled') return false;
+        const taskTz = getTimeInZone(new Date(t.deadline), telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
+        return taskTz.dateStr === todayStr;
+      });
       if (todayTasks.length === 0) {
         botReply = `🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*`;
       } else {
         botReply = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
-          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleString('vi-VN')}\n   📌 Trạng thái: ${t.status}`).join('\n\n');
+          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}\n   📌 Trạng thái: ${t.status}`).join('\n\n');
       }
       replyKeyboard = buildTaskListKeyboard(tasks);
     } else if (cleanInput.match(/^\/tasks\b/i)) {
@@ -1098,29 +1108,57 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
   res.json({ success: true, reply: botReply, chatId });
 });
 
+// Helper to extract time parts in a specific timezone (defaults to Vietnam Asia/Ho_Chi_Minh)
+function getTimeInZone(date: Date = new Date(), timeZone: string = 'Asia/Ho_Chi_Minh') {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const get = (type: string) => parts.find(p => p.type === type)?.value || '';
+
+  const year = get('year');
+  const month = get('month');
+  const day = get('day');
+  const hour = parseInt(get('hour') || '0', 10);
+  const minute = parseInt(get('minute') || '0', 10);
+  const second = parseInt(get('second') || '0', 10);
+  const dateStr = `${year}-${month}-${day}`;
+
+  return { date, dateStr, hour, minute, second, timeZone };
+}
+
 // -------------------------------------------------------------
-// 6. BACKGROUND SCHEDULER & REMINDER CRON ENDPOINT (IDEMPOTENT & INTERACTIVE)
+// 6. BACKGROUND SCHEDULER & REMINDER CRON (VIETNAM TIMEZONE AWARE)
 // -------------------------------------------------------------
-app.get('/api/scheduler/check', async (req: Request, res: Response) => {
-  const now = new Date();
-  const nowMs = now.getTime();
-  const todayStr = now.toISOString().split('T')[0];
-  const currentHour = now.getHours(); // Local server hour
+async function runSchedulerCheck() {
+  const telegramConfig = await getDbTelegramConfig();
+  const timeZone = telegramConfig.timezone || 'Asia/Ho_Chi_Minh';
+  const tzInfo = getTimeInZone(new Date(), timeZone);
+  const nowMs = tzInfo.date.getTime();
+  const todayStr = tzInfo.dateStr; // e.g. "2026-08-17" in Vietnam timezone
+  const currentHour = tzInfo.hour; // local hour 0-23 in Vietnam
+  const currentMinute = tzInfo.minute; // local minute 0-59 in Vietnam
+
   const tasks = await getDbTasks();
   const notes = await getDbNotes();
-  const telegramConfig = await getDbTelegramConfig();
   const newTriggeredAlerts: NotificationLog[] = [];
 
   // A. Check Task Deadline Alerts
   for (const t of tasks) {
     if (t.status === 'completed' || t.status === 'canceled') continue;
-    
     if (t.isNotified) continue;
 
     const deadlineTime = new Date(t.deadline).getTime();
     const diffMinutes = (deadlineTime - nowMs) / (1000 * 60);
 
-    if (diffMinutes > 0 && diffMinutes <= (t.reminderOffsetMinutes || 30)) {
+    if (diffMinutes > 0 && diffMinutes <= (t.reminderOffsetMinutes || telegramConfig.alertOffsetMinutes || 15)) {
       const updatedTask: Task = {
         ...t,
         isNotified: true,
@@ -1132,7 +1170,7 @@ app.get('/api/scheduler/check', async (req: Request, res: Response) => {
       const alertLog: NotificationLog = {
         id: `notif-${Date.now()}-${t.id}`,
         title: `⏰ Nhắc việc: ${t.title}`,
-        message: `Công việc "${t.title}" sắp đến deadline vào ${new Date(t.deadline).toLocaleTimeString('vi-VN')} (${Math.round(diffMinutes)} phút nữa)!`,
+        message: `Công việc "${t.title}" sắp đến deadline vào ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone, hour: '2-digit', minute: '2-digit' })} (${Math.round(diffMinutes)} phút nữa)!`,
         channel: 'telegram',
         status: 'sent',
         timestamp: new Date().toISOString(),
@@ -1141,8 +1179,8 @@ app.get('/api/scheduler/check', async (req: Request, res: Response) => {
       await addDbNotificationLog(alertLog);
       newTriggeredAlerts.push(alertLog);
 
-      if (telegramConfig.botToken && telegramConfig.chatId) {
-        const alertText = `⏰ *NHẮC NHỞ DEADLINE*\n\n📌 Công việc: *${t.title}*\n⏳ Hạn chót: *${new Date(t.deadline).toLocaleString('vi-VN')}* (còn ${Math.round(diffMinutes)} phút)\n🎯 Mức độ: *${t.priority.toUpperCase()}*\n\n👇 *Bấm nút bên dưới để xử lý nhanh ngay trên Telegram:*`;
+      if (telegramConfig.botToken && telegramConfig.chatId && telegramConfig.enabled !== false) {
+        const alertText = `⏰ *NHẮC NHỞ DEADLINE*\n\n📌 Công việc: *${t.title}*\n⏳ Hạn chót: *${new Date(t.deadline).toLocaleString('vi-VN', { timeZone })}* (còn ${Math.round(diffMinutes)} phút)\n🎯 Mức độ: *${t.priority.toUpperCase()}*\n\n👇 *Bấm nút bên dưới để xử lý nhanh ngay trên Telegram:*`;
         sendTelegramMessage(
           telegramConfig.botToken,
           telegramConfig.chatId,
@@ -1153,50 +1191,79 @@ app.get('/api/scheduler/check', async (req: Request, res: Response) => {
     }
   }
 
-  // B. Automated Daily Briefings Dispatch (Morning: 7h-9h, Evening: 20h-22h)
-  if (telegramConfig.isConnected && telegramConfig.botToken && telegramConfig.chatId) {
-    // Morning briefing check (sent once per day between 7:00 and 9:00)
-    if (currentHour >= 7 && currentHour < 10 && lastMorningBriefingDate !== todayStr) {
-      lastMorningBriefingDate = todayStr;
-      generateDailyBriefing('morning', getGeminiClient(), tasks, notes).then(async (morningBriefing) => {
-        await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, morningBriefing.reportText, [
-          [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
-        ]);
-        await addDbNotificationLog({
-          id: `notif-${Date.now()}-morning-auto`,
-          title: morningBriefing.title,
-          message: morningBriefing.reportText.slice(0, 100) + '...',
-          channel: 'telegram',
-          status: 'sent',
-          timestamp: new Date().toISOString(),
-        });
-      }).catch(e => console.warn('Auto morning briefing error:', e));
+  // B. Automated Daily Briefings Dispatch (Configurable hours in Vietnam Timezone)
+  if (telegramConfig.isConnected && telegramConfig.botToken && telegramConfig.chatId && telegramConfig.enabled !== false) {
+    const morningHour = telegramConfig.morningBriefingHour ?? 7; // default 7 (7h00 sáng VN)
+    const morningMinute = telegramConfig.morningBriefingMinute ?? 0;
+    const isMorningEnabled = telegramConfig.enableMorningBriefing !== false;
+
+    const eveningHour = telegramConfig.eveningBriefingHour ?? 21; // default 21 (21h00 tối VN)
+    const eveningMinute = telegramConfig.eveningBriefingMinute ?? 0;
+    const isEveningEnabled = telegramConfig.enableEveningBriefing !== false;
+
+    // Morning briefing check:
+    // Triggers once per day when current VN hour matches target morning window
+    if (isMorningEnabled && lastMorningBriefingDate !== todayStr) {
+      const isMorningTime = (currentHour === morningHour && currentMinute >= morningMinute) || (currentHour > morningHour && currentHour <= morningHour + 2);
+      if (isMorningTime) {
+        lastMorningBriefingDate = todayStr;
+        console.log(`[Scheduler] 🌅 Dispatching Morning Briefing at VN Time: ${currentHour}:${currentMinute.toString().padStart(2, '0')} (${todayStr})`);
+        generateDailyBriefing('morning', getGeminiClient(), tasks, notes).then(async (morningBriefing) => {
+          await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, morningBriefing.reportText, [
+            [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
+          ]);
+          await addDbNotificationLog({
+            id: `notif-${Date.now()}-morning-auto`,
+            title: morningBriefing.title,
+            message: morningBriefing.reportText.slice(0, 100) + '...',
+            channel: 'telegram',
+            status: 'sent',
+            timestamp: new Date().toISOString(),
+          });
+        }).catch(e => console.warn('Auto morning briefing error:', e));
+      }
     }
 
-    // Evening briefing check (sent once per day between 20:00 and 23:00)
-    if (currentHour >= 20 && currentHour < 23 && lastEveningBriefingDate !== todayStr) {
-      lastEveningBriefingDate = todayStr;
-      generateDailyBriefing('evening', getGeminiClient(), tasks, notes).then(async (eveningBriefing) => {
-        await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, eveningBriefing.reportText, [
-          [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }]
-        ]);
-        await addDbNotificationLog({
-          id: `notif-${Date.now()}-evening-auto`,
-          title: eveningBriefing.title,
-          message: eveningBriefing.reportText.slice(0, 100) + '...',
-          channel: 'telegram',
-          status: 'sent',
-          timestamp: new Date().toISOString(),
-        });
-      }).catch(e => console.warn('Auto evening briefing error:', e));
+    // Evening briefing check:
+    // Triggers once per day when current VN hour matches target evening window
+    if (isEveningEnabled && lastEveningBriefingDate !== todayStr) {
+      const isEveningTime = (currentHour === eveningHour && currentMinute >= eveningMinute) || (currentHour > eveningHour && currentHour <= Math.min(23, eveningHour + 2));
+      if (isEveningTime) {
+        lastEveningBriefingDate = todayStr;
+        console.log(`[Scheduler] 🌙 Dispatching Evening Briefing at VN Time: ${currentHour}:${currentMinute.toString().padStart(2, '0')} (${todayStr})`);
+        generateDailyBriefing('evening', getGeminiClient(), tasks, notes).then(async (eveningBriefing) => {
+          await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, eveningBriefing.reportText, [
+            [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }]
+          ]);
+          await addDbNotificationLog({
+            id: `notif-${Date.now()}-evening-auto`,
+            title: eveningBriefing.title,
+            message: eveningBriefing.reportText.slice(0, 100) + '...',
+            channel: 'telegram',
+            status: 'sent',
+            timestamp: new Date().toISOString(),
+          });
+        }).catch(e => console.warn('Auto evening briefing error:', e));
+      }
     }
   }
 
-  res.json({
+  return {
     checkedAt: new Date().toISOString(),
+    vnTime: `${todayStr} ${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}:${tzInfo.second.toString().padStart(2, '0')}`,
+    timezone: timeZone,
     triggeredCount: newTriggeredAlerts.length,
     alerts: newTriggeredAlerts,
-  });
+  };
+}
+
+app.get('/api/scheduler/check', async (req: Request, res: Response) => {
+  try {
+    const result = await runSchedulerCheck();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Scheduler check error' });
+  }
 });
 
 // Helper function for unified AI Chat handling with Function Calling & Google Search
@@ -1493,6 +1560,12 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+    
+    // Start automated background scheduler runner (every 30 seconds)
+    setInterval(() => {
+      runSchedulerCheck().catch(err => console.warn('[Background Scheduler] tick error:', err));
+    }, 30000);
+    console.log(`⏰ Vietnam Timezone Background Scheduler initialized (30s tick)`);
   });
 }
 

@@ -26,14 +26,26 @@ export async function generateDailyBriefing(
     day: 'numeric',
     timeZone: 'Asia/Ho_Chi_Minh',
   });
-  const todayIso = now.toISOString().split('T')[0];
+  
+  // Format today's date in Vietnam timezone (YYYY-MM-DD)
+  const vnFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const todayIso = vnFormatter.format(now); // e.g. "2026-08-17" in Vietnam
 
-  const todayTasks = tasks.filter(t => t.deadline.startsWith(todayIso));
+  const todayTasks = tasks.filter(t => {
+    if (!t.deadline) return false;
+    const taskVnDate = vnFormatter.format(new Date(t.deadline));
+    return taskVnDate === todayIso;
+  });
   const completedToday = tasks.filter(t => t.status === 'completed');
   const pendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
   const highPriority = pendingTasks.filter(t => t.priority === 'high');
 
-  const tasksSummary = tasks.map(t => `- [${t.status.toUpperCase()}] [${t.priority.toUpperCase()}] "${t.title}" (Hạn: ${new Date(t.deadline).toLocaleTimeString('vi-VN')})`).join('\n');
+  const tasksSummary = tasks.map(t => `- [${t.status.toUpperCase()}] [${t.priority.toUpperCase()}] "${t.title}" (Hạn: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })})`).join('\n');
 
   if (type === 'morning') {
     const prompt = `Bạn là Senior AI Executive Assistant của tôi. Hãy soạn một bản tin "🌅 BẢN TIN ĐIỂM HẸN BUỔI SÁNG (MORNING BRIEFING)" thật chuyên nghiệp, truyền cảm hứng và súc tích để gửi lên Telegram cá nhân.

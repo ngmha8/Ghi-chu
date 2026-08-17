@@ -49,7 +49,9 @@ import {
   KeyRound,
   Layers,
   Globe,
-  Key
+  Key,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -73,6 +75,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [tokenInput, setTokenInput] = useState(telegramConfig.botToken || '');
   const [chatIdInput, setChatIdInput] = useState(telegramConfig.chatId || '');
   const [alertOffset, setAlertOffset] = useState(telegramConfig.alertOffsetMinutes || 15);
+  const [timezone, setTimezone] = useState(telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
+  const [morningHour, setMorningHour] = useState(telegramConfig.morningBriefingHour ?? 7);
+  const [morningMinute, setMorningMinute] = useState(telegramConfig.morningBriefingMinute ?? 0);
+  const [eveningHour, setEveningHour] = useState(telegramConfig.eveningBriefingHour ?? 21);
+  const [eveningMinute, setEveningMinute] = useState(telegramConfig.eveningBriefingMinute ?? 0);
+  const [enableMorningBriefing, setEnableMorningBriefing] = useState(telegramConfig.enableMorningBriefing !== false);
+  const [enableEveningBriefing, setEnableEveningBriefing] = useState(telegramConfig.enableEveningBriefing !== false);
   const [showToken, setShowToken] = useState(false);
   const [testMessageText, setTestMessageText] = useState('Xin chào! Đây là thông báo kiểm tra từ mục Cài Đặt của AI Assistant.');
   const [webhookStatus, setWebhookStatus] = useState<string | null>(null);
@@ -81,6 +90,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [webhookInfo, setWebhookInfo] = useState<any>(null);
   const [isCheckingWebhookInfo, setIsCheckingWebhookInfo] = useState(false);
   const [telegramSavedSuccess, setTelegramSavedSuccess] = useState(false);
+
+  // Live Vietnam Clock for user visual confirmation
+  const [currentVnClock, setCurrentVnClock] = useState<string>(() => {
+    return new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      try {
+        setCurrentVnClock(new Date().toLocaleTimeString('vi-VN', { timeZone: timezone || 'Asia/Ho_Chi_Minh' }));
+      } catch (e) {
+        setCurrentVnClock(new Date().toLocaleTimeString('vi-VN'));
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timezone]);
+
+  useEffect(() => {
+    setTokenInput(telegramConfig.botToken || '');
+    setChatIdInput(telegramConfig.chatId || '');
+    setAlertOffset(telegramConfig.alertOffsetMinutes || 15);
+    setTimezone(telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
+    setMorningHour(telegramConfig.morningBriefingHour ?? 7);
+    setMorningMinute(telegramConfig.morningBriefingMinute ?? 0);
+    setEveningHour(telegramConfig.eveningBriefingHour ?? 21);
+    setEveningMinute(telegramConfig.eveningBriefingMinute ?? 0);
+    setEnableMorningBriefing(telegramConfig.enableMorningBriefing !== false);
+    setEnableEveningBriefing(telegramConfig.enableEveningBriefing !== false);
+  }, [telegramConfig]);
 
   const webhookUrl = `${window.location.origin}/api/telegram/webhook`;
 
@@ -172,9 +210,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     onUpdateTelegramConfig({
       botToken: tokenInput.trim(),
       chatId: chatIdInput.trim(),
-      alertOffsetMinutes: alertOffset,
+      alertOffsetMinutes: Number(alertOffset),
       enabled: true,
       isConnected: true,
+      timezone: timezone || 'Asia/Ho_Chi_Minh',
+      morningBriefingHour: Number(morningHour),
+      morningBriefingMinute: Number(morningMinute),
+      eveningBriefingHour: Number(eveningHour),
+      eveningBriefingMinute: Number(eveningMinute),
+      enableMorningBriefing,
+      enableEveningBriefing,
     });
 
     setTelegramSavedSuccess(true);
@@ -637,6 +682,130 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     placeholder="Ví dụ: 5786910216 (Hệ thống sẽ tự động cập nhật khi bạn nhắn /start)"
                     className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
                   />
+                </div>
+
+                {/* Múi Giờ & Đồng Hồ Thực Tế */}
+                <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[#D4AF37] font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      Múi Giờ Điểm Tin & Nhắc Việc
+                    </label>
+                    <span className="text-[10px] bg-[#1A1A1A] text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded font-mono font-bold">
+                      🕒 Giờ VN hiện tại: {currentVnClock}
+                    </span>
+                  </div>
+                  <select
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="w-full p-2 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
+                  >
+                    <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (GMT+7 - Giờ Việt Nam) [Khuyên dùng]</option>
+                    <option value="Asia/Bangkok">Asia/Bangkok (GMT+7)</option>
+                    <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (GMT+9)</option>
+                    <option value="UTC">UTC (GMT+0)</option>
+                  </select>
+                  <p className="text-[10px] text-[#888888] italic">
+                    Hệ thống sẽ đồng bộ lịch điểm tin sáng/tối chính xác theo múi giờ này, không phụ thuộc vào giờ của máy chủ cloud.
+                  </p>
+                </div>
+
+                {/* Khung giờ Điểm tin Buổi Sáng & Báo cáo Buổi Tối */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm">
+                  {/* Morning Briefing Schedule */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-amber-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
+                        <Sun className="w-3 h-3" />
+                        Điểm Tin Buổi Sáng
+                      </label>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={enableMorningBriefing}
+                          onChange={(e) => setEnableMorningBriefing(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-7 h-4 bg-[#2A2A2A] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500"></div>
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={morningHour}
+                        disabled={!enableMorningBriefing}
+                        onChange={(e) => setMorningHour(Number(e.target.value))}
+                        className="flex-1 p-1.5 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37] disabled:opacity-40"
+                      >
+                        {Array.from({ length: 24 }).map((_, h) => (
+                          <option key={h} value={h}>
+                            {h.toString().padStart(2, '0')}:00 {h < 12 ? 'AM' : 'PM'}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={morningMinute}
+                        disabled={!enableMorningBriefing}
+                        onChange={(e) => setMorningMinute(Number(e.target.value))}
+                        className="w-16 p-1.5 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37] disabled:opacity-40"
+                      >
+                        <option value={0}>00p</option>
+                        <option value={15}>15p</option>
+                        <option value={30}>30p</option>
+                        <option value={45}>45p</option>
+                      </select>
+                    </div>
+                    <p className="text-[10px] text-[#666666]">
+                      {enableMorningBriefing ? `Tự động gửi lúc ${morningHour.toString().padStart(2, '0')}:${morningMinute.toString().padStart(2, '0')} sáng VN` : 'Đang tắt'}
+                    </p>
+                  </div>
+
+                  {/* Evening Briefing Schedule */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-indigo-300 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
+                        <Moon className="w-3 h-3" />
+                        Báo Cáo Buổi Tối
+                      </label>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={enableEveningBriefing}
+                          onChange={(e) => setEnableEveningBriefing(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-7 h-4 bg-[#2A2A2A] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-500"></div>
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={eveningHour}
+                        disabled={!enableEveningBriefing}
+                        onChange={(e) => setEveningHour(Number(e.target.value))}
+                        className="flex-1 p-1.5 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37] disabled:opacity-40"
+                      >
+                        {Array.from({ length: 24 }).map((_, h) => (
+                          <option key={h} value={h}>
+                            {h.toString().padStart(2, '0')}:00 {h < 12 ? 'AM' : 'PM'}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={eveningMinute}
+                        disabled={!enableEveningBriefing}
+                        onChange={(e) => setEveningMinute(Number(e.target.value))}
+                        className="w-16 p-1.5 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37] disabled:opacity-40"
+                      >
+                        <option value={0}>00p</option>
+                        <option value={15}>15p</option>
+                        <option value={30}>30p</option>
+                        <option value={45}>45p</option>
+                      </select>
+                    </div>
+                    <p className="text-[10px] text-[#666666]">
+                      {enableEveningBriefing ? `Tự động gửi lúc ${eveningHour.toString().padStart(2, '0')}:${eveningMinute.toString().padStart(2, '0')} tối VN` : 'Đang tắt'}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Reminder Timing */}

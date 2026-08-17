@@ -188,6 +188,13 @@ export const initialTelegramConfig: TelegramConfig = {
   enabled: true,
   alertOffsetMinutes: 15,
   isConnected: true,
+  timezone: 'Asia/Ho_Chi_Minh',
+  morningBriefingHour: 7,
+  morningBriefingMinute: 0,
+  eveningBriefingHour: 21,
+  eveningBriefingMinute: 0,
+  enableMorningBriefing: true,
+  enableEveningBriefing: true,
 };
 
 export const initialNotificationLogs: NotificationLog[] = [
