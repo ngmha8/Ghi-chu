@@ -25,8 +25,16 @@ const STORAGE_USER_KEY = 'ai_app_google_user_info';
 const STORAGE_CLIENT_ID_KEY = 'ai_app_custom_google_client_id';
 const STORAGE_TOKEN_TIMESTAMP_KEY = 'ai_app_google_token_timestamp';
 
+export const DEFAULT_OAUTH_CLIENT_ID = (firebaseConfig as any).oAuthClientId || '378918995371-n7a1ekm2uarv95ts7e25i0f3e3tgunb7.apps.googleusercontent.com';
+
 export function getCustomGoogleClientId(): string {
-  return localStorage.getItem(STORAGE_CLIENT_ID_KEY) || '';
+  const stored = localStorage.getItem(STORAGE_CLIENT_ID_KEY) || '';
+  // Clear any outdated mismatched client ID
+  if (stored.includes('797950767923') || !stored.trim()) {
+    localStorage.removeItem(STORAGE_CLIENT_ID_KEY);
+    return DEFAULT_OAUTH_CLIENT_ID;
+  }
+  return stored || DEFAULT_OAUTH_CLIENT_ID;
 }
 
 export function setCustomGoogleClientId(clientId: string): void {
@@ -136,7 +144,7 @@ export const initGoogleAuth = (
  */
 export async function refreshAccessTokenSilently(): Promise<string> {
   const customId = getCustomGoogleClientId();
-  const effectiveClientId = customId || (firebaseConfig as any).oAuthClientId || '797950767923-2ibe3kgt6hl8uahlmn0pk1vh5u5qlmr5.apps.googleusercontent.com';
+  const effectiveClientId = customId || DEFAULT_OAUTH_CLIENT_ID;
 
   return new Promise((resolve, reject) => {
     const initClient = () => {
@@ -190,7 +198,7 @@ export async function refreshAccessTokenSilently(): Promise<string> {
  */
 export async function signInWithGoogleGIS(clientId?: string): Promise<{ user: any; accessToken: string }> {
   const customId = getCustomGoogleClientId();
-  const effectiveClientId = clientId || customId || (firebaseConfig as any).oAuthClientId || '797950767923-2ibe3kgt6hl8uahlmn0pk1vh5u5qlmr5.apps.googleusercontent.com';
+  const effectiveClientId = clientId || customId || DEFAULT_OAUTH_CLIENT_ID;
 
   return new Promise((resolve, reject) => {
     const initClient = () => {

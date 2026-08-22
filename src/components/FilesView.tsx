@@ -276,7 +276,10 @@ export const FilesView: React.FC<FilesViewProps> = ({
         console.log('Silent refresh unavailable, proceeding with standard sign in...', silentErr);
       }
 
-      const result = await signInWithGoogleGIS().catch(() => signInWithGoogle());
+      const result = await signInWithGoogle().catch(async (fbErr) => {
+        console.warn('Firebase signInWithPopup failed, falling back to GIS:', fbErr);
+        return await signInWithGoogleGIS();
+      });
       user = result.user;
       token = result.accessToken;
 
