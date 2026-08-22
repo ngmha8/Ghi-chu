@@ -53,15 +53,15 @@ try {
   }
   if (fs.existsSync(LOCAL_TASKS_FILE)) {
     const data = JSON.parse(fs.readFileSync(LOCAL_TASKS_FILE, 'utf-8'));
-    if (Array.isArray(data) && data.length > 0) cachedTasks = data;
+    if (Array.isArray(data)) cachedTasks = data;
   }
   if (fs.existsSync(LOCAL_NOTES_FILE)) {
     const data = JSON.parse(fs.readFileSync(LOCAL_NOTES_FILE, 'utf-8'));
-    if (Array.isArray(data) && data.length > 0) cachedNotes = data;
+    if (Array.isArray(data)) cachedNotes = data;
   }
   if (fs.existsSync(LOCAL_FILES_FILE)) {
     const data = JSON.parse(fs.readFileSync(LOCAL_FILES_FILE, 'utf-8'));
-    if (Array.isArray(data) && data.length > 0) cachedFiles = data;
+    if (Array.isArray(data)) cachedFiles = data;
   }
 } catch (e) {
   console.warn('Could not read local backup files:', e);

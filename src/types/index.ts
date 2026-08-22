@@ -38,6 +38,15 @@ export interface Note {
   updatedAt: string;
 }
 
+export interface DocumentCategory {
+  id: string;
+  name: string; // e.g. "Công việc", "Cá nhân", "Mẫu giấy tờ", "Tài chính & Hóa đơn", "Hợp đồng & Pháp lý", "Dự án"
+  color: string; // 'emerald' | 'amber' | 'blue' | 'purple' | 'rose' | 'teal' | 'indigo' | 'cyan' | 'zinc'
+  icon?: string; // 'Briefcase' | 'User' | 'FileCheck' | 'DollarSign' | 'Scale' | 'FolderKanban' | 'FileText' | 'Bookmark'
+  description?: string;
+  isDefault?: boolean;
+}
+
 export interface DriveFile {
   id: string;
   name: string;
@@ -45,6 +54,8 @@ export interface DriveFile {
   size: number; // in bytes
   webViewLink?: string;
   category: 'document' | 'spreadsheet' | 'presentation' | 'pdf' | 'image' | 'archive' | 'other';
+  classification?: string; // ID or name of DocumentCategory e.g. 'work' | 'personal' | 'templates' | 'finance' | 'legal' | 'projects' | 'other'
+  tags?: string[];
   isSyncedToDrive: boolean;
   driveFileId?: string;
   uploadedAt: string;

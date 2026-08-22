@@ -168,7 +168,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="space-y-3">
-              {tasks.filter(t => t.status !== 'completed').slice(0, 5).map(task => {
+              {tasks.filter(t => t.status !== 'completed').length === 0 ? (
+                <div className="p-8 text-center bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
+                  <CheckCircle2 className="w-8 h-8 text-[#555555] mx-auto" />
+                  <p className="text-sm font-editorial-serif text-[#E0E0E0]">Chưa có công việc nào cần xử lý</p>
+                  <p className="text-xs text-[#777777]">Bấm "Tạo Task" để thêm nhiệm vụ hoặc yêu cầu AI tạo tự động qua Chat / Telegram.</p>
+                  <button
+                    onClick={openNewTaskModal}
+                    className="mt-2 px-3 py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    <span>+ Thêm Task Mới</span>
+                  </button>
+                </div>
+              ) : (
+                tasks.filter(t => t.status !== 'completed').slice(0, 5).map(task => {
                 const isOverdue = new Date(task.deadline) < now;
                 const isUrgent = task.priority === 'high';
 
@@ -224,7 +238,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </div>
           </div>
         </div>
@@ -247,7 +261,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="space-y-2.5">
-              {notes.slice(0, 3).map(note => (
+              {notes.length === 0 ? (
+                <p className="text-xs text-[#666666] italic py-2">Chưa có ghi chú nào. Bấm "+ Thêm" để tạo.</p>
+              ) : (
+                notes.slice(0, 3).map(note => (
                 <div
                   key={note.id}
                   onClick={() => setActiveTab('notes')}
@@ -263,7 +280,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     ))}
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
 
@@ -283,7 +300,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="space-y-2">
-              {files.slice(0, 3).map(file => (
+              {files.length === 0 ? (
+                <p className="text-xs text-[#666666] italic py-2">Chưa có tài liệu nào. Tải lên tệp tại mục Tài liệu & Drive.</p>
+              ) : (
+                files.slice(0, 3).map(file => (
                 <div
                   key={file.id}
                   className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] flex items-center justify-between text-xs"
@@ -296,7 +316,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                   <span className="text-[10px] text-[#777777] shrink-0 font-mono">{(file.size / 1024).toFixed(0)} KB</span>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         </div>

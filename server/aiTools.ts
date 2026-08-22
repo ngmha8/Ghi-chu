@@ -288,15 +288,36 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       filtered = filtered.filter(t => t.title.toLowerCase().includes(kw) || t.description.toLowerCase().includes(kw));
     }
 
+    if (filtered.length === 0) {
+      return {
+        success: true,
+        data: [],
+        message: '📋 Hiện tại không có công việc nào thỏa mãn tiêu chí tìm kiếm.',
+      };
+    }
+
+    const listText = filtered
+      .slice(0, 10)
+      .map((t, idx) => `${idx + 1}. **[${t.priority.toUpperCase()}] ${t.title}**\n   • Trạng thái: \`${t.status}\` | Hạn chót: ${new Date(t.deadline).toLocaleString('vi-VN')}`)
+      .join('\n');
+
     return {
       success: true,
       data: filtered,
-      message: `Tìm thấy ${filtered.length} công việc phù hợp.`,
+      message: `📋 **Danh sách công việc tìm thấy (${filtered.length}):**\n\n${listText}`,
+    };
+  }
+
+  // Handle search or external query tools gracefully
+  if (['google_search', 'googleSearch', 'web_search', 'search', 'webSearch'].includes(name)) {
+    return {
+      success: true,
+      message: '',
     };
   }
 
   return {
-    success: false,
-    message: `Không tìm thấy hàm xử lý cho tool: ${name}`,
+    success: true,
+    message: '',
   };
 }

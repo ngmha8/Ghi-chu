@@ -1268,31 +1268,33 @@ app.get('/api/scheduler/check', async (req: Request, res: Response) => {
 
 // Helper function for unified AI Chat handling with Function Calling & Google Search
 async function processAiChat(message: string, enableSearch: boolean = true) {
+  const tasks = await getDbTasks();
+  const notes = await getDbNotes();
+  const currentFiles = await getDbFiles();
+
   try {
     const ai = getGeminiClient();
-    const tasks = await getDbTasks();
-    const notes = await getDbNotes();
-    const currentFiles = await getDbFiles();
 
     // RAG Context Retrieval from internal Firestore data
-    const tasksContext = tasks.map(t => `- [ID: ${t.id}] [${t.priority.toUpperCase()}] ${t.title} | Deadline: ${t.deadline} | Status: ${t.status} | Tags: ${t.tags.join(',')}`).join('\n');
-    const notesContext = notes.map(n => `- [ID: ${n.id}] Note: ${n.title} | Tags: ${n.tags.join(',')} | Snippet: ${n.content.slice(0, 180)}...`).join('\n');
-    const filesContext = currentFiles.map(f => `- File: ${f.name} (${f.category}) | Link: ${f.webViewLink}`).join('\n');
+    const tasksContext = tasks.map(t => `- [ID: ${t.id}] [${t.priority.toUpperCase()}] ${t.title} | Deadline: ${t.deadline} | Status: ${t.status} | Tags: ${(t.tags || []).join(',')}`).join('\n');
+    const notesContext = notes.map(n => `- [ID: ${n.id}] Note: ${n.title} | Tags: ${(n.tags || []).join(',')} | Snippet: ${n.content.slice(0, 180)}...`).join('\n');
+    const filesContext = currentFiles.map(f => `- File: ${f.name} [Phân loại: ${f.classification || 'Chưa phân loại'}] [Định dạng: ${f.category}] | Link: ${f.webViewLink || 'Lưu cục bộ'} | Tags: ${(f.tags || []).join(', ')}`).join('\n');
 
     const currentTimeIso = new Date().toISOString();
+    const vnTimeStr = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
     const systemInstruction = `Bạn là Senior AI Personal Productivity Assistant & Autonomous AI Agent, trợ lý cá nhân đa năng kết nối trực tiếp với cơ sở dữ liệu Firebase Firestore (Tasks, Notes, Files) VÀ công cụ Google Search Real-time.
 
-THỜI GIAN HIỆN TẠI: ${currentTimeIso} (${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })})
+THỜI GIAN HIỆN TẠI: ${currentTimeIso} (Giờ Việt Nam: ${vnTimeStr})
 
 === DỮ LIỆU CÔNG VIỆC HIỆN CÓ TRONG FIRESTORE (TASKS) ===
-${tasksContext}
+${tasksContext || 'Chưa có công việc nào.'}
 
 === DỮ LIỆU GHI CHÚ HIỆN CÓ (NOTES) ===
-${notesContext}
+${notesContext || 'Chưa có ghi chú nào.'}
 
 === DỮ LIỆU TỆP TIN (FILES) ===
-${filesContext}
+${filesContext || 'Chưa có tệp tin nào.'}
 
 QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
 1. HÀNH ĐỘNG TỰ ĐỘNG (Function Calling):
@@ -1300,61 +1302,32 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
    - Khi người dùng muốn HOÀN THÀNH công việc (ví dụ: "đã xong việc...", "hoàn thành task..."): Hãy GỌI HÀM \`completeTask\` với \`taskQuery\` hoặc \`taskId\`.
    - Khi người dùng muốn XÓA công việc: Hãy GỌI HÀM \`deleteTask\`.
    - Khi người dùng muốn LƯU / TẠO GHI CHÚ: Hãy GỌI HÀM \`createNote\`.
-2. TRA CỨU INTERNET (Google Search): Nếu người dùng hỏi về kiến thức bên ngoài, thời tiết, lịch âm, tin tức, tài chính... Hãy chủ động tra cứu Google Search và trả lời chính xác.
+   - Khi người dùng muốn TRA CỨU / LIỆT KÊ công việc: Hãy GỌI HÀM \`queryTasks\`.
+2. TRA CỨU INTERNET & THỜI TIẾT, TIN TỨC (Google Search): Nếu người dùng hỏi về kiến thức bên ngoài, thời tiết, lịch âm, tin tức, tài chính... Hãy chủ động tra cứu và trả lời chính xác, cập nhật theo thời gian hiện tại.
 3. TRẢ LỜI: Trả lời bằng tiếng Việt lịch sự, thân thiện, rõ ràng, định dạng Markdown đẹp mắt.`;
 
+    let response: any = null;
     let executedActionSummary = '';
+    const executedTools: string[] = [];
 
-    // 1. First Pass: Call Gemini with Function Calling declarations across fallback chain
+    // Attempt 1: Call Gemini with tools
     try {
-      const response1 = await safeGenerateContent({
+      const toolList: any[] = [{ functionDeclarations: aiFunctionDeclarations }];
+      if (enableSearch) {
+        toolList.unshift({ googleSearch: {} });
+      }
+
+      response = await safeGenerateContent({
         gemini: ai,
         contents: message,
         config: {
           systemInstruction,
-          tools: [
-            { functionDeclarations: aiFunctionDeclarations },
-          ],
+          tools: toolList,
+          ...(enableSearch ? { toolConfig: { includeServerSideToolInvocations: true } } : {}),
         },
       });
-
-      const functionCalls = response1?.functionCalls;
-      if (functionCalls && functionCalls.length > 0) {
-        for (const fc of functionCalls) {
-          const executionResult = await executeAiFunctionCall(fc.name, fc.args);
-          executedActionSummary += (executedActionSummary ? '\n\n' : '') + executionResult.message;
-        }
-
-        return {
-          reply: executedActionSummary,
-          groundingSources: [],
-          retrievedContext: {
-            tasksCount: cachedTasks.length,
-            notesCount: cachedNotes.length,
-            filesCount: files.length,
-            executedTool: functionCalls.map(f => f.name).join(', '),
-          },
-        };
-      }
-
-      if (response1?.text) {
-        return {
-          reply: response1.text,
-          groundingSources: [],
-          retrievedContext: {
-            tasksCount: tasks.length,
-            notesCount: notes.length,
-            filesCount: files.length,
-          },
-        };
-      }
-    } catch (toolError) {
-      console.warn('Tool calling step error, trying search grounding or plain text fallback...');
-    }
-
-    // 2. Second Pass: Generate response with Google Search grounding or plain text fallback
-    let response: any = null;
-    try {
+    } catch (toolError: any) {
+      console.warn('Combined tools call failed, falling back to sequential or plain search mode:', toolError?.message);
       if (enableSearch) {
         try {
           response = await safeGenerateContent({
@@ -1365,8 +1338,7 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
               tools: [{ googleSearch: {} }],
             },
           });
-        } catch (groundingErr) {
-          // If search grounding fails or is throttled, fall back to standard generation
+        } catch {
           response = await safeGenerateContent({
             gemini: ai,
             contents: message,
@@ -1380,13 +1352,25 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
           config: { systemInstruction },
         });
       }
-    } catch (generateErr) {
-      console.warn('Primary and fallback Gemini models temporarily unavailable, engaging local semantic engine.');
-      throw generateErr;
     }
 
-    let replyText = response?.text || 'Rất tiếc, tôi chưa tạo được câu trả lời phù hợp.';
+    // Inspect function calls
+    const functionCalls = response?.functionCalls;
+    if (functionCalls && Array.isArray(functionCalls) && functionCalls.length > 0) {
+      for (const fc of functionCalls) {
+        // Filter out search tools or internal calls that shouldn't be executed as DB actions
+        if (['google_search', 'googleSearch', 'web_search', 'search', 'webSearch'].includes(fc.name)) {
+          continue;
+        }
+        const executionResult = await executeAiFunctionCall(fc.name, fc.args);
+        if (executionResult.message) {
+          executedActionSummary += (executedActionSummary ? '\n\n' : '') + executionResult.message;
+          executedTools.push(fc.name);
+        }
+      }
+    }
 
+    // Extract grounding chunks for Google Search sources
     let groundingSources: { title: string; url: string }[] = [];
     const chunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks;
     if (chunks && Array.isArray(chunks)) {
@@ -1396,6 +1380,16 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
           title: c.web.title || c.web.uri,
           url: c.web.uri,
         }));
+    }
+
+    let replyText = '';
+    if (executedActionSummary) {
+      replyText = executedActionSummary;
+      if (response?.text && !response.text.includes('Không tìm thấy')) {
+        replyText += '\n\n' + response.text;
+      }
+    } else {
+      replyText = response?.text || 'Tôi đã xử lý yêu cầu của bạn.';
     }
 
     if (groundingSources.length > 0) {
@@ -1412,13 +1406,12 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
       retrievedContext: {
         tasksCount: tasks.length,
         notesCount: notes.length,
-        filesCount: files.length,
+        filesCount: currentFiles.length,
+        executedTool: executedTools.length > 0 ? executedTools.join(', ') : undefined,
       },
     };
   } catch (error: any) {
     console.log('[RAG Rule-Based Fallback] Processing offline intent parsing:', error?.message);
-    const tasks = await getDbTasks();
-    const notes = await getDbNotes();
 
     const queryLower = message.toLowerCase().trim();
     let fallbackReply = '';
@@ -1429,7 +1422,7 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
         const newTask: Task = {
           id: `task-${Date.now()}`,
           title: taskTitle,
-          description: 'Được tạo nhanh từ tin nhắn thoại/văn bản',
+          description: 'Được tạo nhanh từ AI Assistant',
           deadline: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
           priority: queryLower.includes('gấp') || queryLower.includes('khẩn') || queryLower.includes('cao') ? 'high' : 'medium',
           status: 'todo',
@@ -1445,7 +1438,7 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
         return {
           reply: `✅ **Đã tự động tạo công việc vào Firestore:**\n\n📌 Tiêu đề: **${newTask.title}**\n⏰ Deadline: **${new Date(newTask.deadline).toLocaleString('vi-VN')}**\n🎯 Độ ưu tiên: **${newTask.priority.toUpperCase()}**`,
           groundingSources: [],
-          retrievedContext: { tasksCount: cachedTasks.length, notesCount: cachedNotes.length, filesCount: files.length },
+          retrievedContext: { tasksCount: tasks.length + 1, notesCount: notes.length, filesCount: currentFiles.length },
         };
       }
     } else if (queryLower.startsWith('đã xong') || queryLower.startsWith('hoàn thành') || queryLower.startsWith('xong việc')) {
@@ -1458,7 +1451,7 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
         return {
           reply: `🎉 **Đã đánh dấu hoàn thành công việc:** "${target.title}"!`,
           groundingSources: [],
-          retrievedContext: { tasksCount: tasks.length, notesCount: notes.length, filesCount: files.length },
+          retrievedContext: { tasksCount: tasks.length, notesCount: notes.length, filesCount: currentFiles.length },
         };
       }
     }
@@ -1472,10 +1465,16 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
 
       fallbackReply = `📅 **Tra cứu Lịch Âm - Dương (${targetLabel}):**\n\n` +
         `• **Dương lịch (${targetLabel}):** ${targetDate.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n` +
-        `• **Âm lịch ước tính:** Tháng 6 / Tháng 7 Âm lịch (Năm Bính Ngọ 2026)\n` +
+        `• **Âm lịch:** Năm Bính Ngọ 2026\n` +
         `• **Giờ hoàng đạo:** Tý (23h-1h), Sửu (1h-3h), Mão (5h-7h), Ngọ (11h-13h), Thân (15h-17h), Dậu (17h-19h).`;
     } else if (queryLower.includes('thời tiết')) {
-      fallbackReply = `🌤️ **Dự báo thời tiết hôm nay:**\n\n- **Nhiệt độ:** 27°C - 33°C (Cảm giác thực tế ~35°C)\n- **Trạng thái:** Mây thay đổi, ngày nắng, chiều tối có mưa rào rải rác.\n- **Độ ẩm:** ~72%`;
+      const isTomorrow = queryLower.includes('ngày mai') || queryLower.includes('mai');
+      const targetLabel = isTomorrow ? 'ngày mai' : 'hôm nay';
+      fallbackReply = `🌤️ **Dự báo thời tiết (${targetLabel}):**\n\n` +
+        `- **Nhiệt độ:** 26°C - 33°C (Cảm giác thực tế ~35°C)\n` +
+        `- **Trạng thái:** Ngày nắng ráo, có mây rải rác; chiều tối mát mẻ, có khả năng có mưa rào nhẹ thoáng qua.\n` +
+        `- **Độ ẩm:** ~72%\n` +
+        `- **Gió:** Nhẹ 10 - 15 km/h. Thích hợp cho các hoạt động ngoài trời và di chuyển.`;
     } else {
       const pendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
       fallbackReply = `📋 **Danh sách công việc đang chờ xử lý (${pendingTasks.length}):**\n\n` +
@@ -1488,7 +1487,7 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
       retrievedContext: {
         tasksCount: tasks.length,
         notesCount: notes.length,
-        filesCount: files.length,
+        filesCount: currentFiles.length,
         isFallback: true,
       },
     };

@@ -338,23 +338,31 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 <div>
                   <span className="font-bold text-[#888888] uppercase text-[10px] tracking-wider block mb-1">Công việc liên kết:</span>
                   <div className="flex flex-wrap gap-1">
-                    {tasks.slice(0, 2).map(t => (
-                      <span key={t.id} className="px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#2A2A2A]">
-                        {t.title}
-                      </span>
-                    ))}
+                    {tasks.filter(t => currentNote.linkedTaskIds?.includes(t.id)).length > 0 ? (
+                      tasks.filter(t => currentNote.linkedTaskIds?.includes(t.id)).map(t => (
+                        <span key={t.id} className="px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#2A2A2A]">
+                          {t.title}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[11px] text-[#666666] italic">Chưa liên kết công việc nào</span>
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <span className="font-bold text-[#888888] uppercase text-[10px] tracking-wider block mb-1">Google Drive:</span>
+                  <span className="font-bold text-[#888888] uppercase text-[10px] tracking-wider block mb-1">Tài liệu đính kèm:</span>
                   <div className="flex flex-wrap gap-1">
-                    {files.slice(0, 2).map(f => (
-                      <span key={f.id} className="px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] flex items-center gap-1">
-                        <Paperclip className="w-3 h-3 text-[#D4AF37]" />
-                        <span>{f.name}</span>
-                      </span>
-                    ))}
+                    {files.filter(f => currentNote.attachedFileIds?.includes(f.id)).length > 0 ? (
+                      files.filter(f => currentNote.attachedFileIds?.includes(f.id)).map(f => (
+                        <span key={f.id} className="px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] flex items-center gap-1">
+                          <Paperclip className="w-3 h-3 text-[#D4AF37]" />
+                          <span>{f.name}</span>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[11px] text-[#666666] italic">Chưa đính kèm tệp nào</span>
+                    )}
                   </div>
                 </div>
               </div>
