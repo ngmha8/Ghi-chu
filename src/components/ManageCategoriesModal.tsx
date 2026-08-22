@@ -18,7 +18,9 @@ import {
   Bookmark,
   Archive,
   Layers,
-  Sparkles
+  Sparkles,
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react';
 import { DEFAULT_DOCUMENT_CATEGORIES, CATEGORY_COLORS } from '../services/docClassification.js';
 
@@ -142,15 +144,29 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
     }
   };
 
+  const [catToDeleteInModal, setCatToDeleteInModal] = useState<{ id: string; name: string; count: number } | null>(null);
+
   const handleDeleteItem = (id: string) => {
     if (list.length <= 1) {
       alert('Hệ thống cần giữ ít nhất 1 phân loại tài liệu.');
       return;
     }
-    const updated = list.filter(c => c.id !== id);
+    const targetCat = list.find(c => c.id === id);
+    const count = fileCounts[id] || (targetCat ? fileCounts[targetCat.name] : 0) || 0;
+    setCatToDeleteInModal({
+      id,
+      name: targetCat?.name || id,
+      count,
+    });
+  };
+
+  const confirmDeleteInModal = () => {
+    if (!catToDeleteInModal) return;
+    const updated = list.filter(c => c.id !== catToDeleteInModal.id);
     setList(updated);
     onSaveCategories(updated);
-    if (editingId === id) setEditingId(null);
+    if (editingId === catToDeleteInModal.id) setEditingId(null);
+    setCatToDeleteInModal(null);
   };
 
   const handleResetDefaults = () => {
@@ -402,6 +418,58 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
             Đóng
           </button>
         </div>
+
+        {/* Category Deletion Warning Modal inside Manage modal */}
+        {catToDeleteInModal && (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-xs flex items-center justify-center p-4 z-60 animate-in fade-in duration-150">
+            <div className="bg-[#151515] border border-[#2A2A2A] w-full max-w-md rounded-sm shadow-2xl p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded ${catToDeleteInModal.count > 0 ? 'bg-amber-950/50 border border-amber-700 text-amber-400' : 'bg-rose-950/40 border border-rose-800 text-rose-400'}`}>
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-editorial-serif font-bold text-white text-base">
+                    {catToDeleteInModal.count > 0 ? 'Cảnh Báo Xóa Phân Loại' : 'Xác Nhận Xóa'}
+                  </h3>
+                  <p className="text-xs text-[#888888]">Nhóm: <strong className="text-white">"{catToDeleteInModal.name}"</strong></p>
+                </div>
+              </div>
+
+              {catToDeleteInModal.count > 0 ? (
+                <div className="p-3 bg-amber-950/30 border border-amber-800/80 rounded text-xs space-y-2 text-amber-200">
+                  <p className="font-bold flex items-center gap-1.5 text-amber-300">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>Có {catToDeleteInModal.count} tài liệu đang thuộc phân loại này!</span>
+                  </p>
+                  <p className="text-[11px] text-[#CCCCCC]">
+                    Nếu xóa phân loại <strong>"{catToDeleteInModal.name}"</strong>, các tài liệu này sẽ tự động chuyển về nhóm <strong>"Khác"</strong> để đảm bảo an toàn.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-[#CCCCCC] bg-[#0C0C0C] p-3 rounded border border-[#2A2A2A]">
+                  Bạn có chắc muốn xóa phân loại <strong className="text-white">"{catToDeleteInModal.name}"</strong> khỏi hệ thống?
+                </p>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#2A2A2A]">
+                <button
+                  onClick={() => setCatToDeleteInModal(null)}
+                  className="px-3.5 py-1.5 bg-[#0C0C0C] hover:bg-[#1A1A1A] text-white border border-[#2A2A2A] text-xs font-bold rounded-sm cursor-pointer"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  onClick={confirmDeleteInModal}
+                  className={`px-4 py-1.5 text-white text-xs font-bold uppercase tracking-wider rounded-sm cursor-pointer shadow ${
+                    catToDeleteInModal.count > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-rose-600 hover:bg-rose-700'
+                  }`}
+                >
+                  {catToDeleteInModal.count > 0 ? 'Đồng Ý & Chuyển Về Khác' : 'Xác Nhận Xóa'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

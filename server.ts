@@ -1326,8 +1326,8 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
           ...(enableSearch ? { toolConfig: { includeServerSideToolInvocations: true } } : {}),
         },
       });
-    } catch (toolError: any) {
-      console.warn('Combined tools call failed, falling back to sequential or plain search mode:', toolError?.message);
+    } catch {
+      // If combined tools call is rate limited or unavailable, try search-only or standard text mode
       if (enableSearch) {
         try {
           response = await safeGenerateContent({

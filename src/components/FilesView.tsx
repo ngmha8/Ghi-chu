@@ -156,6 +156,10 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Quick Inline Category Switcher state (fileId -> open/close)
   const [openCategoryPopoverFileId, setOpenCategoryPopoverFileId] = useState<string | null>(null);
+  const [popoverNewCatInput, setPopoverNewCatInput] = useState('');
+
+  // Category Deletion Confirmation & Warning State
+  const [categoryToDelete, setCategoryToDelete] = useState<{ category: DocumentCategory; fileCount: number } | null>(null);
 
   // Initialize and observe Google Auth changes & SA config
   useEffect(() => {
@@ -404,6 +408,79 @@ export const FilesView: React.FC<FilesViewProps> = ({
         classification: newClassification,
       });
     }
+    setOpenCategoryPopoverFileId(null);
+  };
+
+  // Create a new classification directly (from popover, top bar, or modal)
+  const handleCreateNewCategory = (catName: string, targetFileId?: string) => {
+    const trimmed = catName.trim();
+    if (!trimmed) return;
+
+    // Check if category already exists (case-insensitive)
+    const existing = categories.find(c => c.name.toLowerCase() === trimmed.toLowerCase() || c.id.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      if (targetFileId) {
+        handleUpdateFileClassification(targetFileId, existing.id);
+      }
+      return;
+    }
+
+    const PALETTE = ['emerald', 'blue', 'amber', 'teal', 'rose', 'purple', 'indigo', 'cyan'];
+    const nextColor = PALETTE[categories.length % PALETTE.length];
+
+    const newCat: DocumentCategory = {
+      id: `cat-${Date.now()}`,
+      name: trimmed,
+      color: nextColor,
+      icon: 'Tag',
+      description: `Phân loại ${trimmed}`,
+      isDefault: false,
+    };
+
+    const updated = [...categories, newCat];
+    handleSaveCategories(updated);
+
+    if (targetFileId) {
+      handleUpdateFileClassification(targetFileId, newCat.id);
+    }
+  };
+
+  // Request category deletion with active document warning
+  const handleRequestDeleteCategory = (cat: DocumentCategory) => {
+    if (categories.length <= 1) {
+      alert('Hệ thống cần duy trì ít nhất 1 phân loại tài liệu.');
+      return;
+    }
+    const count = classificationCounts[cat.id] || classificationCounts[cat.name] || 0;
+    setCategoryToDelete({ category: cat, fileCount: count });
+  };
+
+  // Confirm category deletion & migrate any attached files to 'other'
+  const handleConfirmDeleteCategory = () => {
+    if (!categoryToDelete) return;
+    const { category: cat, fileCount } = categoryToDelete;
+
+    // If there are files with this classification, migrate them to 'other'
+    if (fileCount > 0 && onFileUpdate) {
+      files.forEach(f => {
+        const isMatch = f.classification === cat.id || f.classification?.toLowerCase() === cat.name.toLowerCase();
+        if (isMatch) {
+          onFileUpdate(f.id, { classification: 'other' });
+        }
+      });
+      if (previewFile && (previewFile.classification === cat.id || previewFile.classification?.toLowerCase() === cat.name.toLowerCase())) {
+        setPreviewFile({ ...previewFile, classification: 'other' });
+      }
+    }
+
+    const updatedCategories = categories.filter(c => c.id !== cat.id);
+    handleSaveCategories(updatedCategories);
+
+    if (selectedClassification === cat.id) {
+      setSelectedClassification('all');
+    }
+
+    setCategoryToDelete(null);
     setOpenCategoryPopoverFileId(null);
   };
 
@@ -1049,38 +1126,93 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
                     {/* Popover Quick Category Selector */}
                     {isCategoryPopoverOpen && (
-                      <div className="absolute top-full left-0 mt-1 z-30 w-56 bg-[#181818] border border-[#3A3A3A] rounded shadow-2xl p-2 space-y-1 animate-in fade-in">
-                        <div className="text-[10px] font-bold text-[#AAAAAA] uppercase px-2 py-1 border-b border-[#2A2A2A] flex items-center justify-between">
-                          <span>Chuyển phân loại:</span>
+                      <div className="absolute top-full left-0 mt-1 z-30 w-64 bg-[#181818] border border-[#3A3A3A] rounded shadow-2xl p-2.5 space-y-2 animate-in fade-in">
+                        <div className="text-[10px] font-bold text-[#AAAAAA] uppercase px-1 pb-1.5 border-b border-[#2A2A2A] flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-[#D4AF37]" />
+                            <span>Phân loại tài liệu</span>
+                          </span>
                           <button
                             onClick={() => setOpenCategoryPopoverFileId(null)}
-                            className="text-[#666666] hover:text-white"
+                            className="text-[#666666] hover:text-white cursor-pointer px-1 text-xs"
                           >
                             ✕
                           </button>
                         </div>
-                        <div className="max-h-48 overflow-y-auto space-y-0.5 pt-1">
+
+                        {/* List of categories with Delete button on the right */}
+                        <div className="max-h-52 overflow-y-auto space-y-1 pr-0.5 scrollbar-thin">
                           {categories.map(cat => {
                             const cCfg = CATEGORY_COLORS[cat.color] || CATEGORY_COLORS.zinc;
                             const isCurrent = resolvedCat.id === cat.id;
+                            const catDocCount = classificationCounts[cat.id] || classificationCounts[cat.name] || 0;
+
                             return (
-                              <button
+                              <div
                                 key={cat.id}
-                                onClick={() => handleUpdateFileClassification(file.id, cat.id)}
-                                className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                                className={`group/catitem w-full px-2 py-1.5 rounded text-xs flex items-center justify-between transition-colors ${
                                   isCurrent
-                                    ? 'bg-[#252525] text-white font-bold'
-                                    : 'text-[#CCCCCC] hover:bg-[#202020]'
+                                    ? 'bg-[#262626] text-white font-bold border border-[#404040]'
+                                    : 'text-[#CCCCCC] hover:bg-[#202020] border border-transparent'
                                 }`}
                               >
-                                <span className={`flex items-center gap-1.5 ${cCfg.text}`}>
-                                  {renderCategoryIcon(cat.icon, 'w-3 h-3')}
-                                  <span>{cat.name}</span>
-                                </span>
-                                {isCurrent && <Check className="w-3 h-3 text-[#D4AF37]" />}
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateFileClassification(file.id, cat.id)}
+                                  className="flex-1 text-left flex items-center gap-2 min-w-0 cursor-pointer"
+                                  title={`Chọn phân loại "${cat.name}"`}
+                                >
+                                  <span className={`flex items-center gap-1.5 truncate ${cCfg.text}`}>
+                                    {renderCategoryIcon(cat.icon, 'w-3.5 h-3.5 shrink-0')}
+                                    <span className="truncate">{cat.name}</span>
+                                  </span>
+                                  {isCurrent && <Check className="w-3.5 h-3.5 text-[#D4AF37] shrink-0 ml-auto mr-1" />}
+                                </button>
+
+                                {/* Delete button on the right */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRequestDeleteCategory(cat);
+                                  }}
+                                  className="p-1 text-[#666666] hover:text-rose-400 hover:bg-rose-950/60 rounded transition-all cursor-pointer shrink-0 opacity-60 group-hover/catitem:opacity-100 ml-1"
+                                  title={`Xóa phân loại "${cat.name}"${catDocCount > 0 ? ` (đang có ${catDocCount} tài liệu)` : ''}`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
                             );
                           })}
+                        </div>
+
+                        {/* Direct New Category Input Form */}
+                        <div className="pt-2 border-t border-[#2A2A2A]">
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              if (!popoverNewCatInput.trim()) return;
+                              handleCreateNewCategory(popoverNewCatInput.trim(), file.id);
+                              setPopoverNewCatInput('');
+                            }}
+                            className="flex items-center gap-1.5"
+                          >
+                            <input
+                              type="text"
+                              placeholder="+ Nhập phân loại mới..."
+                              value={popoverNewCatInput}
+                              onChange={(e) => setPopoverNewCatInput(e.target.value)}
+                              className="flex-1 px-2.5 py-1.5 bg-[#0C0C0C] border border-[#333333] rounded text-[11px] text-[#E0E0E0] placeholder:text-[#666666] focus:outline-none focus:border-[#D4AF37]"
+                            />
+                            <button
+                              type="submit"
+                              disabled={!popoverNewCatInput.trim()}
+                              className="px-2.5 py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] disabled:opacity-30 disabled:cursor-not-allowed text-black font-bold rounded text-xs shrink-0 cursor-pointer flex items-center justify-center shadow-xs"
+                              title="Tạo và gán phân loại mới"
+                            >
+                              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                            </button>
+                          </form>
                         </div>
                       </div>
                     )}
@@ -1335,7 +1467,13 @@ export const FilesView: React.FC<FilesViewProps> = ({
                   </label>
                   <select
                     value={previewFile.classification || 'other'}
-                    onChange={(e) => handleUpdateFileClassification(previewFile.id, e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === '__add_new__') {
+                        setIsManagingCategories(true);
+                      } else {
+                        handleUpdateFileClassification(previewFile.id, e.target.value);
+                      }
+                    }}
                     className="w-full p-2 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
                   >
                     {categories.map(c => (
@@ -1343,6 +1481,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
                         {c.name} {c.description ? `(${c.description.slice(0, 30)}...)` : ''}
                       </option>
                     ))}
+                    <option value="__add_new__">+ Tạo hoặc tùy biến nhóm phân loại...</option>
                   </select>
                 </div>
 
@@ -1499,6 +1638,66 @@ export const FilesView: React.FC<FilesViewProps> = ({
                   </a>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 8. CATEGORY DELETION CONFIRMATION & WARNING MODAL */}
+      {/* ============================================================== */}
+      {categoryToDelete && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xs flex items-center justify-center p-4 z-60 animate-in fade-in duration-150">
+          <div className="bg-[#151515] border border-[#2A2A2A] w-full max-w-md rounded-sm shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded ${categoryToDelete.fileCount > 0 ? 'bg-amber-950/50 border border-amber-600 text-amber-400' : 'bg-rose-950/40 border border-rose-800 text-rose-400'}`}>
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-editorial-serif font-bold text-white text-base">
+                  {categoryToDelete.fileCount > 0 ? 'Cảnh Báo Xóa Phân Loại' : 'Xác Nhận Xóa Phân Loại'}
+                </h3>
+                <p className="text-xs text-[#888888]">
+                  Phân loại: <strong className="text-white">"{categoryToDelete.category.name}"</strong>
+                </p>
+              </div>
+            </div>
+
+            {categoryToDelete.fileCount > 0 ? (
+              <div className="p-3.5 bg-amber-950/25 border border-amber-800/80 rounded text-xs space-y-2 text-amber-200">
+                <div className="font-bold flex items-center gap-2 text-amber-300">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Cảnh báo: Hiện có <strong>{categoryToDelete.fileCount} tài liệu</strong> đang mang phân loại này!</span>
+                </div>
+                <p className="text-[11px] text-[#D0D0D0] leading-relaxed">
+                  Nếu bạn xóa phân loại <strong>"{categoryToDelete.category.name}"</strong>, toàn bộ {categoryToDelete.fileCount} tài liệu trên sẽ <strong>không bị mất</strong> mà được tự động chuyển sang phân loại mặc định <strong>"Khác"</strong>.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-[#CCCCCC] bg-[#0C0C0C] p-3.5 rounded border border-[#2A2A2A]">
+                Bạn có chắc chắn muốn xóa phân loại <strong className="text-white">"{categoryToDelete.category.name}"</strong> khỏi danh sách?
+              </p>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#2A2A2A]">
+              <button
+                type="button"
+                onClick={() => setCategoryToDelete(null)}
+                className="px-4 py-2 bg-[#0C0C0C] hover:bg-[#1A1A1A] text-white border border-[#2A2A2A] text-xs font-bold rounded-sm cursor-pointer"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteCategory}
+                className={`px-4 py-2 text-white text-xs font-bold uppercase tracking-wider rounded-sm cursor-pointer shadow ${
+                  categoryToDelete.fileCount > 0
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-rose-600 hover:bg-rose-700'
+                }`}
+              >
+                {categoryToDelete.fileCount > 0 ? 'Đồng Ý & Chuyển Về Khác' : 'Xác Nhận Xóa'}
+              </button>
             </div>
           </div>
         </div>
