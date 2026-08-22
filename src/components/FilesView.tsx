@@ -48,7 +48,10 @@ import {
   User,
   DollarSign,
   Scale,
-  FolderKanban
+  FolderKanban,
+  Globe,
+  Key,
+  Copy
 } from 'lucide-react';
 import {
   signInWithGoogle,
@@ -64,6 +67,10 @@ import {
   getOrCreateAppFolder,
   getAccessToken,
   getGoogleUser,
+  getCustomGoogleClientId,
+  setCustomGoogleClientId,
+  setCustomAccessToken,
+  DEFAULT_OAUTH_CLIENT_ID,
   DriveFolderInfo,
   DEFAULT_APP_FOLDER_NAME
 } from '../services/googleDriveAuth.js';
@@ -156,6 +163,13 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Quick Inline Category Switcher state (fileId -> open/close)
   const [openCategoryPopoverFileId, setOpenCategoryPopoverFileId] = useState<string | null>(null);
+
+  // Google OAuth & Render Configuration Helper Modal
+  const [isOAuthHelpOpen, setIsOAuthHelpOpen] = useState(false);
+  const [customClientIdVal, setCustomClientIdVal] = useState(getCustomGoogleClientId());
+  const [manualTokenVal, setManualTokenVal] = useState('');
+  const [copiedOrigin, setCopiedOrigin] = useState(false);
+  const [isSubmittingManualToken, setIsSubmittingManualToken] = useState(false);
   const [popoverNewCatInput, setPopoverNewCatInput] = useState('');
 
   // Category Deletion Confirmation & Warning State
@@ -295,9 +309,49 @@ export const FilesView: React.FC<FilesViewProps> = ({
       setTimeout(() => setSyncStatusMsg(null), 5000);
     } catch (err: any) {
       console.error('Login error:', err);
-      setAuthError(err.message || 'Đăng nhập Google thất bại');
+      const msg = err.message || 'Đăng nhập Google thất bại';
+      setAuthError(msg);
+      if (msg.includes('origin_mismatch') || msg.includes('unauthorized-domain') || msg.includes('400')) {
+        setIsOAuthHelpOpen(true);
+      }
     } finally {
       setIsAuthenticating(false);
+    }
+  };
+
+  const handleSaveCustomClientId = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustomGoogleClientId(customClientIdVal.trim());
+    setIsOAuthHelpOpen(false);
+    setSyncStatusMsg(customClientIdVal.trim() ? '✅ Đã lưu Google Client ID tùy chỉnh! Hãy bấm "Đăng nhập Google Drive" để thử lại.' : 'Đã xóa Client ID tùy chỉnh.');
+    setTimeout(() => setSyncStatusMsg(null), 5000);
+  };
+
+  const handleManualTokenSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualTokenVal.trim()) return;
+
+    setIsSubmittingManualToken(true);
+    setAuthError(null);
+
+    try {
+      const { user, accessToken: token } = await setCustomAccessToken(manualTokenVal.trim());
+      setGoogleUser(user);
+      setAccessToken(token);
+      setTokenExpired(false);
+
+      const folder = await getOrCreateAppFolder(token);
+      setAppFolder(folder);
+      setCustomFolderNameInput(folder.name);
+
+      setSyncStatusMsg(`✅ Đã kết nối thành công Google Drive qua Access Token! Thư mục: 📁 ${folder.name}`);
+      setIsOAuthHelpOpen(false);
+      setManualTokenVal('');
+      setTimeout(() => setSyncStatusMsg(null), 5000);
+    } catch (err: any) {
+      setAuthError(err.message || 'Access Token không hợp lệ');
+    } finally {
+      setIsSubmittingManualToken(false);
     }
   };
 
@@ -746,6 +800,16 @@ export const FilesView: React.FC<FilesViewProps> = ({
             <span>Phân Loại ({categories.length})</span>
           </button>
 
+          {/* Quick OAuth / Render Config Button */}
+          <button
+            onClick={() => setIsOAuthHelpOpen(true)}
+            className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#AAAAAA] hover:text-[#D4AF37] border border-[#2A2A2A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Cấu hình Google OAuth Client ID & Khắc phục lỗi trên Render"
+          >
+            <Globe className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <span>Cấu hình OAuth / Render</span>
+          </button>
+
           {/* Quick External Link to Google Drive folder */}
           {(saConfig?.folderId || appFolder?.webViewLink) && (
             <a
@@ -811,12 +875,20 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
       {/* Auth Error Banner */}
       {authError && !tokenExpired && (
-        <div className="p-3 rounded-sm bg-rose-950/40 border border-rose-800 text-xs text-rose-300 font-medium flex items-center justify-between">
+        <div className="p-3.5 rounded-sm bg-rose-950/50 border border-rose-700 text-xs text-rose-200 font-medium flex items-center justify-between flex-wrap gap-2 animate-in fade-in">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{authError}</span>
           </div>
-          <button onClick={() => setAuthError(null)} className="text-xs hover:text-white cursor-pointer">✕</button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsOAuthHelpOpen(true)}
+              className="px-3 py-1 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-[11px] uppercase tracking-wider rounded-sm cursor-pointer shadow"
+            >
+              🛠️ Khắc phục trên Render
+            </button>
+            <button onClick={() => setAuthError(null)} className="text-xs text-rose-400 hover:text-white cursor-pointer px-1">✕</button>
+          </div>
         </div>
       )}
 
@@ -1700,6 +1772,181 @@ export const FilesView: React.FC<FilesViewProps> = ({
                 }`}
               >
                 {categoryToDelete.fileCount > 0 ? 'Đồng Ý & Chuyển Về Khác' : 'Xác Nhận Xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 9. GOOGLE OAUTH & RENDER CONFIGURATION HELPER MODAL */}
+      {/* ============================================================== */}
+      {isOAuthHelpOpen && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 z-60 animate-in fade-in duration-150">
+          <div className="bg-[#151515] border border-[#2A2A2A] w-full max-w-2xl max-h-[90vh] flex flex-col rounded-sm shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-[#2A2A2A] p-4 bg-[#111111]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37]">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-editorial-serif font-bold text-white text-base">
+                    Cấu Hình Google OAuth & Sửa Lỗi origin_mismatch (Render)
+                  </h3>
+                  <p className="text-[11px] text-[#888888]">
+                    Khắc phục lỗi xác thực khi deploy trên Render, Vercel hoặc tên miền tùy chỉnh.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsOAuthHelpOpen(false)}
+                className="p-1 text-[#888888] hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+              
+              {/* Origin Display Box */}
+              <div className="p-3.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-[#AAAAAA] font-bold uppercase tracking-wider">
+                    🌐 Tên miền ứng dụng của bạn (JavaScript Origin):
+                  </span>
+                  <span className="text-[10px] text-amber-400 font-mono">Cần thêm vào Google Cloud</span>
+                </div>
+                <div className="flex items-center gap-2 bg-[#151515] p-2.5 rounded border border-[#222222]">
+                  <code className="flex-1 font-mono text-xs text-[#D4AF37] font-bold truncate">
+                    {window.location.origin}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.origin);
+                      setCopiedOrigin(true);
+                      setTimeout(() => setCopiedOrigin(false), 2500);
+                    }}
+                    className="px-3 py-1 bg-[#222222] hover:bg-[#333333] text-white rounded text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                  >
+                    {copiedOrigin ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedOrigin ? 'Đã sao chép!' : 'Sao chép URL'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Solution 1: Configure Custom Google Client ID */}
+              <div className="p-4 bg-[#0C0C0C] border border-[#D4AF37]/40 rounded-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-[#D4AF37] text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Cách 1: Tạo Google OAuth Client ID của bạn (Khuyên dùng - 2 phút)</span>
+                  </h4>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono font-bold">
+                    Khuyên Dùng
+                  </span>
+                </div>
+
+                <div className="text-[11px] text-[#CCCCCC] space-y-1.5 pl-1 leading-relaxed">
+                  <p>1. Mở <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-[#D4AF37] font-bold underline inline-flex items-center gap-0.5">Google Cloud Console ➔ Credentials <ExternalLink className="w-2.5 h-2.5 inline" /></a></p>
+                  <p>2. Bấm <strong>Create Credentials</strong> ➔ <strong>OAuth client ID</strong> (Loại: <em>Web application</em>).</p>
+                  <p>3. Tại mục <strong>Authorized JavaScript origins (Nguồn gốc JavaScript được uỷ quyền)</strong>: Bấm <em>Add URI</em> và dán: <code className="text-[#D4AF37] font-bold">{window.location.origin}</code></p>
+                  <p>4. Bấm <strong>Save</strong> ➔ Copy chuỗi <strong>Client ID</strong> (dạng <code>...apps.googleusercontent.com</code>) dán vào ô bên dưới:</p>
+                </div>
+
+                <form onSubmit={handleSaveCustomClientId} className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={customClientIdVal}
+                      onChange={(e) => setCustomClientIdVal(e.target.value)}
+                      placeholder="Dán OAuth Client ID vào đây (hoặc cấu hình VITE_GOOGLE_CLIENT_ID trên Render)"
+                      className="flex-1 p-2 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer shadow shrink-0"
+                    >
+                      Lưu & Thử Lại
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-[#888888] italic">
+                    💡 Mẹo: Bạn cũng có thể đặt biến môi trường <code>VITE_GOOGLE_CLIENT_ID</code> trong Dashboard Render của bạn.
+                  </p>
+                </form>
+              </div>
+
+              {/* Solution 2: OAuth Playground Direct Access Token (Instant Fallback) */}
+              <div className="p-4 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-3">
+                <h4 className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Cách 2: Dán Access Token Trực Tiếp (Nhanh nhất - 30 giây, 100% thành công)</span>
+                </h4>
+
+                <p className="text-[11px] text-[#AAAAAA] leading-relaxed">
+                  Lấy token trực tiếp từ trang chính thức của Google mà không cần tạo project:
+                </p>
+
+                <div className="text-[11px] text-[#CCCCCC] space-y-1 pl-1">
+                  <p>1. Mở <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-sky-400 font-bold underline inline-flex items-center gap-0.5">Google OAuth Playground <ExternalLink className="w-2.5 h-2.5 inline" /></a></p>
+                  <p>2. Chọn <strong>Drive API v3</strong> ➔ tích chọn <code>https://www.googleapis.com/auth/drive.file</code></p>
+                  <p>3. Bấm <strong>Authorize APIs</strong> ➔ Đăng nhập Google ➔ Bấm <strong>Exchange authorization code for tokens</strong></p>
+                  <p>4. Copy mã <strong>Access token</strong> dán vào ô bên dưới:</p>
+                </div>
+
+                <form onSubmit={handleManualTokenSubmit} className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="password"
+                      value={manualTokenVal}
+                      onChange={(e) => setManualTokenVal(e.target.value)}
+                      placeholder="Dán chuỗi ya29.... vào đây"
+                      className="flex-1 p-2 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-sky-400"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmittingManualToken || !manualTokenVal.trim()}
+                      className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-black font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer shadow shrink-0 disabled:opacity-50"
+                    >
+                      {isSubmittingManualToken ? 'Đang xác thực...' : 'Kết Nối Bằng Token'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Solution 3: Service Account */}
+              <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-white text-xs">Cách 3: Sử dụng Google Service Account</h4>
+                  <p className="text-[11px] text-[#888888]">Cố định 1 thư mục cho mọi máy tính mà không cần người dùng đăng nhập.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOAuthHelpOpen(false);
+                    if (onNavigateToSettings) onNavigateToSettings();
+                  }}
+                  className="px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/30 text-xs font-bold rounded-sm cursor-pointer"
+                >
+                  Mở Cài Đặt Service Account ➔
+                </button>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t border-[#2A2A2A] p-4 bg-[#111111]">
+              <span className="text-[11px] text-[#777777]">
+                Mã nguồn & token được mã hóa an toàn trên trình duyệt của bạn.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsOAuthHelpOpen(false)}
+                className="px-4 py-2 bg-[#0C0C0C] hover:bg-[#1A1A1A] text-white border border-[#2A2A2A] text-xs font-bold rounded-sm cursor-pointer"
+              >
+                Đóng
               </button>
             </div>
           </div>

@@ -28,13 +28,23 @@ const STORAGE_TOKEN_TIMESTAMP_KEY = 'ai_app_google_token_timestamp';
 export const DEFAULT_OAUTH_CLIENT_ID = (firebaseConfig as any).oAuthClientId || '378918995371-n7a1ekm2uarv95ts7e25i0f3e3tgunb7.apps.googleusercontent.com';
 
 export function getCustomGoogleClientId(): string {
+  const envClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
   const stored = localStorage.getItem(STORAGE_CLIENT_ID_KEY) || '';
+
   // Clear any outdated mismatched client ID
-  if (stored.includes('797950767923') || !stored.trim()) {
+  if (stored.includes('797950767923')) {
     localStorage.removeItem(STORAGE_CLIENT_ID_KEY);
-    return DEFAULT_OAUTH_CLIENT_ID;
   }
-  return stored || DEFAULT_OAUTH_CLIENT_ID;
+
+  if (stored.trim()) {
+    return stored.trim();
+  }
+
+  if (envClientId.trim()) {
+    return envClientId.trim();
+  }
+
+  return DEFAULT_OAUTH_CLIENT_ID;
 }
 
 export function setCustomGoogleClientId(clientId: string): void {
@@ -208,7 +218,12 @@ export async function signInWithGoogleGIS(clientId?: string): Promise<{ user: an
           scope: SCOPES.join(' '),
           callback: async (response: any) => {
             if (response.error) {
-              reject(new Error(response.error_description || response.error));
+              const errMsg = response.error_description || response.error;
+              if (errMsg.includes('origin_mismatch') || response.error === 'origin_mismatch') {
+                reject(new Error(`Lỗi 400: origin_mismatch - Tên miền ${window.location.origin} chưa được thêm vào Authorized JavaScript origins trên Google Cloud Console.`));
+              } else {
+                reject(new Error(errMsg));
+              }
               return;
             }
             if (response.access_token) {
