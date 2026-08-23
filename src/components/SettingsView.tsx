@@ -2,24 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { TelegramConfig, DriveFile, DriveServiceAccountConfig } from '../types/index.js';
 import { api } from '../services/api.js';
 import {
-  signInWithGoogle,
-  signInWithGoogleGIS,
-  refreshAccessTokenSilently,
-  setCustomAccessToken,
-  getCustomGoogleClientId,
-  setCustomGoogleClientId,
-  logOutGoogle,
-  initGoogleAuth,
-  getOrCreateAppFolder,
-  syncLocalFileToGoogleDrive,
-  getAccessToken,
-  getGoogleUser,
-  DriveFolderInfo,
-  DEFAULT_APP_FOLDER_NAME
-} from '../services/googleDriveAuth.ts';
-import firebaseConfig from '../../firebase-applet-config.json';
-import { User } from 'firebase/auth';
-import {
   Settings,
   Bot,
   HardDrive,
@@ -30,7 +12,6 @@ import {
   Copy,
   ExternalLink,
   RefreshCw,
-  LogOut,
   Sparkles,
   Link2,
   Folder,
@@ -51,8 +32,21 @@ import {
   Globe,
   Key,
   Sun,
-  Moon
+  Moon,
+  Lock,
+  Unlock,
+  ShieldAlert
 } from 'lucide-react';
+import {
+  getPinSettings,
+  setPin,
+  setPinEnabled,
+  setAutolockMinutes,
+  verifyPin,
+  DEFAULT_PIN,
+  lockSession,
+  PinSettings
+} from '../services/pinSecurity.js';
 
 interface SettingsViewProps {
   telegramConfig: TelegramConfig;
@@ -60,6 +54,7 @@ interface SettingsViewProps {
   onSendTestTelegramMessage: (message?: string) => void;
   files: DriveFile[];
   onFileUpdate?: (id: string, fileData: Partial<DriveFile>) => void;
+  onLockApp?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -67,9 +62,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUpdateTelegramConfig,
   onSendTestTelegramMessage,
   files,
-  onFileUpdate
+  onFileUpdate,
+  onLockApp
 }) => {
-  const [activeSection, setActiveSection] = useState<'all' | 'telegram' | 'drive' | 'system'>('all');
+  const [activeSection, setActiveSection] = useState<'all' | 'telegram' | 'drive' | 'security' | 'system'>('all');
+
+  // --- PIN Security State ---
+  const [pinSettings, setPinSettingsState] = useState<PinSettings>(() => getPinSettings());
+  const [currentPinInput, setCurrentPinInput] = useState('');
+  const [newPinInput, setNewPinInput] = useState('');
+  const [confirmPinInput, setConfirmPinInput] = useState('');
+  const [pinHintInput, setPinHintInput] = useState(pinSettings.hint || '');
+  const [showPinSecrets, setShowPinSecrets] = useState(false);
+  const [pinStatusMsg, setPinStatusMsg] = useState<string | null>(null);
+  const [pinErrorMsg, setPinErrorMsg] = useState<string | null>(null);
+  const [isChangingPin, setIsChangingPin] = useState(false);
 
   // --- Telegram State ---
   const [tokenInput, setTokenInput] = useState(telegramConfig.botToken || '');
@@ -90,6 +97,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [webhookInfo, setWebhookInfo] = useState<any>(null);
   const [isCheckingWebhookInfo, setIsCheckingWebhookInfo] = useState(false);
   const [telegramSavedSuccess, setTelegramSavedSuccess] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
 
   // Live Vietnam Clock for user visual confirmation
   const [currentVnClock, setCurrentVnClock] = useState<string>(() => {
@@ -122,25 +130,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const webhookUrl = `${window.location.origin}/api/telegram/webhook`;
 
-  // --- Google Drive State ---
-  const [googleUser, setGoogleUser] = useState<any | null>(getGoogleUser());
-  const [accessToken, setAccessToken] = useState<string | null>(getAccessToken());
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [driveAuthError, setDriveAuthError] = useState<string | null>(null);
-  const [driveStatusMsg, setDriveStatusMsg] = useState<string | null>(null);
-  const [appFolder, setAppFolder] = useState<DriveFolderInfo | null>(null);
-  const [customFolderName, setCustomFolderName] = useState('');
-  const [isSavingFolder, setIsSavingFolder] = useState(false);
-  const [isSyncingAll, setIsSyncingAll] = useState(false);
-  const [copiedWebhook, setCopiedWebhook] = useState(false);
-  const [copiedDomain, setCopiedDomain] = useState(false);
-  const [copiedOrigin, setCopiedOrigin] = useState(false);
-  const [showManualTokenInput, setShowManualTokenInput] = useState(false);
-  const [showClientIdInput, setShowClientIdInput] = useState(false);
-  const [manualToken, setManualToken] = useState('');
-  const [clientIdInput, setClientIdInput] = useState(getCustomGoogleClientId());
-  const [isSubmittingManualToken, setIsSubmittingManualToken] = useState(false);
-
   // --- Service Account (Multi-Device Fixed Folder) State ---
   const [saConfig, setSaConfig] = useState<DriveServiceAccountConfig>({
     clientEmail: '',
@@ -163,11 +152,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showSaKey, setShowSaKey] = useState(false);
   const [showSaGuide, setShowSaGuide] = useState(false);
 
-  const currentHostname = window.location.hostname;
-  const currentOrigin = window.location.origin;
-  const firebaseProjectId = (firebaseConfig as any).projectId || 'amplified-rhythm-nlsxp';
-  const firebaseAuthDomainUrl = `https://console.firebase.google.com/project/${firebaseProjectId}/authentication/providers`;
-
   // Load Service Account Config on mount
   useEffect(() => {
     api.getDriveServiceAccountConfig()
@@ -185,24 +169,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setChatIdInput(telegramConfig.chatId || '');
     setAlertOffset(telegramConfig.alertOffsetMinutes || 15);
   }, [telegramConfig]);
-
-  // Observe Google Auth
-  useEffect(() => {
-    const unsubscribe = initGoogleAuth((user, token) => {
-      setGoogleUser(user);
-      setAccessToken(token);
-      if (token) {
-        setDriveAuthError(null);
-        getOrCreateAppFolder(token)
-          .then(folder => {
-            setAppFolder(folder);
-            setCustomFolderName(folder.name);
-          })
-          .catch(e => console.warn('Could not init app folder:', e));
-      }
-    });
-    return () => unsubscribe();
-  }, []);
 
   // Handle Telegram Config Save
   const handleSaveTelegramConfig = async (e: React.FormEvent) => {
@@ -338,173 +304,80 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  // Google Login & Folder Setup
-  const handleGoogleLogin = async () => {
-    setIsAuthenticating(true);
-    setDriveAuthError(null);
-    try {
-      // If already connected, attempt seamless silent refresh first
-      if (googleUser || accessToken) {
-        try {
-          const freshToken = await refreshAccessTokenSilently();
-          if (freshToken) {
-            setAccessToken(freshToken);
-            const folder = await getOrCreateAppFolder(freshToken);
-            setAppFolder(folder);
-            setCustomFolderName(folder.name);
-            setDriveStatusMsg(`Đã tự động gia hạn token Google Drive thành công! Thư mục: 📁 ${folder.name}`);
-            setTimeout(() => setDriveStatusMsg(null), 5000);
-            return;
-          }
-        } catch (silentErr) {
-          console.log('Silent refresh unavailable, proceeding with standard sign in...', silentErr);
-        }
-      }
-
-      const result = await signInWithGoogleGIS().catch(() => signInWithGoogle());
-      const { user, accessToken: token } = result;
-      setGoogleUser(user);
-      setAccessToken(token);
-
-      const folder = await getOrCreateAppFolder(token);
-      setAppFolder(folder);
-      setCustomFolderName(folder.name);
-
-      setDriveStatusMsg(`Đã kết nối Google Drive! Đang liên kết với thư mục: 📁 ${folder.name}`);
-      setTimeout(() => setDriveStatusMsg(null), 5000);
-    } catch (err: any) {
-      console.error('Login error:', err);
-      setDriveAuthError(err.message || 'Đăng nhập Google thất bại');
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
-
-  const handleDirectGISLogin = async () => {
-    setIsAuthenticating(true);
-    setDriveAuthError(null);
-    try {
-      const { user, accessToken: token } = await signInWithGoogleGIS();
-      setGoogleUser(user);
-      setAccessToken(token);
-
-      const folder = await getOrCreateAppFolder(token);
-      setAppFolder(folder);
-      setCustomFolderName(folder.name);
-
-      setDriveStatusMsg(`Đã kết nối Google Drive (GIS Direct)! Đang liên kết với thư mục: 📁 ${folder.name}`);
-      setTimeout(() => setDriveStatusMsg(null), 5000);
-    } catch (err: any) {
-      console.error('Direct GIS Login error:', err);
-      setDriveAuthError(err.message || 'Đăng nhập trực tiếp qua Google OAuth thất bại');
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
-
-  const handleManualTokenSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualToken.trim()) return;
-
-    setIsSubmittingManualToken(true);
-    setDriveAuthError(null);
-
-    try {
-      const { user, accessToken: token } = await setCustomAccessToken(manualToken.trim());
-      setGoogleUser(user);
-      setAccessToken(token);
-
-      const folder = await getOrCreateAppFolder(token);
-      setAppFolder(folder);
-      setCustomFolderName(folder.name);
-
-      setDriveStatusMsg(`Đã xác thực thành công Access Token! Đang liên kết: 📁 ${folder.name}`);
-      setShowManualTokenInput(false);
-      setManualToken('');
-      setTimeout(() => setDriveStatusMsg(null), 5000);
-    } catch (err: any) {
-      setDriveAuthError(err.message || 'Access Token không hợp lệ');
-    } finally {
-      setIsSubmittingManualToken(false);
-    }
-  };
-
-  const handleSaveClientId = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCustomGoogleClientId(clientIdInput.trim());
-    setShowClientIdInput(false);
-    setDriveStatusMsg(clientIdInput.trim() ? 'Đã lưu Google Client ID tùy chỉnh!' : 'Đã xóa Google Client ID tùy chỉnh.');
-    setTimeout(() => setDriveStatusMsg(null), 4000);
-  };
-
-  const handleGoogleLogout = async () => {
-    await logOutGoogle();
-    setGoogleUser(null);
-    setAccessToken(null);
-    setAppFolder(null);
-    setDriveStatusMsg('Đã ngắt kết nối Google Drive.');
-    setTimeout(() => setDriveStatusMsg(null), 4000);
-  };
-
-  const handleSaveAppFolder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!accessToken) {
-      handleGoogleLogin();
-      return;
-    }
-    const newName = customFolderName.trim() || DEFAULT_APP_FOLDER_NAME;
-    setIsSavingFolder(true);
-    setDriveAuthError(null);
-
-    try {
-      localStorage.removeItem('ai_app_drive_folder_id');
-      const folder = await getOrCreateAppFolder(accessToken, newName);
-      setAppFolder(folder);
-      setCustomFolderName(folder.name);
-      setDriveStatusMsg(`Đã chuyển liên kết sang thư mục: 📁 ${folder.name}`);
-      setTimeout(() => setDriveStatusMsg(null), 4000);
-    } catch (err: any) {
-      setDriveAuthError(err.message || 'Lỗi khi đổi thư mục Google Drive');
-    } finally {
-      setIsSavingFolder(false);
-    }
-  };
-
-  const handleSyncAllLocalFiles = async () => {
-    if (!accessToken) {
-      handleGoogleLogin();
-      return;
-    }
-
-    const unsyncedFiles = files.filter(f => !f.isSyncedToDrive || f.syncStatus === 'local_only');
-    if (unsyncedFiles.length === 0) {
-      setDriveStatusMsg('Tất cả tài liệu đã được lưu trong thư mục Google Drive!');
-      setTimeout(() => setDriveStatusMsg(null), 3000);
-      return;
-    }
-
-    setIsSyncingAll(true);
-    let count = 0;
-    for (const f of unsyncedFiles) {
-      try {
-        const updated = await syncLocalFileToGoogleDrive(f, accessToken, appFolder?.id);
-        if (onFileUpdate) onFileUpdate(f.id, updated);
-        count++;
-      } catch (err: any) {
-        console.warn(`Could not sync ${f.name}:`, err);
-      }
-    }
-    setIsSyncingAll(false);
-    setDriveStatusMsg(`Đã đẩy thành công ${count}/${unsyncedFiles.length} tệp vào thư mục 📁 ${appFolder?.name || DEFAULT_APP_FOLDER_NAME}!`);
-    setTimeout(() => setDriveStatusMsg(null), 5000);
-  };
-
-  const isUnauthorizedDomain = driveAuthError?.includes('unauthorized-domain') || driveAuthError?.includes('auth/unauthorized-domain');
-
   const syncedCount = files.filter(f => f.isSyncedToDrive && f.syncStatus === 'synced').length;
   const localOnlyCount = files.length - syncedCount;
   const totalBytes = files.reduce((acc, f) => acc + f.size, 0);
   const totalMb = (totalBytes / (1024 * 1024)).toFixed(2);
+
+  // --- PIN Security Handlers ---
+  const handleTogglePin = (enabled: boolean) => {
+    setPinEnabled(enabled);
+    const updated = getPinSettings();
+    setPinSettingsState(updated);
+    setPinStatusMsg(enabled ? '✅ Đã BẬT yêu cầu mã PIN khi truy cập trang web!' : '⚠️ Đã TẮT bảo vệ mã PIN.');
+    setTimeout(() => setPinStatusMsg(null), 4000);
+  };
+
+  const handleAutolockChange = (mins: number) => {
+    setAutolockMinutes(mins);
+    const updated = getPinSettings();
+    setPinSettingsState(updated);
+    setPinStatusMsg(
+      mins === 0
+        ? '✅ Tự động khóa: Khi tải lại trang hoặc mở tab mới.'
+        : `✅ Tự động khóa: Sau ${mins} phút không thao tác.`
+    );
+    setTimeout(() => setPinStatusMsg(null), 4000);
+  };
+
+  const handleChangePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinErrorMsg(null);
+    setPinStatusMsg(null);
+
+    // If custom PIN exists or old PIN is required
+    if (pinSettings.hasCustomPin || currentPinInput.trim() !== '') {
+      if (!verifyPin(currentPinInput.trim())) {
+        setPinErrorMsg('Mã PIN hiện tại không đúng!');
+        return;
+      }
+    }
+
+    if (newPinInput.length < 4) {
+      setPinErrorMsg('Mã PIN mới phải có ít nhất 4 chữ số!');
+      return;
+    }
+
+    if (newPinInput !== confirmPinInput) {
+      setPinErrorMsg('Mã PIN xác nhận không khớp!');
+      return;
+    }
+
+    setIsChangingPin(true);
+    const ok = setPin(newPinInput.trim(), pinHintInput.trim());
+    setIsChangingPin(false);
+
+    if (ok) {
+      const updated = getPinSettings();
+      setPinSettingsState(updated);
+      setCurrentPinInput('');
+      setNewPinInput('');
+      setConfirmPinInput('');
+      setPinStatusMsg('🎉 Đã cập nhật mã PIN bảo mật mới thành công!');
+      setTimeout(() => setPinStatusMsg(null), 5000);
+    } else {
+      setPinErrorMsg('Không thể lưu mã PIN.');
+    }
+  };
+
+  const handleLockNow = () => {
+    if (onLockApp) {
+      onLockApp();
+    } else {
+      lockSession();
+      window.location.reload();
+    }
+  };
 
   return (
     <div className="space-y-8 pb-16">
@@ -522,7 +395,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </span>
             </div>
             <p className="text-xs text-[#888888] italic mt-0.5">
-              Quản lý tập trung thông số kết nối Telegram Bot, Google Drive Folder, thông báo deadline và mô hình AI
+              Quản lý tập trung thông số kết nối Telegram Bot, Google Drive Folder, mã PIN bảo mật và mô hình AI
             </p>
           </div>
         </div>
@@ -554,6 +427,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           >
             <HardDrive className="w-3.5 h-3.5" />
             <span>Google Drive</span>
+          </button>
+          <button
+            onClick={() => setActiveSection('security')}
+            className={`px-3 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSection === 'security' ? 'bg-[#D4AF37] text-black shadow' : 'text-[#888888] hover:text-white'
+            }`}
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Mã PIN & Bảo Mật</span>
           </button>
           <button
             onClick={() => setActiveSection('system')}
@@ -1212,420 +1094,235 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          {/* ------------------------------------------------------------- */}
-          {/* METHOD 2: CLIENT GOOGLE OAUTH ACCOUNT (OPTIONAL) */}
-          {/* ------------------------------------------------------------- */}
-          <div className="pt-2">
-            <div className="text-xs font-bold text-[#888888] uppercase tracking-wider mb-2">
-              Tùy Chọn Khác: Đăng Nhập Tài Khoản Google Cá Nhân (Client-Side OAuth)
+          {/* Statistics summary */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-4 bg-[#151515] rounded-sm border border-[#2A2A2A] text-center">
+              <span className="text-[10px] text-[#888888] uppercase block tracking-wider font-bold">Tổng Dung Lượng Tệp</span>
+              <span className="text-lg font-bold text-white mt-1 block">{totalMb} MB</span>
+            </div>
+            <div className="p-4 bg-[#151515] rounded-sm border border-[#2A2A2A] text-center">
+              <span className="text-[10px] text-[#888888] uppercase block tracking-wider font-bold">Đã Vào Google Drive</span>
+              <span className="text-lg font-bold text-emerald-400 mt-1 block">{syncedCount} tệp</span>
+            </div>
+            <div className="p-4 bg-[#151515] rounded-sm border border-[#2A2A2A] text-center">
+              <span className="text-[10px] text-[#888888] uppercase block tracking-wider font-bold">Chưa Đồng Bộ</span>
+              <span className="text-lg font-bold text-amber-400 mt-1 block">{localOnlyCount} tệp</span>
             </div>
           </div>
+        </section>
+      )}
 
-          {/* Drive Status Alert */}
-          {driveStatusMsg && (
-            <div className="p-3 rounded-sm bg-[#151515] border border-[#D4AF37] text-xs text-[#D4AF37] font-bold flex items-center gap-2 animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{driveStatusMsg}</span>
+      {/* ======================================================== */}
+      {/* SECTION 3: PIN SECURITY & SCREEN LOCK CONFIGURATION */}
+      {/* ======================================================== */}
+      {(activeSection === 'all' || activeSection === 'security') && (
+        <section className="space-y-4 pt-4">
+          <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
+            <div className="flex items-center gap-2 text-[#D4AF37]">
+              <Lock className="w-5 h-5" />
+              <h2 className="text-base font-editorial-serif font-bold text-white tracking-wide">
+                3. Bảo Mật Truy Cập & Khóa Màn Hình Bằng Mã PIN
+              </h2>
+            </div>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
+              pinSettings.isEnabled ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/60' : 'bg-[#151515] text-[#888888] border border-[#2A2A2A]'
+            }`}>
+              {pinSettings.isEnabled ? '🔐 Đang Bật Bảo Vệ' : '🔓 Đang Tắt'}
+            </span>
+          </div>
+
+          {/* Status Alerts */}
+          {pinStatusMsg && (
+            <div className="p-3.5 rounded-sm bg-[#151515] border border-emerald-500/80 text-xs text-emerald-300 font-bold flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{pinStatusMsg}</span>
             </div>
           )}
 
-          {/* Actionable Error Alert for Unauthorized Domain / Origin Mismatch */}
-          {(isUnauthorizedDomain || driveAuthError?.includes('origin_mismatch') || driveAuthError?.includes('400')) && (
-            <div className="p-4 rounded-sm bg-[#181111] border border-rose-600/80 space-y-3 animate-in fade-in shadow-lg">
-              <div className="flex items-center justify-between border-b border-rose-800/40 pb-2">
-                <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wider">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span>Khắc Phục Lỗi Google OAuth (origin_mismatch / unauthorized-domain)</span>
-                </div>
-                <button
-                  onClick={() => setDriveAuthError(null)}
-                  className="text-xs text-[#888888] hover:text-white cursor-pointer"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <p className="text-xs text-[#E0E0E0] leading-relaxed">
-                Google bảo mật OAuth bằng cách chỉ cho phép ứng dụng đã khai báo đúng <strong>JavaScript Origin</strong> hoặc sử dụng <strong>Access Token</strong> trực tiếp. Chọn 1 trong 2 cách giải quyết nhanh nhất bên dưới:
-              </p>
-
-              {/* Quick Choice Box */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                
-                {/* Method A: OAuth Playground Token (Fastest, 30 seconds, 100% works) */}
-                <div className="p-3 bg-[#0C0C0C] border border-[#D4AF37]/50 rounded-sm space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#D4AF37] flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Cách 1: Lấy Token Nhanh (100% Thành Công)
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono">Khuyên Dùng</span>
-                  </div>
-                  <p className="text-[11px] text-[#AAAAAA]">
-                    Lấy Access Token từ trang chính thức của Google trong 30 giây:
-                  </p>
-                  <ol className="text-[11px] text-[#CCCCCC] list-decimal list-inside space-y-1">
-                    <li>Mở <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[#D4AF37] hover:underline font-bold inline-flex items-center gap-0.5">Google OAuth Playground <ExternalLink className="w-2.5 h-2.5 inline" /></a></li>
-                    <li>Tìm <strong>Drive API v3</strong> ➔ tích chọn <code className="text-[#D4AF37] text-[10px]">.../auth/drive.file</code></li>
-                    <li>Bấm <strong>Authorize APIs</strong> ➔ Đăng nhập tài khoản của bạn</li>
-                    <li>Bấm <strong>Exchange authorization code for tokens</strong></li>
-                    <li>Copy chuỗi <strong>Access token</strong> dán vào nút bên dưới:</li>
-                  </ol>
-                  <button
-                    type="button"
-                    onClick={() => { setShowManualTokenInput(true); setShowClientIdInput(false); }}
-                    className="w-full py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs rounded-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5 mt-2"
-                  >
-                    <Key className="w-3.5 h-3.5" />
-                    <span>Dán Access Token & Kết Nối Ngay</span>
-                  </button>
-                </div>
-
-                {/* Method B: Own Client ID (Standard Google button) */}
-                <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Globe className="w-3.5 h-3.5 text-[#AAAAAA]" />
-                      Cách 2: Cấu Hình Client ID Cá Nhân
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#AAAAAA]">
-                    Tạo Google OAuth Client ID của riêng bạn trên Google Cloud để nút Đăng Nhập hoạt động mãi mãi:
-                  </p>
-                  <div className="flex items-center justify-between bg-[#151515] p-1.5 rounded border border-[#222222]">
-                    <span className="text-[11px] text-[#888888]">Origin cần thêm:</span>
-                    <div className="flex items-center gap-1">
-                      <code className="text-[#D4AF37] font-mono text-[10px] font-bold truncate max-w-[150px]">{currentOrigin}</code>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(currentOrigin);
-                          setCopiedOrigin(true);
-                          setTimeout(() => setCopiedOrigin(false), 2000);
-                        }}
-                        className="p-1 text-[#888888] hover:text-white"
-                        title="Sao chép Origin"
-                      >
-                        {copiedOrigin ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { setShowClientIdInput(true); setShowManualTokenInput(false); }}
-                    className="w-full py-1.5 bg-[#1A1A1A] hover:bg-[#252525] text-white border border-[#333333] font-bold text-xs rounded-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5 mt-2"
-                  >
-                    <Settings className="w-3.5 h-3.5 text-[#D4AF37]" />
-                    <span>Nhập Client ID Tùy Chỉnh</span>
-                  </button>
-                </div>
-
-              </div>
-            </div>
-          )}
-
-          {driveAuthError && !isUnauthorizedDomain && !driveAuthError?.includes('origin_mismatch') && !driveAuthError?.includes('400') && (
-            <div className="p-3 rounded-sm bg-rose-950/40 border border-rose-800 text-xs text-rose-300 font-medium flex items-center justify-between animate-in fade-in">
+          {pinErrorMsg && (
+            <div className="p-3.5 rounded-sm bg-rose-950/50 border border-rose-800 text-xs text-rose-300 font-bold flex items-center justify-between animate-in fade-in">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>{driveAuthError}</span>
+                <span>{pinErrorMsg}</span>
               </div>
-              <button onClick={() => setDriveAuthError(null)} className="text-xs hover:text-white cursor-pointer">✕</button>
+              <button onClick={() => setPinErrorMsg(null)} className="text-xs hover:text-white cursor-pointer">✕</button>
             </div>
-          )}
-
-          {/* Client ID Customization Drawer */}
-          {showClientIdInput && (
-            <form onSubmit={handleSaveClientId} className="p-4 bg-[#151515] border border-[#D4AF37]/50 rounded-sm space-y-3 animate-in fade-in">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[#D4AF37] text-xs font-bold uppercase tracking-wider">
-                  <Settings className="w-4 h-4" />
-                  <span>Cấu Hình Google OAuth Client ID Riêng</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowClientIdInput(false)}
-                  className="text-xs text-[#888888] hover:text-white cursor-pointer"
-                >
-                  ✕ Đóng
-                </button>
-              </div>
-
-              <div className="text-[11px] text-[#CCCCCC] space-y-1.5 bg-[#0C0C0C] p-3 rounded border border-[#222222]">
-                <div>1. Mở <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-[#D4AF37] hover:underline font-bold inline-flex items-center gap-0.5">Google Cloud Credentials <ExternalLink className="w-2.5 h-2.5 inline" /></a> ➔ Bấm <strong>Create Credentials (Tạo thông tin xác thực)</strong> ➔ <strong>OAuth client ID</strong>.</div>
-                <div>2. Application type chọn <strong>Web application</strong>.</div>
-                <div>3. Tại mục <strong>Authorized JavaScript origins</strong>, thêm: <code className="text-[#D4AF37] bg-[#1A1A1A] px-1 font-mono">{currentOrigin}</code></div>
-                <div>4. Bấm <strong>Create</strong> rồi sao chép mã <strong>Client ID</strong> dán vào ô bên dưới:</div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={clientIdInput}
-                  onChange={(e) => setClientIdInput(e.target.value)}
-                  placeholder="Ví dụ: 123456789-abcdef.apps.googleusercontent.com"
-                  className="flex-1 p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] font-mono focus:outline-none focus:border-[#D4AF37]"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs rounded-sm transition-colors cursor-pointer"
-                >
-                  Lưu Client ID
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Manual Token Drawer */}
-          {showManualTokenInput && (
-            <form onSubmit={handleManualTokenSubmit} className="p-4 bg-[#151515] border border-[#D4AF37]/50 rounded-sm space-y-3 animate-in fade-in">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[#D4AF37] text-xs font-bold uppercase tracking-wider">
-                  <Key className="w-4 h-4" />
-                  <span>Dán Google OAuth Access Token</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowManualTokenInput(false)}
-                  className="text-xs text-[#888888] hover:text-white cursor-pointer"
-                >
-                  ✕ Đóng
-                </button>
-              </div>
-              <p className="text-[11px] text-[#888888]">
-                Dán chuỗi Access Token (bắt đầu bằng <code className="text-[#D4AF37] font-mono">ya29...</code>) lấy từ <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[#D4AF37] hover:underline inline-flex items-center gap-0.5">Google OAuth Playground <ExternalLink className="w-2.5 h-2.5 inline" /></a>:
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  value={manualToken}
-                  onChange={(e) => setManualToken(e.target.value)}
-                  placeholder="Dán token dạng: ya29.a0AcM6123..."
-                  className="flex-1 p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] font-mono focus:outline-none focus:border-[#D4AF37]"
-                />
-                <button
-                  type="submit"
-                  disabled={isSubmittingManualToken || !manualToken.trim()}
-                  className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs rounded-sm transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmittingManualToken ? 'Đang kiểm tra...' : 'Xác Thực & Kết Nối'}
-                </button>
-              </div>
-            </form>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            {/* Account & OAuth Auth Card (5 cols) */}
-            <div className="lg:col-span-5 bg-[#151515] border border-[#2A2A2A] p-5 rounded-sm space-y-4 flex flex-col justify-between">
+            {/* Overview & Quick Controls (5 cols) */}
+            <div className="lg:col-span-5 bg-[#151515] border border-[#2A2A2A] p-5 rounded-sm space-y-5 flex flex-col justify-between">
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tài Khoản Google OAuth</h3>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">Trạng Thái Bảo Mật PIN</h3>
                   </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${
-                    googleUser ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/60' : 'bg-[#0C0C0C] text-[#888888] border border-[#2A2A2A]'
-                  }`}>
-                    {googleUser ? 'Đã Kết Nối' : 'Chưa Kết Nối'}
+                  <span className="text-[10px] text-[#D4AF37] font-mono font-bold">
+                    {pinSettings.hasCustomPin ? 'Mã PIN tùy chỉnh' : 'Mã PIN mặc định (1234)'}
                   </span>
                 </div>
 
-                {googleUser ? (
-                  <div className="p-4 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-3">
-                    <div className="flex items-center gap-3">
-                      {googleUser.photoURL ? (
-                        <img src={googleUser.photoURL} alt={googleUser.displayName || 'User'} className="w-10 h-10 rounded-full border border-[#D4AF37]/50" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-[#D4AF37] text-black font-bold flex items-center justify-center text-sm">
-                          {googleUser.email?.charAt(0).toUpperCase() || 'G'}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-white truncate">{googleUser.displayName || 'Google User'}</div>
-                        <div className="text-[11px] text-[#888888] font-mono truncate">{googleUser.email}</div>
+                {/* Main Toggle */}
+                <div className="p-4 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <KeyRound className="w-4 h-4 text-[#D4AF37]" />
+                        <span>Yêu cầu nhập mã PIN khi truy cập</span>
                       </div>
+                      <p className="text-[11px] text-[#888888] mt-0.5">
+                        Khóa toàn bộ giao diện cho đến khi nhập đúng mã PIN bảo mật
+                      </p>
                     </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={pinSettings.isEnabled}
+                        onChange={(e) => handleTogglePin(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-[#2A2A2A] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#D4AF37]"></div>
+                    </label>
+                  </div>
+                </div>
 
-                    <div className="text-[11px] text-[#AAAAAA] space-y-1 pt-2 border-t border-[#2A2A2A]">
-                      <div className="flex items-center justify-between">
-                        <span>Quyền hạn:</span>
-                        <span className="text-[#D4AF37] font-mono">drive.file (Cách ly an toàn)</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Trạng thái Access Token:</span>
-                        <span className="text-emerald-400 font-mono">Đã lưu & Sẵn sàng</span>
-                      </div>
-                    </div>
+                {/* Auto-lock Timeout Dropdown */}
+                <div className="p-4 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-[#E0E0E0] flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      <span>Thời gian tự động khóa khi rảnh:</span>
+                    </label>
                   </div>
-                ) : (
-                  <div className="p-4 bg-[#0C0C0C] border border-dashed border-[#2A2A2A] rounded-sm text-center space-y-2">
-                    <HardDrive className="w-8 h-8 text-[#666666] mx-auto" />
-                    <p className="text-xs text-[#AAAAAA]">
-                      Chưa kết nối tài khoản Google. Hãy đăng nhập để lưu trữ tài liệu trực tiếp vào Google Drive.
-                    </p>
-                  </div>
-                )}
+                  <select
+                    value={pinSettings.autolockMinutes}
+                    onChange={(e) => handleAutolockChange(Number(e.target.value))}
+                    disabled={!pinSettings.isEnabled}
+                    className="w-full p-2.5 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37] disabled:opacity-40"
+                  >
+                    <option value={0}>Chỉ khóa khi tải lại trang / đóng trình duyệt</option>
+                    <option value={5}>Khóa sau 5 phút không hoạt động</option>
+                    <option value={15}>Khóa sau 15 phút không hoạt động</option>
+                    <option value={30}>Khóa sau 30 phút không hoạt động</option>
+                    <option value={60}>Khóa sau 60 phút không hoạt động</option>
+                  </select>
+                </div>
               </div>
 
-              {/* Login / Logout Action Button */}
-              <div className="pt-2 space-y-2">
-                {googleUser ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={handleGoogleLogin}
-                      disabled={isAuthenticating}
-                      className="py-2 px-3 rounded-sm bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#D4AF37]/40 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                      title="Gia hạn Access Token khi hết hạn"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Gia Hạn Token</span>
-                    </button>
-                    <button
-                      onClick={handleGoogleLogout}
-                      className="py-2 px-3 rounded-sm bg-[#0C0C0C] hover:bg-rose-950 text-rose-400 border border-rose-800/60 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Đăng Xuất</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleGoogleLogin}
-                      disabled={isAuthenticating}
-                      className="w-full py-2.5 px-4 rounded-sm bg-white hover:bg-neutral-100 text-neutral-900 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 48 48">
-                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                      </svg>
-                      <span>{isAuthenticating ? 'Đang kết nối...' : 'Đăng Nhập Tài Khoản Google'}</span>
-                    </button>
-
-                    <div className="flex items-center justify-between gap-1 pt-1 flex-wrap text-[11px]">
-                      <button
-                        type="button"
-                        onClick={handleDirectGISLogin}
-                        disabled={isAuthenticating}
-                        className="text-[#888888] hover:text-[#D4AF37] underline cursor-pointer flex items-center gap-1"
-                      >
-                        <span>⚡ Đăng nhập GIS</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => { setShowClientIdInput(!showClientIdInput); setShowManualTokenInput(false); }}
-                        className="text-[#D4AF37] font-semibold hover:underline cursor-pointer flex items-center gap-1"
-                      >
-                        <Settings className="w-3 h-3 text-[#D4AF37]" />
-                        <span>⚙️ Nhập Client ID</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => { setShowManualTokenInput(!showManualTokenInput); setShowClientIdInput(false); }}
-                        className="text-[#888888] hover:text-[#D4AF37] underline cursor-pointer flex items-center gap-1"
-                      >
-                        <Key className="w-3 h-3" />
-                        <span>Nhập Token</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
+              {/* Quick Lock Trigger Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleLockNow}
+                  className="w-full py-2.5 px-4 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow"
+                >
+                  <Lock className="w-4 h-4 text-[#D4AF37]" />
+                  <span>🔒 Khóa Màn Hình Ứng Dụng Ngay (Lock Now)</span>
+                </button>
               </div>
             </div>
 
-            {/* Dedicated Folder Settings Card (7 cols) */}
+            {/* Change PIN Code Form (7 cols) */}
             <div className="lg:col-span-7 bg-[#151515] border border-[#2A2A2A] p-5 rounded-sm space-y-4">
               <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
                 <div className="flex items-center gap-2">
-                  <Folder className="w-4 h-4 text-[#D4AF37]" />
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Cấu Hình Thư Mục Chuyên Biệt</h3>
+                  <KeyRound className="w-4 h-4 text-[#D4AF37]" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Đổi Mã PIN Bảo Mật</h3>
                 </div>
-                {appFolder?.webViewLink && (
-                  <a
-                    href={appFolder.webViewLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] text-[#D4AF37] hover:underline flex items-center gap-1"
-                  >
-                    <span>Mở Folder trên Drive</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPinSecrets(!showPinSecrets)}
+                  className="text-xs text-[#888888] hover:text-[#D4AF37] flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  {showPinSecrets ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  <span>{showPinSecrets ? 'Ẩn ký tự' : 'Hiện ký tự'}</span>
+                </button>
               </div>
 
-              <form onSubmit={handleSaveAppFolder} className="space-y-3 text-xs">
+              <form onSubmit={handleChangePin} className="space-y-3.5 text-xs">
+                
+                {/* Current PIN (if needed) */}
                 <div>
                   <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
-                    Tên thư mục lưu trữ trên Google Drive:
+                    Mã PIN hiện tại:
+                  </label>
+                  <input
+                    type={showPinSecrets ? 'text' : 'password'}
+                    value={currentPinInput}
+                    onChange={(e) => setCurrentPinInput(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                    placeholder={pinSettings.hasCustomPin ? 'Nhập mã PIN đang dùng...' : 'Mặc định là 1234 nếu chưa đổi'}
+                    className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* New PIN */}
+                  <div>
+                    <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
+                      Mã PIN mới (4 - 8 số):
+                    </label>
+                    <input
+                      type={showPinSecrets ? 'text' : 'password'}
+                      value={newPinInput}
+                      onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                      placeholder="Ví dụ: 8888 hoặc 9999"
+                      className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                    />
+                  </div>
+
+                  {/* Confirm New PIN */}
+                  <div>
+                    <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
+                      Nhập lại mã PIN mới:
+                    </label>
+                    <input
+                      type={showPinSecrets ? 'text' : 'password'}
+                      value={confirmPinInput}
+                      onChange={(e) => setConfirmPinInput(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                      placeholder="Nhập lại chính xác mã PIN mới"
+                      className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                    />
+                  </div>
+                </div>
+
+                {/* Hint Input */}
+                <div>
+                  <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
+                    Gợi ý mã PIN (Tùy chọn - hiển thị khi bấm Quên mã):
                   </label>
                   <input
                     type="text"
-                    value={customFolderName}
-                    onChange={(e) => setCustomFolderName(e.target.value)}
-                    placeholder="Ví dụ: AI Assistant Documents"
-                    className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                    value={pinHintInput}
+                    onChange={(e) => setPinHintInput(e.target.value)}
+                    placeholder="Ví dụ: Năm sinh hoặc 4 số cuối điện thoại..."
+                    className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
                   />
-                  <p className="text-[11px] text-[#666666] mt-1.5 italic">
-                    Ứng dụng sẽ tự động tạo hoặc tìm thư mục này trên Drive của bạn để lưu toàn bộ tệp tài liệu một cách riêng biệt và độc lập.
-                  </p>
                 </div>
 
-                {/* Storage Scope Notice */}
-                <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-1.5 text-[11px]">
-                  <div className="font-bold text-emerald-400 flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Nguyên lý Cách Ly Tuyệt Đối (Single-Folder Scope):</span>
+                <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[11px] text-[#888888] space-y-1">
+                  <div className="font-bold text-[#D4AF37] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Lưu ý an toàn:</span>
                   </div>
-                  <p className="text-[#AAAAAA] leading-relaxed">
-                    • Mọi tệp tải lên hoặc đồng bộ chỉ lưu vào thư mục này (`parents: [folderId]`).<br />
-                    • Hệ thống không đọc, không quét và không thay đổi bất kỳ tệp cá nhân nào khác ngoài thư mục trên Google Drive của bạn.
+                  <p>
+                    • Mã PIN được lưu trữ an toàn trong trình duyệt cục bộ của bạn.<br />
+                    • Nếu quên mã PIN, bạn có thể kiểm tra gợi ý đã đặt hoặc sử dụng mã mặc định ban đầu là <strong>1234</strong>.
                   </p>
                 </div>
 
-                <div className="pt-2 flex items-center justify-between flex-wrap gap-2">
+                <div className="pt-2 flex justify-end">
                   <button
                     type="submit"
-                    disabled={isSavingFolder}
-                    className="px-4 py-2 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-widest transition-colors cursor-pointer shadow-md disabled:opacity-50"
+                    disabled={isChangingPin || !newPinInput || !confirmPinInput}
+                    className="px-5 py-2.5 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow disabled:opacity-40"
                   >
-                    {isSavingFolder ? 'Đang Lưu...' : 'Lưu Tên Thư Mục'}
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{isChangingPin ? 'Đang Lưu...' : 'Lưu Mã PIN Mới'}</span>
                   </button>
-
-                  {localOnlyCount > 0 && googleUser && (
-                    <button
-                      type="button"
-                      onClick={handleSyncAllLocalFiles}
-                      disabled={isSyncingAll}
-                      className="px-3 py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      <Cloud className="w-3.5 h-3.5" />
-                      <span>Đẩy {localOnlyCount} tệp cục bộ vào Folder</span>
-                    </button>
-                  )}
                 </div>
               </form>
-
-              {/* Statistics */}
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#2A2A2A] text-center text-xs">
-                <div className="p-2 bg-[#0C0C0C] rounded border border-[#2A2A2A]">
-                  <span className="text-[10px] text-[#666666] uppercase block">Dung lượng</span>
-                  <span className="font-bold text-white">{totalMb} MB</span>
-                </div>
-                <div className="p-2 bg-[#0C0C0C] rounded border border-[#2A2A2A]">
-                  <span className="text-[10px] text-[#666666] uppercase block">Đã vào Drive</span>
-                  <span className="font-bold text-emerald-400">{syncedCount} tệp</span>
-                </div>
-                <div className="p-2 bg-[#0C0C0C] rounded border border-[#2A2A2A]">
-                  <span className="text-[10px] text-[#666666] uppercase block">Chưa đồng bộ</span>
-                  <span className="font-bold text-amber-400">{localOnlyCount} tệp</span>
-                </div>
-              </div>
-
             </div>
 
           </div>
@@ -1633,7 +1330,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* SECTION 3: SYSTEM & AI ENGINE CONFIGURATION */}
+      {/* SECTION 4: SYSTEM & AI ENGINE CONFIGURATION */}
       {/* ======================================================== */}
       {(activeSection === 'all' || activeSection === 'system') && (
         <section className="space-y-4 pt-4">
@@ -1641,7 +1338,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="flex items-center gap-2 text-[#D4AF37]">
               <Cpu className="w-5 h-5" />
               <h2 className="text-base font-editorial-serif font-bold text-white tracking-wide">
-                3. Cấu Hình AI Model & Tự Động Hóa Hệ Thống
+                4. Cấu Hình AI Model & Tự Động Hóa Hệ Thống
               </h2>
             </div>
             <span className="text-[11px] text-amber-400 font-mono">

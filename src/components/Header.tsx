@@ -11,7 +11,8 @@ import {
   HardDrive,
   ShieldCheck,
   Bot,
-  Settings
+  Settings,
+  Lock
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -31,6 +32,7 @@ interface HeaderProps {
   onSelectTask?: (task: Task) => void;
   onSelectNote?: (note: Note) => void;
   onSelectFile?: (file: DriveFile) => void;
+  onLockApp?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -50,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectTask = () => {},
   onSelectNote = () => {},
   onSelectFile = () => {},
+  onLockApp = () => {},
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-[#0F0F0F]/95 backdrop-blur border-b border-[#2A2A2A] text-[#E0E0E0]">
@@ -136,6 +139,17 @@ export const Header: React.FC<HeaderProps> = ({
             <span>Drive Sync</span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           </div>
+
+          {/* Quick Lock Button */}
+          <button
+            type="button"
+            onClick={onLockApp}
+            className="p-2 rounded-sm bg-[#151515] hover:bg-[#202020] text-[#888888] hover:text-[#D4AF37] border border-[#2A2A2A] hover:border-[#D4AF37]/40 transition-colors cursor-pointer flex items-center gap-1.5"
+            title="Khóa ứng dụng (Yêu cầu mã PIN)"
+          >
+            <Lock className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <span className="hidden xl:inline text-xs font-bold text-[#D4AF37]">Khóa PIN</span>
+          </button>
         </div>
       </div>
 

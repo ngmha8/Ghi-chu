@@ -28,8 +28,6 @@ import {
   Edit3,
   Link,
   FolderOpen,
-  LogIn,
-  LogOut,
   AlertCircle,
   AlertTriangle,
   FileUp,
@@ -54,27 +52,6 @@ import {
   Copy
 } from 'lucide-react';
 import {
-  signInWithGoogle,
-  signInWithGoogleGIS,
-  refreshAccessTokenSilently,
-  logOutGoogle,
-  initGoogleAuth,
-  uploadFileToGoogleDrive,
-  fetchGoogleDriveFiles,
-  deleteFileFromGoogleDrive,
-  syncLocalFileToGoogleDrive,
-  validateGoogleToken,
-  getOrCreateAppFolder,
-  getAccessToken,
-  getGoogleUser,
-  getCustomGoogleClientId,
-  setCustomGoogleClientId,
-  setCustomAccessToken,
-  DEFAULT_OAUTH_CLIENT_ID,
-  DriveFolderInfo,
-  DEFAULT_APP_FOLDER_NAME
-} from '../services/googleDriveAuth.js';
-import {
   getStoredCategories,
   saveStoredCategories,
   resolveCategory,
@@ -82,7 +59,6 @@ import {
   DEFAULT_DOCUMENT_CATEGORIES
 } from '../services/docClassification.js';
 import { ManageCategoriesModal, renderCategoryIcon } from './ManageCategoriesModal.js';
-import { User as FirebaseUser } from 'firebase/auth';
 
 interface FilesViewProps {
   files: DriveFile[];
@@ -118,17 +94,6 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [tokenExpired, setTokenExpired] = useState(false);
-
-  // Google Auth state
-  const [googleUser, setGoogleUser] = useState<FirebaseUser | null>(getGoogleUser());
-  const [accessToken, setAccessToken] = useState<string | null>(getAccessToken());
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-
-  // Dedicated Single Folder state
-  const [appFolder, setAppFolder] = useState<DriveFolderInfo | null>(null);
-  const [isChangingFolder, setIsChangingFolder] = useState(false);
-  const [customFolderNameInput, setCustomFolderNameInput] = useState('');
 
   // Service Account State
   const [saConfig, setSaConfig] = useState<DriveServiceAccountConfig | null>(null);
@@ -164,42 +129,18 @@ export const FilesView: React.FC<FilesViewProps> = ({
   // Quick Inline Category Switcher state (fileId -> open/close)
   const [openCategoryPopoverFileId, setOpenCategoryPopoverFileId] = useState<string | null>(null);
 
-  // Google OAuth & Render Configuration Helper Modal
-  const [isOAuthHelpOpen, setIsOAuthHelpOpen] = useState(false);
-  const [customClientIdVal, setCustomClientIdVal] = useState(getCustomGoogleClientId());
-  const [manualTokenVal, setManualTokenVal] = useState('');
-  const [copiedOrigin, setCopiedOrigin] = useState(false);
-  const [isSubmittingManualToken, setIsSubmittingManualToken] = useState(false);
   const [popoverNewCatInput, setPopoverNewCatInput] = useState('');
 
   // Category Deletion Confirmation & Warning State
   const [categoryToDelete, setCategoryToDelete] = useState<{ category: DocumentCategory; fileCount: number } | null>(null);
 
-  // Initialize and observe Google Auth changes & SA config
+  // Load Service Account config on mount
   useEffect(() => {
-    // Load Service Account config
     api.getDriveServiceAccountConfig()
       .then(cfg => {
         setSaConfig(cfg);
       })
       .catch(e => console.warn('Could not load SA config:', e));
-
-    const unsubscribe = initGoogleAuth((user, token) => {
-      setGoogleUser(user);
-      setAccessToken(token);
-      if (token) {
-        setTokenExpired(false);
-        setAuthError(null);
-        // Load dedicated folder
-        getOrCreateAppFolder(token)
-          .then(folder => {
-            setAppFolder(folder);
-            setCustomFolderNameInput(folder.name);
-          })
-          .catch(e => console.warn('Could not init app folder:', e));
-      }
-    });
-    return () => unsubscribe();
   }, []);
 
   // Save updated categories
@@ -266,192 +207,38 @@ export const FilesView: React.FC<FilesViewProps> = ({
       .finally(() => setIsLoadingPreview(false));
   }, [previewFile]);
 
-  // Handle Google OAuth Sign In or Token Renewal
-  const handleGoogleLogin = async () => {
-    setIsAuthenticating(true);
+  // Unified handler to sync all pre-existing files directly from Google Drive
+  const handleUnifiedSyncDriveFiles = async () => {
     setAuthError(null);
-    try {
-      let token = accessToken;
-      let user = googleUser;
-
-      try {
-        const freshToken = await refreshAccessTokenSilently();
-        if (freshToken) {
-          token = freshToken;
-          setAccessToken(freshToken);
-          setTokenExpired(false);
-          const folder = await getOrCreateAppFolder(freshToken);
-          setAppFolder(folder);
-          setSyncStatusMsg(`Đã tự động gia hạn phiên Google Drive thành công! Thư mục: 📁 ${folder.name}`);
-          setTimeout(() => setSyncStatusMsg(null), 4000);
-          return;
-        }
-      } catch (silentErr) {
-        console.log('Silent refresh unavailable, proceeding with standard sign in...', silentErr);
-      }
-
-      const result = await signInWithGoogle().catch(async (fbErr) => {
-        console.warn('Firebase signInWithPopup failed, falling back to GIS:', fbErr);
-        return await signInWithGoogleGIS();
-      });
-      user = result.user;
-      token = result.accessToken;
-
-      setGoogleUser(user);
-      setAccessToken(token);
-      setTokenExpired(false);
-
-      const folder = await getOrCreateAppFolder(token);
-      setAppFolder(folder);
-      setCustomFolderNameInput(folder.name);
-
-      setSyncStatusMsg(`Đã kết nối Google Drive! Đang liên kết với thư mục: 📁 ${folder.name}`);
-      setTimeout(() => setSyncStatusMsg(null), 5000);
-    } catch (err: any) {
-      console.error('Login error:', err);
-      const msg = err.message || 'Đăng nhập Google thất bại';
-      setAuthError(msg);
-      if (msg.includes('origin_mismatch') || msg.includes('unauthorized-domain') || msg.includes('400')) {
-        setIsOAuthHelpOpen(true);
-      }
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
-
-  const handleSaveCustomClientId = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCustomGoogleClientId(customClientIdVal.trim());
-    setIsOAuthHelpOpen(false);
-    setSyncStatusMsg(customClientIdVal.trim() ? '✅ Đã lưu Google Client ID tùy chỉnh! Hãy bấm "Đăng nhập Google Drive" để thử lại.' : 'Đã xóa Client ID tùy chỉnh.');
-    setTimeout(() => setSyncStatusMsg(null), 5000);
-  };
-
-  const handleManualTokenSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualTokenVal.trim()) return;
-
-    setIsSubmittingManualToken(true);
-    setAuthError(null);
-
-    try {
-      const { user, accessToken: token } = await setCustomAccessToken(manualTokenVal.trim());
-      setGoogleUser(user);
-      setAccessToken(token);
-      setTokenExpired(false);
-
-      const folder = await getOrCreateAppFolder(token);
-      setAppFolder(folder);
-      setCustomFolderNameInput(folder.name);
-
-      setSyncStatusMsg(`✅ Đã kết nối thành công Google Drive qua Access Token! Thư mục: 📁 ${folder.name}`);
-      setIsOAuthHelpOpen(false);
-      setManualTokenVal('');
-      setTimeout(() => setSyncStatusMsg(null), 5000);
-    } catch (err: any) {
-      setAuthError(err.message || 'Access Token không hợp lệ');
-    } finally {
-      setIsSubmittingManualToken(false);
-    }
-  };
-
-  // Change or Rename Dedicated Folder
-  const handleSaveAppFolder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!accessToken) return;
-    const newName = customFolderNameInput.trim() || DEFAULT_APP_FOLDER_NAME;
-    setIsChangingFolder(false);
-    setIsSyncing(true);
-
-    try {
-      localStorage.removeItem('ai_app_drive_folder_id');
-      const folder = await getOrCreateAppFolder(accessToken, newName);
-      setAppFolder(folder);
-      setSyncStatusMsg(`Đã chuyển kết nối sang thư mục: 📁 ${folder.name}`);
-      setTimeout(() => setSyncStatusMsg(null), 4000);
-    } catch (err: any) {
-      setAuthError(err.message || 'Lỗi khi đổi thư mục Google Drive');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Fetch user's Google Drive files
-  const handleSyncFromDrive = async () => {
-    if (!accessToken) {
-      handleGoogleLogin();
-      return;
-    }
-
-    setIsSyncing(true);
     setSyncStatusMsg(null);
-    setAuthError(null);
 
-    try {
-      const { files: driveFiles, folder } = await fetchGoogleDriveFiles(accessToken, appFolder?.id);
-      setAppFolder(folder);
-
-      if (driveFiles.length > 0) {
-        const existingIds = new Set(files.map(f => f.driveFileId || f.id));
-        for (const df of driveFiles) {
-          if (!existingIds.has(df.driveFileId || df.id)) {
-            // Assign default classification if missing
-            const fileWithCat: Partial<DriveFile> = {
-              ...df,
-              classification: selectedClassification !== 'all' ? selectedClassification : 'work',
-            };
-            onFileUpload(fileWithCat);
+    // Prefer Service Account if connected or configured
+    if (saConfig?.isConnected || (saConfig?.clientEmail && saConfig?.folderId)) {
+      setIsSyncingSa(true);
+      setSyncStatusMsg('Đang quét và nạp toàn bộ file sẵn có từ thư mục Google Drive (Service Account)...');
+      try {
+        const res = await api.syncDriveServiceAccount();
+        setSyncStatusMsg(`✅ Đã đồng bộ thành công ${res.syncedCount} tệp sẵn có từ Google Drive!`);
+        if (res.files && res.files.length > 0) {
+          const currentIds = new Set(files.map(f => f.driveFileId || f.id));
+          for (const f of res.files) {
+            if (!currentIds.has(f.driveFileId || f.id)) {
+              onFileUpload(f);
+            }
           }
         }
-        setSyncStatusMsg(`Đã đồng bộ ${driveFiles.length} tệp từ thư mục "📁 ${folder.name}"!`);
-      } else {
-        setSyncStatusMsg(`Thư mục "📁 ${folder.name}" trên Google Drive hiện chưa có tệp.`);
+        setTimeout(() => setSyncStatusMsg(null), 5000);
+      } catch (err: any) {
+        console.error('Service Account sync error:', err);
+        setAuthError(`Lỗi đồng bộ Service Account: ${err.message || 'Không thể kết nối Drive. Vui lòng kiểm tra cấu hình trong Cài Đặt.'}`);
+      } finally {
+        setIsSyncingSa(false);
       }
-      setTimeout(() => setSyncStatusMsg(null), 5000);
-    } catch (err: any) {
-      console.error('Fetch Drive error:', err);
-      if (err.message?.includes('TOKEN_EXPIRED') || err.message?.includes('401')) {
-        setTokenExpired(true);
-        setAuthError('Phiên đăng nhập Google Drive đã hết hạn. Hãy bấm "Đăng nhập lại" để gia hạn.');
-      } else {
-        setAuthError(err.message || 'Lỗi khi đồng bộ từ Google Drive');
-      }
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // 1-Click Sync Single Local File into the Dedicated Folder
-  const handleSyncSingleFileToDrive = async (file: DriveFile) => {
-    if (!accessToken) {
-      handleGoogleLogin();
       return;
     }
 
-    setSyncingFileIds(prev => ({ ...prev, [file.id]: true }));
-    setAuthError(null);
-
-    try {
-      const updated = await syncLocalFileToGoogleDrive(file, accessToken, appFolder?.id);
-      if (onFileUpdate) {
-        onFileUpdate(file.id, updated);
-      }
-      if (previewFile?.id === file.id) {
-        setPreviewFile(updated);
-      }
-      setSyncStatusMsg(`Đã tải "${file.name}" vào thư mục 📁 ${appFolder?.name || DEFAULT_APP_FOLDER_NAME}!`);
-      setTimeout(() => setSyncStatusMsg(null), 4000);
-    } catch (err: any) {
-      console.error('Sync file error:', err);
-      if (err.message?.includes('TOKEN_EXPIRED') || err.message?.includes('401')) {
-        setTokenExpired(true);
-        setAuthError('Phiên Google hết hạn. Vui lòng đăng nhập lại để đẩy tệp lên Drive.');
-      } else {
-        setAuthError(`Lỗi khi đẩy tệp lên Google Drive: ${err.message}`);
-      }
-    } finally {
-      setSyncingFileIds(prev => ({ ...prev, [file.id]: false }));
-    }
+    // Not configured yet -> prompt user to open Settings
+    setAuthError('Chưa kết nối Google Drive Service Account! Vui lòng vào Cài Đặt để dán Key Service Account.');
   };
 
   // Change Classification for a file
@@ -581,34 +368,14 @@ export const FilesView: React.FC<FilesViewProps> = ({
     setUploadProgress({
       active: true,
       fileName: rawFile.name,
-      progress: 15,
-      statusText: accessToken ? `Đang tải vào thư mục 📁 ${appFolder?.name || DEFAULT_APP_FOLDER_NAME}...` : 'Đang lưu tệp cục bộ...'
+      progress: 25,
+      statusText: 'Đang chuẩn bị tải lên...'
     });
-
-    let uploadedDriveId: string | undefined = undefined;
-    let uploadedWebViewLink: string | undefined = undefined;
-    let isSynced = false;
 
     let base64Data = '';
     try {
       base64Data = await fileToBase64(rawFile);
     } catch (e) {}
-
-    if (accessToken) {
-      try {
-        setUploadProgress(prev => prev ? { ...prev, progress: 50, statusText: `Đang đẩy tệp vào Drive...` } : null);
-        const driveResult = await uploadFileToGoogleDrive(rawFile, rawFile.name, rawFile.type, accessToken, appFolder?.id);
-        uploadedDriveId = driveResult.id;
-        uploadedWebViewLink = driveResult.webViewLink;
-        isSynced = true;
-        setUploadProgress(prev => prev ? { ...prev, progress: 85, statusText: 'Đã lưu vào thư mục Drive!' } : null);
-      } catch (err: any) {
-        console.warn('Google Drive direct upload failed, saving locally:', err);
-        if (err.message?.includes('TOKEN_EXPIRED') || err.message?.includes('401')) {
-          setTokenExpired(true);
-        }
-      }
-    }
 
     const filePayload: Partial<DriveFile> & { base64Data?: string } = {
       id: fileId,
@@ -618,17 +385,20 @@ export const FilesView: React.FC<FilesViewProps> = ({
       category: formatCat,
       classification: targetClassification,
       tags: [resolveCategory(targetClassification, categories).name],
-      isSyncedToDrive: isSynced,
-      syncStatus: isSynced ? 'synced' : 'local_only',
-      driveFileId: uploadedDriveId,
-      webViewLink: uploadedWebViewLink,
+      isSyncedToDrive: false,
+      syncStatus: 'local_only',
       downloadUrl: `/api/files/download/${fileId}`,
       uploadedAt: new Date().toISOString(),
       base64Data: base64Data,
     };
 
     onFileUpload(filePayload);
-    setUploadProgress(prev => prev ? { ...prev, progress: 100, statusText: 'Hoàn tất tải lên!' } : null);
+    setUploadProgress({
+      active: true,
+      fileName: rawFile.name,
+      progress: 100,
+      statusText: 'Hoàn tất tải lên!'
+    });
     setTimeout(() => setUploadProgress(null), 1500);
   };
 
@@ -649,15 +419,6 @@ export const FilesView: React.FC<FilesViewProps> = ({
     if (!fileToDelete) return;
     const targetFile = fileToDelete;
     setFileToDelete(null);
-
-    if (accessToken && targetFile.driveFileId && !targetFile.driveFileId.startsWith('file-') && !targetFile.driveFileId.startsWith('drive-id-')) {
-      try {
-        await deleteFileFromGoogleDrive(targetFile.driveFileId, accessToken);
-      } catch (err) {
-        console.warn('Could not delete file from Google Drive:', err);
-      }
-    }
-
     onFileDelete(targetFile.id);
   };
 
@@ -779,7 +540,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
                 </span>
               ) : (
                 <span className="text-[10px] bg-[#0C0C0C] text-[#AAAAAA] border border-[#2A2A2A] px-2 py-0.5 rounded font-mono">
-                  📁 {appFolder?.name || DEFAULT_APP_FOLDER_NAME}
+                  📁 {saConfig?.folderName || 'Google Drive'}
                 </span>
               )}
             </div>
@@ -800,20 +561,21 @@ export const FilesView: React.FC<FilesViewProps> = ({
             <span>Phân Loại ({categories.length})</span>
           </button>
 
-          {/* Quick OAuth / Render Config Button */}
+          {/* Prominent Sync Pre-existing Files from Google Drive Button */}
           <button
-            onClick={() => setIsOAuthHelpOpen(true)}
-            className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#AAAAAA] hover:text-[#D4AF37] border border-[#2A2A2A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Cấu hình Google OAuth Client ID & Khắc phục lỗi trên Render"
+            onClick={handleUnifiedSyncDriveFiles}
+            disabled={isSyncing || isSyncingSa}
+            className="px-3.5 py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/60 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+            title="Quét và đồng bộ toàn bộ danh sách tệp sẵn có trong thư mục Google Drive về ứng dụng"
           >
-            <Globe className="w-3.5 h-3.5 text-[#D4AF37]" />
-            <span>Cấu hình OAuth / Render</span>
+            <FolderSync className={`w-4 h-4 text-[#D4AF37] ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
+            <span>{isSyncing || isSyncingSa ? 'Đang đồng bộ...' : 'Đồng Bộ Từ Drive'}</span>
           </button>
 
           {/* Quick External Link to Google Drive folder */}
-          {(saConfig?.folderId || appFolder?.webViewLink) && (
+          {saConfig?.folderId && (
             <a
-              href={saConfig?.folderId ? `https://drive.google.com/drive/folders/${saConfig.folderId}` : (appFolder?.webViewLink || '#')}
+              href={`https://drive.google.com/drive/folders/${saConfig.folderId}`}
               target="_blank"
               rel="noreferrer"
               className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
@@ -823,19 +585,6 @@ export const FilesView: React.FC<FilesViewProps> = ({
               <span>Mở Drive</span>
               <ExternalLink className="w-3 h-3" />
             </a>
-          )}
-
-          {/* Sync from Google Drive Dedicated Folder */}
-          {!saConfig?.isConnected && (
-            <button
-              onClick={handleSyncFromDrive}
-              disabled={isSyncing}
-              className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Đồng bộ danh sách tệp từ Google Drive về ứng dụng"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#D4AF37] ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Đang tải...' : 'Lấy tệp Drive'}</span>
-            </button>
           )}
 
           {/* 1-Click Upload Button */}
@@ -857,36 +606,23 @@ export const FilesView: React.FC<FilesViewProps> = ({
         </div>
       )}
 
-      {/* Token Expired Action Banner */}
-      {tokenExpired && (
-        <div className="p-3.5 rounded-sm bg-amber-950/50 border border-amber-500 text-xs text-amber-200 font-medium flex items-center justify-between animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-            <span><strong>Phiên Google Drive đã hết hạn:</strong> Vui lòng đăng nhập lại để đẩy tệp lên Drive.</span>
-          </div>
-          <button
-            onClick={handleGoogleLogin}
-            className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold text-[11px] uppercase tracking-wider rounded-sm cursor-pointer shadow"
-          >
-            Đăng Nhập Lại Ngay
-          </button>
-        </div>
-      )}
-
       {/* Auth Error Banner */}
-      {authError && !tokenExpired && (
+      {authError && (
         <div className="p-3.5 rounded-sm bg-rose-950/50 border border-rose-700 text-xs text-rose-200 font-medium flex items-center justify-between flex-wrap gap-2 animate-in fade-in">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{authError}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsOAuthHelpOpen(true)}
-              className="px-3 py-1 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-[11px] uppercase tracking-wider rounded-sm cursor-pointer shadow"
-            >
-              🛠️ Khắc phục trên Render
-            </button>
+            {onNavigateToSettings && (
+              <button
+                onClick={onNavigateToSettings}
+                className="px-3 py-1 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-[11px] uppercase tracking-wider rounded-sm cursor-pointer shadow flex items-center gap-1"
+              >
+                <Settings className="w-3 h-3" />
+                <span>Mở Cài Đặt Google Drive</span>
+              </button>
+            )}
             <button onClick={() => setAuthError(null)} className="text-xs text-rose-400 hover:text-white cursor-pointer px-1">✕</button>
           </div>
         </div>
@@ -1187,15 +923,9 @@ export const FilesView: React.FC<FilesViewProps> = ({
                           <CheckCircle2 className="w-3 h-3" /> Drive
                         </span>
                       ) : (
-                        <button
-                          onClick={() => handleSyncSingleFileToDrive(file)}
-                          disabled={isSyncingThis}
-                          className="text-[10px] font-bold text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer bg-[#0C0C0C] px-1.5 py-0.5 rounded border border-[#2A2A2A]"
-                          title="Đẩy tệp này vào thư mục Drive"
-                        >
-                          <Cloud className={`w-3 h-3 ${isSyncingThis ? 'animate-spin' : ''}`} />
-                          <span>{isSyncingThis ? 'Đang đẩy...' : 'Vào Drive'}</span>
-                        </button>
+                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-mono">
+                          <CloudOff className="w-3 h-3" /> Cục bộ
+                        </span>
                       )}
                     </div>
 
@@ -1360,63 +1090,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
       )}
 
       {/* ============================================================== */}
-      {/* 4. CHANGE DEDICATED FOLDER MODAL */}
-      {/* ============================================================== */}
-      {isChangingFolder && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-[#151515] border border-[#2A2A2A] w-full max-w-md rounded-sm shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
-              <div className="flex items-center gap-2">
-                <Folder className="w-4 h-4 text-[#D4AF37]" />
-                <h3 className="font-editorial-serif font-bold text-white text-sm">Chỉ định Thư Mục Google Drive</h3>
-              </div>
-              <button
-                onClick={() => setIsChangingFolder(false)}
-                className="p-1 text-[#888888] hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveAppFolder} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-[#888888] font-bold uppercase text-[10px] mb-1.5">
-                  Tên thư mục trên Google Drive:
-                </label>
-                <p className="text-[#666666] text-[11px] mb-2 italic">
-                  Hệ thống sẽ tự động tìm hoặc tạo thư mục có tên này trên Google Drive của bạn.
-                </p>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: AI Assistant Documents"
-                  value={customFolderNameInput}
-                  onChange={(e) => setCustomFolderNameInput(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#2A2A2A]">
-                <button
-                  type="button"
-                  onClick={() => setIsChangingFolder(false)}
-                  className="px-3 py-1.5 bg-[#0C0C0C] hover:bg-[#1A1A1A] text-white border border-[#2A2A2A] rounded-sm cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold uppercase tracking-wider rounded-sm cursor-pointer"
-                >
-                  Lưu & Áp Dụng
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
-      {/* 5. DELETE CONFIRMATION MODAL */}
+      {/* 4. DELETE CONFIRMATION MODAL */}
       {/* ============================================================== */}
       {fileToDelete && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -1625,16 +1299,16 @@ export const FilesView: React.FC<FilesViewProps> = ({
                       <span>Tài liệu đang lưu trữ cục bộ</span>
                     </div>
                     <p className="text-[11px] text-[#A0A0A0]">
-                      Nhấn vào đây để tải tệp vào thư mục 📁 <strong>"{appFolder?.name || DEFAULT_APP_FOLDER_NAME}"</strong> trên Google Drive.
+                      Tệp được lưu an toàn trong cơ sở dữ liệu. Nhấn "Đồng bộ từ Drive" ở thanh công cụ để đồng bộ toàn bộ.
                     </p>
                   </div>
                   <button
-                    onClick={() => handleSyncSingleFileToDrive(previewFile)}
-                    disabled={!!syncingFileIds[previewFile.id]}
+                    onClick={handleUnifiedSyncDriveFiles}
+                    disabled={isSyncing || isSyncingSa}
                     className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-wider rounded-sm shrink-0 flex items-center justify-center gap-1.5 cursor-pointer shadow"
                   >
-                    <Cloud className="w-3.5 h-3.5" />
-                    <span>{syncingFileIds[previewFile.id] ? 'Đang đẩy lên...' : 'Đẩy Vào Thư Mục Drive'}</span>
+                    <FolderSync className={`w-3.5 h-3.5 ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
+                    <span>{isSyncing || isSyncingSa ? 'Đang đồng bộ...' : 'Đồng Bộ Từ Drive'}</span>
                   </button>
                 </div>
               ) : (
@@ -1772,181 +1446,6 @@ export const FilesView: React.FC<FilesViewProps> = ({
                 }`}
               >
                 {categoryToDelete.fileCount > 0 ? 'Đồng Ý & Chuyển Về Khác' : 'Xác Nhận Xóa'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
-      {/* 9. GOOGLE OAUTH & RENDER CONFIGURATION HELPER MODAL */}
-      {/* ============================================================== */}
-      {isOAuthHelpOpen && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 z-60 animate-in fade-in duration-150">
-          <div className="bg-[#151515] border border-[#2A2A2A] w-full max-w-2xl max-h-[90vh] flex flex-col rounded-sm shadow-2xl overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[#2A2A2A] p-4 bg-[#111111]">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37]">
-                  <Globe className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-editorial-serif font-bold text-white text-base">
-                    Cấu Hình Google OAuth & Sửa Lỗi origin_mismatch (Render)
-                  </h3>
-                  <p className="text-[11px] text-[#888888]">
-                    Khắc phục lỗi xác thực khi deploy trên Render, Vercel hoặc tên miền tùy chỉnh.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsOAuthHelpOpen(false)}
-                className="p-1 text-[#888888] hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
-              
-              {/* Origin Display Box */}
-              <div className="p-3.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-[#AAAAAA] font-bold uppercase tracking-wider">
-                    🌐 Tên miền ứng dụng của bạn (JavaScript Origin):
-                  </span>
-                  <span className="text-[10px] text-amber-400 font-mono">Cần thêm vào Google Cloud</span>
-                </div>
-                <div className="flex items-center gap-2 bg-[#151515] p-2.5 rounded border border-[#222222]">
-                  <code className="flex-1 font-mono text-xs text-[#D4AF37] font-bold truncate">
-                    {window.location.origin}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.origin);
-                      setCopiedOrigin(true);
-                      setTimeout(() => setCopiedOrigin(false), 2500);
-                    }}
-                    className="px-3 py-1 bg-[#222222] hover:bg-[#333333] text-white rounded text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shrink-0"
-                  >
-                    {copiedOrigin ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedOrigin ? 'Đã sao chép!' : 'Sao chép URL'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Solution 1: Configure Custom Google Client ID */}
-              <div className="p-4 bg-[#0C0C0C] border border-[#D4AF37]/40 rounded-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-[#D4AF37] text-xs uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Cách 1: Tạo Google OAuth Client ID của bạn (Khuyên dùng - 2 phút)</span>
-                  </h4>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono font-bold">
-                    Khuyên Dùng
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-[#CCCCCC] space-y-1.5 pl-1 leading-relaxed">
-                  <p>1. Mở <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-[#D4AF37] font-bold underline inline-flex items-center gap-0.5">Google Cloud Console ➔ Credentials <ExternalLink className="w-2.5 h-2.5 inline" /></a></p>
-                  <p>2. Bấm <strong>Create Credentials</strong> ➔ <strong>OAuth client ID</strong> (Loại: <em>Web application</em>).</p>
-                  <p>3. Tại mục <strong>Authorized JavaScript origins (Nguồn gốc JavaScript được uỷ quyền)</strong>: Bấm <em>Add URI</em> và dán: <code className="text-[#D4AF37] font-bold">{window.location.origin}</code></p>
-                  <p>4. Bấm <strong>Save</strong> ➔ Copy chuỗi <strong>Client ID</strong> (dạng <code>...apps.googleusercontent.com</code>) dán vào ô bên dưới:</p>
-                </div>
-
-                <form onSubmit={handleSaveCustomClientId} className="space-y-2 pt-1">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={customClientIdVal}
-                      onChange={(e) => setCustomClientIdVal(e.target.value)}
-                      placeholder="Dán OAuth Client ID vào đây (hoặc cấu hình VITE_GOOGLE_CLIENT_ID trên Render)"
-                      className="flex-1 p-2 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
-                    />
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer shadow shrink-0"
-                    >
-                      Lưu & Thử Lại
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-[#888888] italic">
-                    💡 Mẹo: Bạn cũng có thể đặt biến môi trường <code>VITE_GOOGLE_CLIENT_ID</code> trong Dashboard Render của bạn.
-                  </p>
-                </form>
-              </div>
-
-              {/* Solution 2: OAuth Playground Direct Access Token (Instant Fallback) */}
-              <div className="p-4 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-3">
-                <h4 className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Cách 2: Dán Access Token Trực Tiếp (Nhanh nhất - 30 giây, 100% thành công)</span>
-                </h4>
-
-                <p className="text-[11px] text-[#AAAAAA] leading-relaxed">
-                  Lấy token trực tiếp từ trang chính thức của Google mà không cần tạo project:
-                </p>
-
-                <div className="text-[11px] text-[#CCCCCC] space-y-1 pl-1">
-                  <p>1. Mở <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-sky-400 font-bold underline inline-flex items-center gap-0.5">Google OAuth Playground <ExternalLink className="w-2.5 h-2.5 inline" /></a></p>
-                  <p>2. Chọn <strong>Drive API v3</strong> ➔ tích chọn <code>https://www.googleapis.com/auth/drive.file</code></p>
-                  <p>3. Bấm <strong>Authorize APIs</strong> ➔ Đăng nhập Google ➔ Bấm <strong>Exchange authorization code for tokens</strong></p>
-                  <p>4. Copy mã <strong>Access token</strong> dán vào ô bên dưới:</p>
-                </div>
-
-                <form onSubmit={handleManualTokenSubmit} className="space-y-2 pt-1">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="password"
-                      value={manualTokenVal}
-                      onChange={(e) => setManualTokenVal(e.target.value)}
-                      placeholder="Dán chuỗi ya29.... vào đây"
-                      className="flex-1 p-2 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-sky-400"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isSubmittingManualToken || !manualTokenVal.trim()}
-                      className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-black font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer shadow shrink-0 disabled:opacity-50"
-                    >
-                      {isSubmittingManualToken ? 'Đang xác thực...' : 'Kết Nối Bằng Token'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Solution 3: Service Account */}
-              <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-white text-xs">Cách 3: Sử dụng Google Service Account</h4>
-                  <p className="text-[11px] text-[#888888]">Cố định 1 thư mục cho mọi máy tính mà không cần người dùng đăng nhập.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsOAuthHelpOpen(false);
-                    if (onNavigateToSettings) onNavigateToSettings();
-                  }}
-                  className="px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/30 text-xs font-bold rounded-sm cursor-pointer"
-                >
-                  Mở Cài Đặt Service Account ➔
-                </button>
-              </div>
-
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-between border-t border-[#2A2A2A] p-4 bg-[#111111]">
-              <span className="text-[11px] text-[#777777]">
-                Mã nguồn & token được mã hóa an toàn trên trình duyệt của bạn.
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsOAuthHelpOpen(false)}
-                className="px-4 py-2 bg-[#0C0C0C] hover:bg-[#1A1A1A] text-white border border-[#2A2A2A] text-xs font-bold rounded-sm cursor-pointer"
-              >
-                Đóng
               </button>
             </div>
           </div>

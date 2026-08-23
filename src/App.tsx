@@ -20,8 +20,16 @@ import { SystemArchView } from './components/SystemArchView.tsx';
 import { AiChatDrawer } from './components/AiChatDrawer.tsx';
 import { TaskModal } from './components/TaskModal.tsx';
 import { NoteModal } from './components/NoteModal.tsx';
+import { PinLockScreen } from './components/PinLockScreen.tsx';
+import {
+  isSessionUnlocked,
+  lockSession,
+  updateActivityTimestamp,
+  getPinSettings
+} from './services/pinSecurity.js';
 
 export default function App() {
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => isSessionUnlocked());
   const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'settings' | 'architecture'>('dashboard');
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -129,6 +137,26 @@ export default function App() {
       }
     }, 30000);
 
+    // User Activity & Auto-Lock Monitor
+    const handleUserActivity = () => {
+      updateActivityTimestamp();
+    };
+
+    window.addEventListener('mousedown', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('touchstart', handleUserActivity);
+    window.addEventListener('scroll', handleUserActivity, { passive: true });
+
+    // Check auto-lock every 15 seconds
+    const lockCheckInterval = setInterval(() => {
+      const pinSettings = getPinSettings();
+      if (pinSettings.isEnabled && pinSettings.autolockMinutes > 0) {
+        if (!isSessionUnlocked()) {
+          setIsUnlocked(false);
+        }
+      }
+    }, 15000);
+
     return () => {
       unsubTasks();
       unsubNotes();
@@ -136,8 +164,18 @@ export default function App() {
       unsubNotifs();
       unsubConfig();
       clearInterval(cronInterval);
+      clearInterval(lockCheckInterval);
+      window.removeEventListener('mousedown', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('touchstart', handleUserActivity);
+      window.removeEventListener('scroll', handleUserActivity);
     };
   }, []);
+
+  const handleLockApp = () => {
+    lockSession();
+    setIsUnlocked(false);
+  };
 
   // -------------------------------------------------------------
   // TASK HANDLERS
@@ -296,6 +334,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-[#E0E0E0] font-sans selection:bg-[#D4AF37] selection:text-black">
+      {/* PIN Security Lock Screen */}
+      {!isUnlocked && (
+        <PinLockScreen onUnlock={() => setIsUnlocked(true)} />
+      )}
+
       {/* Header Bar */}
       <Header
         activeTab={activeTab}
@@ -322,6 +365,7 @@ export default function App() {
         onSelectFile={(_file) => {
           setActiveTab('files');
         }}
+        onLockApp={handleLockApp}
       />
 
       {/* Main Content Area */}
@@ -398,6 +442,7 @@ export default function App() {
             onSendTestTelegramMessage={handleSendTestTelegramMessage}
             files={files}
             onFileUpdate={handleFileUpdate}
+            onLockApp={handleLockApp}
           />
         )}
 
