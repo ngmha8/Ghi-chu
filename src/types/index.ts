@@ -73,6 +73,8 @@ export interface TelegramConfig {
   alertOffsetMinutes: number;
   isConnected: boolean;
   timezone?: string; // default 'Asia/Ho_Chi_Minh' (UTC+7)
+  webhookUrl?: string;
+  webhookSecret?: string;
   morningBriefingHour?: number; // 0-23, default 7 (7:00 AM VN)
   morningBriefingMinute?: number; // 0-59, default 0
   eveningBriefingHour?: number; // 0-23, default 21 (9:00 PM VN)

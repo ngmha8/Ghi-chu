@@ -190,8 +190,13 @@ export const api = {
     return res.json();
   },
 
-  // AI Chat Endpoint
-  sendChatMessage: async (message: string, enableSearch: boolean = false): Promise<{
+  // AI Chat Endpoint with Multi-Turn Memory
+  sendChatMessage: async (
+    message: string,
+    enableSearch: boolean = false,
+    history: { role: string; content: string }[] = [],
+    sessionId: string = 'web_user_session'
+  ): Promise<{
     reply: string;
     groundingSources?: { title: string; url: string }[];
     retrievedContext?: any;
@@ -199,12 +204,22 @@ export const api = {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, enableSearch }),
+      body: JSON.stringify({ message, enableSearch, history, sessionId }),
     });
     if (!res.ok) {
       const errJson = await res.json().catch(() => ({}));
       throw new Error(errJson.error || 'AI Chat error');
     }
+    return res.json();
+  },
+
+  clearChatMemory: async (sessionId: string = 'web_user_session'): Promise<{ success: boolean }> => {
+    const res = await fetch('/api/chat/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+    });
+    if (!res.ok) throw new Error('Failed to clear chat memory');
     return res.json();
   },
 

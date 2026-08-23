@@ -11,7 +11,7 @@ import {
   Sparkles,
   Delete
 } from 'lucide-react';
-import { verifyPin, unlockSession, getPinSettings } from '../services/pinSecurity.js';
+import { verifyPin, verifyPinAsync, unlockSession, getPinSettings } from '../services/pinSecurity.js';
 
 interface PinLockScreenProps {
   onUnlock: () => void;
@@ -69,7 +69,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [pinInput, cooldownSeconds, isUnlocking]);
 
-  const handleDigitPress = (digit: string) => {
+  const handleDigitPress = async (digit: string) => {
     if (cooldownSeconds > 0 || isUnlocking) return;
     if (pinInput.length >= 8) return;
 
@@ -77,9 +77,9 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
     const newPin = pinInput + digit;
     setPinInput(newPin);
 
-    // Auto verify if reached 4 or 6 digits
+    // Auto verify if reached 4 or more digits
     if (newPin.length >= 4) {
-      if (verifyPin(newPin)) {
+      if (verifyPin(newPin) || (await verifyPinAsync(newPin))) {
         triggerSuccessUnlock();
       }
     }
@@ -106,14 +106,15 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
     }, 400);
   };
 
-  const handleVerify = (pinToTest: string) => {
+  const handleVerify = async (pinToTest: string) => {
     if (cooldownSeconds > 0 || isUnlocking) return;
     if (!pinToTest) {
       setErrorMsg('Vui lòng nhập mã PIN');
       return;
     }
 
-    if (verifyPin(pinToTest)) {
+    const isValid = verifyPin(pinToTest) || (await verifyPinAsync(pinToTest));
+    if (isValid) {
       triggerSuccessUnlock();
     } else {
       const nextFailed = failedAttempts + 1;

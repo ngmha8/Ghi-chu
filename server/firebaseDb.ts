@@ -215,3 +215,46 @@ export async function addDbNotificationLog(log: NotificationLog): Promise<Notifi
   return log;
 }
 
+// -------------------------------------------------------------
+// CONVERSATION MEMORY BUFFER (TELEGRAM & WEB MULTI-TURN AI)
+// -------------------------------------------------------------
+export interface ConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+// Memory buffer mapped by session/chat ID with auto-pruning (max 10 recent turns, 24h TTL)
+const conversationMemoryStore = new Map<string, ConversationTurn[]>();
+
+export function getConversationHistory(sessionId: string): ConversationTurn[] {
+  const history = conversationMemoryStore.get(sessionId) || [];
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  // Filter out expired turns (> 24 hours)
+  const validHistory = history.filter(t => t.timestamp > oneDayAgo);
+  if (validHistory.length !== history.length) {
+    conversationMemoryStore.set(sessionId, validHistory);
+  }
+  return validHistory;
+}
+
+export function appendConversationTurn(
+  sessionId: string,
+  userMessage: string,
+  assistantReply: string
+): void {
+  const current = getConversationHistory(sessionId);
+  const now = Date.now();
+  current.push({ role: 'user', content: userMessage, timestamp: now });
+  current.push({ role: 'assistant', content: assistantReply, timestamp: now });
+  // Keep maximum last 10 turns (5 full user-assistant dialogues)
+  if (current.length > 10) {
+    current.splice(0, current.length - 10);
+  }
+  conversationMemoryStore.set(sessionId, current);
+}
+
+export function clearConversationHistory(sessionId: string): void {
+  conversationMemoryStore.delete(sessionId);
+}
+

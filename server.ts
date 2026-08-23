@@ -30,6 +30,9 @@ import {
   addDbNotificationLog,
   getDbDriveServiceAccountConfig,
   saveDbDriveServiceAccountConfig,
+  getConversationHistory,
+  appendConversationTurn,
+  clearConversationHistory,
   cachedTasks,
   cachedNotes,
   cachedFiles,
@@ -645,25 +648,42 @@ app.post('/api/telegram/test', async (req: Request, res: Response) => {
   res.json({ success: true, log: newLog, telegramDelivered: delivered });
 });
 
-// Telegram Bot Webhook Setup Endpoint
+// Telegram Bot Webhook Setup Endpoint with Secret Token Protection
 app.post('/api/telegram/set-webhook', async (req: Request, res: Response) => {
   const telegramConfig = await getDbTelegramConfig();
-  const { webhookUrl } = req.body;
+  const { webhookUrl, secretToken } = req.body;
   if (!telegramConfig.botToken) {
     return res.status(400).json({ error: 'Chưa cấu hình Telegram Bot Token.' });
   }
 
   const host = req.get('host');
   const targetUrl = webhookUrl || `https://${host}/api/telegram/webhook`;
+  const webhookSecret = secretToken || telegramConfig.webhookSecret || `sec_${Buffer.from(telegramConfig.botToken).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 32)}`;
 
   try {
-    const telegramRes = await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/setWebhook?url=${encodeURIComponent(targetUrl)}`);
+    const payload: any = {
+      url: targetUrl,
+      secret_token: webhookSecret,
+      drop_pending_updates: false,
+    };
+
+    const telegramRes = await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
     const data: any = await telegramRes.json();
     if (data.ok) {
+      // Save webhookSecret to config
+      await saveDbTelegramConfig({
+        webhookSecret,
+        webhookUrl: targetUrl,
+      });
+
       await addDbNotificationLog({
         id: `notif-${Date.now()}`,
-        title: '🔗 Đã kích hoạt Webhook 2 chiều Telegram',
-        message: `Kích hoạt Webhook tự động tới ${targetUrl}`,
+        title: '🔗 Đã kích hoạt Webhook 2 chiều Telegram (Có Secret Token)',
+        message: `Kích hoạt Webhook bảo mật tới ${targetUrl}`,
         channel: 'telegram',
         status: 'sent',
         timestamp: new Date().toISOString(),
@@ -739,6 +759,16 @@ app.post('/api/briefing/generate', async (req: Request, res: Response) => {
 // Full 2-Way Conversational, Voice Recognition & Inline Keyboards Webhook Handler
 app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
   const telegramConfig = await getDbTelegramConfig();
+
+  // Validate Telegram Webhook Secret Token if configured
+  if (telegramConfig.webhookSecret) {
+    const incomingSecret = req.get('x-telegram-bot-api-secret-token');
+    if (incomingSecret && incomingSecret !== telegramConfig.webhookSecret) {
+      console.warn('⚠️ Từ chối Telegram webhook: Secret token không hợp lệ.');
+      return res.status(403).json({ error: 'Invalid secret token' });
+    }
+  }
+
   const tasks = await getDbTasks();
   const notes = await getDbNotes();
 
@@ -934,7 +964,7 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
       console.log(`🎙️ Gemini Multimodal Audio Transcription Result: "${transcribedText}"`);
 
       // Pass transcribed text into Autonomous Action Agent / Function Calling
-      const aiResult = await processAiChat(transcribedText, true);
+      const aiResult = await processAiChat(transcribedText, true, `tg_${chatId}`);
 
       botReply = `🎙️ *Giọng nói nhận diện được:*\n_"${transcribedText}"_\n\n${aiResult.reply}`;
       replyKeyboard = [
@@ -1081,7 +1111,7 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
       if (!promptQuery) {
         botReply = `⚠️ Vui lòng nhập câu hỏi hoặc yêu cầu sau lệnh /ask. Ví dụ: "Thêm việc nộp thuế", "Thời tiết hôm nay".`;
       } else {
-        const aiRes = await processAiChat(promptQuery, true);
+        const aiRes = await processAiChat(promptQuery, true, `tg_${chatId}`);
         botReply = aiRes.reply;
         replyKeyboard = [
           [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
@@ -1266,8 +1296,13 @@ app.get('/api/scheduler/check', async (req: Request, res: Response) => {
   }
 });
 
-// Helper function for unified AI Chat handling with Function Calling & Google Search
-async function processAiChat(message: string, enableSearch: boolean = true) {
+// Helper function for unified AI Chat handling with Function Calling, Multi-Turn Memory & Google Search
+async function processAiChat(
+  message: string,
+  enableSearch: boolean = true,
+  sessionId: string = 'default_session',
+  providedHistory: { role: string; content: string }[] = []
+) {
   const tasks = await getDbTasks();
   const notes = await getDbNotes();
   const currentFiles = await getDbFiles();
@@ -1281,11 +1316,32 @@ async function processAiChat(message: string, enableSearch: boolean = true) {
     const filesContext = currentFiles.map(f => `- File: ${f.name} [Phân loại: ${f.classification || 'Chưa phân loại'}] [Định dạng: ${f.category}] | Link: ${f.webViewLink || 'Lưu cục bộ'} | Tags: ${(f.tags || []).join(', ')}`).join('\n');
 
     const currentTimeIso = new Date().toISOString();
-    const vnTimeStr = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const telegramConfig = await getDbTelegramConfig();
+    const timeZone = telegramConfig.timezone || 'Asia/Ho_Chi_Minh';
+    const vnTimeStr = new Date().toLocaleString('vi-VN', {
+      timeZone,
+      weekday: 'long',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    // Retrieve active conversation history for this session (max 6 latest turns)
+    const storedHistory = getConversationHistory(sessionId);
+    const activeHistory = providedHistory.length > 0 ? providedHistory : storedHistory;
+    const historySnippet = activeHistory.length > 0
+      ? activeHistory.slice(-6).map(h => `${h.role === 'user' ? 'Người dùng' : 'AI'}: ${h.content}`).join('\n')
+      : '';
 
     const systemInstruction = `Bạn là Senior AI Personal Productivity Assistant & Autonomous AI Agent, trợ lý cá nhân đa năng kết nối trực tiếp với cơ sở dữ liệu Firebase Firestore (Tasks, Notes, Files) VÀ công cụ Google Search Real-time.
 
-THỜI GIAN HIỆN TẠI: ${currentTimeIso} (Giờ Việt Nam: ${vnTimeStr})
+MỐC THỜI GIAN THỰC TẾ (VIETNAM TIMEZONE UTC+7):
+- Thời điểm hiện tại: ${vnTimeStr} (${timeZone})
+- Timestamp ISO chuẩn: ${currentTimeIso}
+- Khi người dùng nói các từ ngữ mang tính thời gian tương đối như "hôm nay", "ngày mai", "chiều mai lúc 3h", "tối nay", "tuần sau"... Bạn PHẢI căn cứ chính xác vào mốc thời gian Việt Nam [UTC+7] ở trên để tính toán deadline ISO 8601 tương ứng khi gọi hàm.
 
 === DỮ LIỆU CÔNG VIỆC HIỆN CÓ TRONG FIRESTORE (TASKS) ===
 ${tasksContext || 'Chưa có công việc nào.'}
@@ -1295,14 +1351,18 @@ ${notesContext || 'Chưa có ghi chú nào.'}
 
 === DỮ LIỆU TỆP TIN (FILES) ===
 ${filesContext || 'Chưa có tệp tin nào.'}
+${historySnippet ? `\n=== LỊCH SỬ HỘI THOẠI GẦN ĐÂY VỚI NGƯỜI DÙNG (CONTEXT) ===\n${historySnippet}\n(LƯU Ý: Người dùng có thể ra lệnh nối tiếp tham chiếu tới thông tin đã nói ở các lượt chat trước, ví dụ: "đổi giờ việc đó sang 4h", "lưu luôn cái vừa nói thành note", "xóa việc vừa tạo"...)` : ''}
 
 QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
 1. HÀNH ĐỘNG TỰ ĐỘNG (Function Calling):
-   - Khi người dùng muốn TẠO / THÊM công việc (kể cả nói qua tin nhắn thoại, ví dụ: "thêm việc...", "nhắc tôi...", "tạo task..."): Hãy GỌI HÀM \`createTask\` với tiêu đề, thời hạn cụ thể (tính theo giờ hiện tại), độ ưu tiên.
+   - Khi người dùng muốn TẠO / THÊM công việc (kể cả nói qua tin nhắn thoại, ví dụ: "thêm việc...", "nhắc tôi...", "tạo task..."): Hãy GỌI HÀM \`createTask\` với tiêu đề, thời hạn (tính theo giờ Việt Nam hiện tại), độ ưu tiên.
    - Khi người dùng muốn HOÀN THÀNH công việc (ví dụ: "đã xong việc...", "hoàn thành task..."): Hãy GỌI HÀM \`completeTask\` với \`taskQuery\` hoặc \`taskId\`.
    - Khi người dùng muốn XÓA công việc: Hãy GỌI HÀM \`deleteTask\`.
-   - Khi người dùng muốn LƯU / TẠO GHI CHÚ: Hãy GỌI HÀM \`createNote\`.
-   - Khi người dùng muốn TRA CỨU / LIỆT KÊ công việc: Hãy GỌI HÀM \`queryTasks\`.
+   - Khi người dùng muốn LƯU / TẠO GHI CHÚ: Hãy GỌI HÀM \`createNote\` với tiêu đề và nội dung.
+   - Khi người dùng muốn TRA CỨU / TÌM KIẾM GHI CHÚ: Hãy GỌI HÀM \`queryNotes\` với \`searchKeyword\` hoặc \`onlyPinned\`.
+   - Khi người dùng muốn XÓA GHI CHÚ: Hãy GỌI HÀM \`deleteNote\`.
+   - Khi người dùng muốn TÌM KIẾM / TRA CỨU TÀI LIỆU, TỆP TIN: Hãy GỌI HÀM \`queryFiles\` với \`classification\` (Công việc, Cá nhân, Hợp đồng, Tài chính, Dự án, Mẫu đơn), \`category\` hoặc \`searchKeyword\`.
+   - Khi người dùng muốn TRA CỨU / LIỆT KÊ công việc: Hãy GỌI HÀM \`queryTasks\` (hỗ trợ lọc status: 'today', 'tomorrow', 'pending', 'completed', 'overdue').
 2. TRA CỨU INTERNET & THỜI TIẾT, TIN TỨC (Google Search): Nếu người dùng hỏi về kiến thức bên ngoài, thời tiết, lịch âm, tin tức, tài chính... Hãy chủ động tra cứu và trả lời chính xác, cập nhật theo thời gian hiện tại.
 3. TRẢ LỜI: Trả lời bằng tiếng Việt lịch sự, thân thiện, rõ ràng, định dạng Markdown đẹp mắt.`;
 
@@ -1400,6 +1460,9 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
       }
     }
 
+    // Record this turn to session conversation memory buffer
+    appendConversationTurn(sessionId, message, replyText);
+
     return {
       reply: replyText,
       groundingSources,
@@ -1435,8 +1498,10 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
           updatedAt: new Date().toISOString(),
         };
         await saveDbTask(newTask);
+        const reply = `✅ **Đã tự động tạo công việc vào Firestore:**\n\n📌 Tiêu đề: **${newTask.title}**\n⏰ Deadline: **${new Date(newTask.deadline).toLocaleString('vi-VN')}**\n🎯 Độ ưu tiên: **${newTask.priority.toUpperCase()}**`;
+        appendConversationTurn(sessionId, message, reply);
         return {
-          reply: `✅ **Đã tự động tạo công việc vào Firestore:**\n\n📌 Tiêu đề: **${newTask.title}**\n⏰ Deadline: **${new Date(newTask.deadline).toLocaleString('vi-VN')}**\n🎯 Độ ưu tiên: **${newTask.priority.toUpperCase()}**`,
+          reply,
           groundingSources: [],
           retrievedContext: { tasksCount: tasks.length + 1, notesCount: notes.length, filesCount: currentFiles.length },
         };
@@ -1448,8 +1513,10 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
         target.status = 'completed';
         target.updatedAt = new Date().toISOString();
         await saveDbTask(target);
+        const reply = `🎉 **Đã đánh dấu hoàn thành công việc:** "${target.title}"!`;
+        appendConversationTurn(sessionId, message, reply);
         return {
-          reply: `🎉 **Đã đánh dấu hoàn thành công việc:** "${target.title}"!`,
+          reply,
           groundingSources: [],
           retrievedContext: { tasksCount: tasks.length, notesCount: notes.length, filesCount: currentFiles.length },
         };
@@ -1481,6 +1548,8 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
         pendingTasks.map((t, idx) => `${idx + 1}. **[${t.priority.toUpperCase()}] ${t.title}** (⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')})`).join('\n');
     }
 
+    appendConversationTurn(sessionId, message, fallbackReply);
+
     return {
       reply: fallbackReply,
       groundingSources: [],
@@ -1495,17 +1564,23 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
 }
 
 // -------------------------------------------------------------
-// 7. SERVER-SIDE GEMINI AI CHAT ROUTE (RAG + FUNCTION CALLING)
+// 7. SERVER-SIDE GEMINI AI CHAT ROUTE (RAG + FUNCTION CALLING + MULTI-TURN MEMORY)
 // -------------------------------------------------------------
 app.post('/api/chat', async (req: Request, res: Response) => {
-  const { message, enableSearch } = req.body;
+  const { message, enableSearch, sessionId = 'web_user_session', history = [] } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'Message text is required.' });
   }
 
-  const result = await processAiChat(message, enableSearch);
+  const result = await processAiChat(message, enableSearch, sessionId, history);
   res.json(result);
+});
+
+app.post('/api/chat/clear', (req: Request, res: Response) => {
+  const { sessionId = 'web_user_session' } = req.body;
+  clearConversationHistory(sessionId);
+  res.json({ success: true, message: `Cleared memory for session ${sessionId}` });
 });
 
 // -------------------------------------------------------------

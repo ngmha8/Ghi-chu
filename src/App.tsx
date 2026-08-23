@@ -303,10 +303,15 @@ export default function App() {
       timestamp: new Date().toISOString(),
     };
 
-    setChatMessages(prev => [...prev, userMsg]);
+    const updatedHistory = [...chatMessages, userMsg];
+    setChatMessages(updatedHistory);
 
     try {
-      const res = await api.sendChatMessage(text, enableSearch);
+      const historyPayload = chatMessages.slice(-6).map(m => ({
+        role: m.role,
+        content: m.content,
+      }));
+      const res = await api.sendChatMessage(text, enableSearch, historyPayload, 'web_user_session');
       const assistantMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
@@ -324,6 +329,15 @@ export default function App() {
         timestamp: new Date().toISOString(),
       };
       setChatMessages(prev => [...prev, errorMsg]);
+    }
+  };
+
+  const handleClearChatMessages = async () => {
+    setChatMessages([]);
+    try {
+      await api.clearChatMemory('web_user_session');
+    } catch (e) {
+      console.warn('Could not clear backend chat session memory:', e);
     }
   };
 
@@ -457,7 +471,7 @@ export default function App() {
         onClose={() => setIsAiDrawerOpen(false)}
         messages={chatMessages}
         onSendMessage={handleSendChatMessage}
-        onClearMessages={() => setChatMessages([])}
+        onClearMessages={handleClearChatMessages}
         initialPrompt={aiPromptToTrigger}
       />
 

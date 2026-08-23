@@ -43,6 +43,7 @@ import {
   setPinEnabled,
   setAutolockMinutes,
   verifyPin,
+  verifyPinAsync,
   DEFAULT_PIN,
   lockSession,
   PinSettings
@@ -134,15 +135,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [saConfig, setSaConfig] = useState<DriveServiceAccountConfig>({
     clientEmail: '',
     privateKey: '',
-    folderId: '',
+    folderId: localStorage.getItem('app_sa_folder_id') || '',
     isEnabled: true,
     isConnected: false,
   });
   const [saEmailInput, setSaEmailInput] = useState('');
   const [saKeyInput, setSaKeyInput] = useState('');
-  const [saFolderIdInput, setSaFolderIdInput] = useState('');
+  const [saFolderIdInput, setSaFolderIdInput] = useState(localStorage.getItem('app_sa_folder_id') || '');
   const [saJsonInput, setSaJsonInput] = useState('');
   const [saInputMode, setSaInputMode] = useState<'json' | 'manual'>('json');
+  const [isEditingSaConfig, setIsEditingSaConfig] = useState(false);
   const [isTestingSa, setIsTestingSa] = useState(false);
   const [isSyncingSa, setIsSyncingSa] = useState(false);
   const [isSavingSa, setIsSavingSa] = useState(false);
@@ -158,7 +160,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       .then(cfg => {
         setSaConfig(cfg);
         setSaEmailInput(cfg.clientEmail || '');
-        setSaFolderIdInput(cfg.folderId || '');
+        if (cfg.folderId) {
+          setSaFolderIdInput(cfg.folderId);
+          localStorage.setItem('app_sa_folder_id', cfg.folderId);
+        }
       })
       .catch(err => console.warn('Could not load Service Account config:', err));
   }, []);
@@ -248,7 +253,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const res = await api.updateDriveServiceAccountConfig(payload);
       setSaConfig(res.config);
       setSaEmailInput(res.config.clientEmail || '');
-      setSaSuccessMsg('✅ Đã lưu cấu hình Google Service Account thành công!');
+      if (res.config.folderId) {
+        setSaFolderIdInput(res.config.folderId);
+        localStorage.setItem('app_sa_folder_id', res.config.folderId);
+      }
+      setIsEditingSaConfig(false);
+      setSaSuccessMsg('✅ Đã lưu cấu hình Google Service Account cố định thành công!');
       setTimeout(() => setSaSuccessMsg(null), 4000);
     } catch (err: any) {
       setSaError(err.message || 'Lỗi lưu cấu hình Service Account');
@@ -330,14 +340,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setTimeout(() => setPinStatusMsg(null), 4000);
   };
 
-  const handleChangePin = (e: React.FormEvent) => {
+  const handleChangePin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPinErrorMsg(null);
     setPinStatusMsg(null);
 
     // If custom PIN exists or old PIN is required
     if (pinSettings.hasCustomPin || currentPinInput.trim() !== '') {
-      if (!verifyPin(currentPinInput.trim())) {
+      const isCurrentValid = verifyPin(currentPinInput.trim()) || (await verifyPinAsync(currentPinInput.trim()));
+      if (!isCurrentValid) {
         setPinErrorMsg('Mã PIN hiện tại không đúng!');
         return;
       }
@@ -354,7 +365,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
 
     setIsChangingPin(true);
-    const ok = setPin(newPinInput.trim(), pinHintInput.trim());
+    const ok = await setPin(newPinInput.trim(), pinHintInput.trim());
     setIsChangingPin(false);
 
     if (ok) {
@@ -363,7 +374,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setCurrentPinInput('');
       setNewPinInput('');
       setConfirmPinInput('');
-      setPinStatusMsg('🎉 Đã cập nhật mã PIN bảo mật mới thành công!');
+      setPinStatusMsg('🎉 Đã cập nhật mã PIN bảo mật mới thành công (Mã hóa SHA-256)!');
       setTimeout(() => setPinStatusMsg(null), 5000);
     } else {
       setPinErrorMsg('Không thể lưu mã PIN.');
@@ -945,153 +956,263 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             )}
 
-            {/* Service Account Form */}
-            <div className="space-y-4">
-              {/* Folder ID Input */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px]">
-                    Google Drive Folder ID (ID Thư mục cần cố định) <span className="text-[#D4AF37]">*</span>
-                  </label>
-                  <span className="text-[10px] text-[#888888]">
-                    Lấy chuỗi sau <code className="text-[#D4AF37] font-mono font-bold">/folders/ID_Ở_ĐÂY</code> trên thanh URL trình duyệt
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={saFolderIdInput}
-                    onChange={(e) => setSaFolderIdInput(e.target.value)}
-                    placeholder="Ví dụ: 1a2B3c4D5e6F7g8H9i0JkLmNoPqRsTuVw"
-                    className="flex-1 p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
-                  />
-                  {saFolderIdInput && (
-                    <a
-                      href={`https://drive.google.com/drive/folders/${saFolderIdInput.trim()}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-2.5 bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#2A2A2A] rounded-sm text-xs flex items-center gap-1 shrink-0"
-                      title="Mở thư mục trên Google Drive"
+            {/* Service Account Form or Active Status Display */}
+            {saConfig.clientEmail && !isEditingSaConfig ? (
+              <div className="space-y-4">
+                {/* Active Permanent Configuration Card */}
+                <div className="p-4 bg-[#0F1710] border border-emerald-500/40 rounded-sm space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2 border-b border-emerald-900/50 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                        Cấu hình Google Drive đã lưu vĩnh viễn trên Server
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                      Tự động duy trì cho mọi lần đăng nhập
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="p-2.5 bg-[#0C0C0C]/80 border border-[#2A2A2A] rounded">
+                      <span className="text-[10px] text-[#888888] uppercase block tracking-wider font-bold mb-0.5">
+                        Thư mục Drive cố định
+                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[#D4AF37] font-bold truncate">
+                          {saConfig.folderName || 'AI Assistant Documents'}
+                        </span>
+                        {saConfig.folderId && (
+                          <a
+                            href={`https://drive.google.com/drive/folders/${saConfig.folderId.trim()}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2 py-1 bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#D4AF37]/30 rounded text-[11px] flex items-center gap-1 shrink-0 transition-colors"
+                            title="Mở thư mục trên Google Drive"
+                          >
+                            <FolderOpen className="w-3 h-3" />
+                            <span>Mở Drive</span>
+                          </a>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-[#666666] font-mono block mt-1 truncate">
+                        ID: {saConfig.folderId}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-[#0C0C0C]/80 border border-[#2A2A2A] rounded">
+                      <span className="text-[10px] text-[#888888] uppercase block tracking-wider font-bold mb-0.5">
+                        Tài khoản Service Account
+                      </span>
+                      <div className="text-white font-mono text-[11px] truncate font-bold">
+                        {saConfig.clientEmail}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 mt-1 font-mono">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                        <span>Khóa JSON Key: Đã lưu bảo mật</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-[#AAAAAA] leading-relaxed">
+                    💡 <strong className="text-white">Bạn không cần phải nhập lại JSON Key hay Folder ID khi đăng nhập hay đổi máy.</strong> Mọi tác vụ tải file, đồng bộ và AI Agent đều sẽ tự động kết nối qua tài khoản dịch vụ này.
+                  </p>
+
+                  {/* Actions for active config */}
+                  <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-emerald-900/40">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleTestSaConnection}
+                        disabled={isTestingSa}
+                        className="py-1.5 px-3 rounded-sm bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isTestingSa ? 'animate-spin' : ''}`} />
+                        <span>{isTestingSa ? 'Đang kiểm tra...' : 'Kiểm Tra Lại Kết Nối'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingSaConfig(true)}
+                        className="py-1.5 px-3 rounded-sm bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#AAAAAA] hover:text-white border border-[#333333] text-xs font-bold tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <span>✏️ Thay Đổi / Nhập Key Khác</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSyncSaFiles}
+                      disabled={isSyncingSa}
+                      className="py-1.5 px-4 rounded-sm bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
                     >
                       <FolderOpen className="w-3.5 h-3.5" />
-                      <span>Mở</span>
-                    </a>
+                      <span>{isSyncingSa ? 'Đang đồng bộ...' : 'Đồng Bộ Tệp Drive Ngay'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 animate-in fade-in">
+                {isEditingSaConfig && (
+                  <div className="flex items-center justify-between pb-2 border-b border-[#2A2A2A]">
+                    <span className="text-xs font-bold text-[#D4AF37] uppercase tracking-wider">
+                      ✏️ Chỉnh sửa / Thay thế Cấu hình Service Account
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingSaConfig(false)}
+                      className="text-xs text-[#888888] hover:text-white underline cursor-pointer"
+                    >
+                      ✕ Hủy chỉnh sửa (Giữ cấu hình hiện tại)
+                    </button>
+                  </div>
+                )}
+
+                {/* Folder ID Input */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px]">
+                      Google Drive Folder ID (ID Thư mục cần cố định) <span className="text-[#D4AF37]">*</span>
+                    </label>
+                    <span className="text-[10px] text-[#888888]">
+                      Lấy chuỗi sau <code className="text-[#D4AF37] font-mono font-bold">/folders/ID_Ở_ĐÂY</code> trên thanh URL trình duyệt
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={saFolderIdInput}
+                      onChange={(e) => setSaFolderIdInput(e.target.value)}
+                      placeholder="Ví dụ: 1a2B3c4D5e6F7g8H9i0JkLmNoPqRsTuVw"
+                      className="flex-1 p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                    />
+                    {saFolderIdInput && (
+                      <a
+                        href={`https://drive.google.com/drive/folders/${saFolderIdInput.trim()}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-2.5 bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#2A2A2A] rounded-sm text-xs flex items-center gap-1 shrink-0"
+                        title="Mở thư mục trên Google Drive"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5" />
+                        <span>Mở</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Mode Switch: JSON vs Manual */}
+                <div className="flex items-center gap-3 border-b border-[#222222] pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setSaInputMode('json')}
+                    className={`text-xs font-bold pb-1 cursor-pointer transition-colors ${
+                      saInputMode === 'json' ? 'text-[#D4AF37] border-b-2 border-[#D4AF37]' : 'text-[#888888] hover:text-white'
+                    }`}
+                  >
+                    📄 Dán Trực Tiếp File JSON Key Tải Về (Nhanh nhất)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSaInputMode('manual')}
+                    className={`text-xs font-bold pb-1 cursor-pointer transition-colors ${
+                      saInputMode === 'manual' ? 'text-[#D4AF37] border-b-2 border-[#D4AF37]' : 'text-[#888888] hover:text-white'
+                    }`}
+                  >
+                    ✏️ Nhập Client Email & Private Key Riêng
+                  </button>
+                </div>
+
+                {saInputMode === 'json' ? (
+                  <div>
+                    <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
+                      Nội dung File JSON Key Service Account:
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={saJsonInput}
+                      onChange={(e) => setSaJsonInput(e.target.value)}
+                      placeholder='Mở file .json tải về từ Google Cloud, copy toàn bộ nội dung và dán vào đây (dạng: {"type": "service_account", "client_email": "...", "private_key": "..."})'
+                      className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
+                        Service Account Client Email
+                      </label>
+                      <input
+                        type="text"
+                        value={saEmailInput}
+                        onChange={(e) => setSaEmailInput(e.target.value)}
+                        placeholder="Ví dụ: drive-bot@project-id.iam.gserviceaccount.com"
+                        className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px]">
+                          Private Key (RSA PEM)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowSaKey(!showSaKey)}
+                          className="text-[10px] text-[#888888] hover:text-[#D4AF37] flex items-center gap-1"
+                        >
+                          {showSaKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          <span>{showSaKey ? 'Ẩn' : 'Hiện'}</span>
+                        </button>
+                      </div>
+                      <input
+                        type={showSaKey ? 'text' : 'password'}
+                        value={saKeyInput}
+                        onChange={(e) => setSaKeyInput(e.target.value)}
+                        placeholder="-----BEGIN PRIVATE KEY----- ... -----END PRIVATE KEY-----"
+                        className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-[#2A2A2A]">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleTestSaConnection}
+                      disabled={isTestingSa || (!saFolderIdInput.trim() && !saConfig.folderId)}
+                      className="py-2 px-4 rounded-sm bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isTestingSa ? 'animate-spin' : ''}`} />
+                      <span>{isTestingSa ? 'Đang kiểm tra...' : '1. Kiểm Tra Kết Nối'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSaveSaConfig()}
+                      disabled={isSavingSa}
+                      className="py-2 px-4 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{isSavingSa ? 'Đang lưu...' : '2. Lưu Cấu Hình Cố Định'}</span>
+                    </button>
+                  </div>
+
+                  {isEditingSaConfig && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingSaConfig(false)}
+                      className="py-2 px-3 text-xs text-[#888888] hover:text-white"
+                    >
+                      Hủy
+                    </button>
                   )}
                 </div>
               </div>
-
-              {/* Mode Switch: JSON vs Manual */}
-              <div className="flex items-center gap-3 border-b border-[#222222] pb-2">
-                <button
-                  type="button"
-                  onClick={() => setSaInputMode('json')}
-                  className={`text-xs font-bold pb-1 cursor-pointer transition-colors ${
-                    saInputMode === 'json' ? 'text-[#D4AF37] border-b-2 border-[#D4AF37]' : 'text-[#888888] hover:text-white'
-                  }`}
-                >
-                  📄 Dán Trực Tiếp File JSON Key Tải Về (Nhanh nhất)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSaInputMode('manual')}
-                  className={`text-xs font-bold pb-1 cursor-pointer transition-colors ${
-                    saInputMode === 'manual' ? 'text-[#D4AF37] border-b-2 border-[#D4AF37]' : 'text-[#888888] hover:text-white'
-                  }`}
-                >
-                  ✏️ Nhập Client Email & Private Key Riêng
-                </button>
-              </div>
-
-              {saInputMode === 'json' ? (
-                <div>
-                  <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
-                    Nội dung File JSON Key Service Account:
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={saJsonInput}
-                    onChange={(e) => setSaJsonInput(e.target.value)}
-                    placeholder='Mở file .json tải về từ Google Cloud, copy toàn bộ nội dung và dán vào đây (dạng: {"type": "service_account", "client_email": "...", "private_key": "..."})'
-                    className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
-                  />
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
-                      Service Account Client Email
-                    </label>
-                    <input
-                      type="text"
-                      value={saEmailInput}
-                      onChange={(e) => setSaEmailInput(e.target.value)}
-                      placeholder="Ví dụ: drive-bot@project-id.iam.gserviceaccount.com"
-                      className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px]">
-                        Private Key (RSA PEM)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowSaKey(!showSaKey)}
-                        className="text-[10px] text-[#888888] hover:text-[#D4AF37] flex items-center gap-1"
-                      >
-                        {showSaKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                        <span>{showSaKey ? 'Ẩn' : 'Hiện'}</span>
-                      </button>
-                    </div>
-                    <input
-                      type={showSaKey ? 'text' : 'password'}
-                      value={saKeyInput}
-                      onChange={(e) => setSaKeyInput(e.target.value)}
-                      placeholder="-----BEGIN PRIVATE KEY----- ... -----END PRIVATE KEY-----"
-                      className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] font-mono text-xs focus:outline-none focus:border-[#D4AF37]"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-[#2A2A2A]">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleTestSaConnection}
-                    disabled={isTestingSa || (!saFolderIdInput.trim() && !saConfig.folderId)}
-                    className="py-2 px-4 rounded-sm bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingSa ? 'animate-spin' : ''}`} />
-                    <span>{isTestingSa ? 'Đang kiểm tra...' : '1. Kiểm Tra Kết Nối'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSaveSaConfig()}
-                    disabled={isSavingSa}
-                    className="py-2 px-4 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>{isSavingSa ? 'Đang lưu...' : '2. Lưu Cấu Hình'}</span>
-                  </button>
-                </div>
-
-                {saConfig.isConnected && (
-                  <button
-                    type="button"
-                    onClick={handleSyncSaFiles}
-                    disabled={isSyncingSa}
-                    className="py-2 px-4 rounded-sm bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 border border-emerald-600 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    <FolderOpen className="w-3.5 h-3.5" />
-                    <span>{isSyncingSa ? 'Đang đồng bộ...' : 'Đồng Bộ Tệp Drive Ngay'}</span>
-                  </button>
-                )}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Statistics summary */}
