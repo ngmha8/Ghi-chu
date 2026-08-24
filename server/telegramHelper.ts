@@ -9,54 +9,169 @@ export interface TelegramInlineButton {
 export type TelegramInlineKeyboard = TelegramInlineButton[][];
 
 /**
- * Send message with optional Inline Keyboard Markup
+ * Send a chat action (typing, upload_document, record_voice) to provide instant visual feedback to user
  */
-export async function sendTelegramMessage(
+export async function sendTelegramChatAction(
   botToken: string,
-  chatId: string,
-  text: string,
-  inlineKeyboard?: TelegramInlineKeyboard
+  chatId: string | number,
+  action: 'typing' | 'upload_document' | 'record_voice' | 'find_location' = 'typing'
 ): Promise<boolean> {
   if (!botToken || !chatId) return false;
-
-  const payload: any = {
-    chat_id: chatId,
-    text,
-    parse_mode: 'Markdown',
-  };
-
-  if (inlineKeyboard && inlineKeyboard.length > 0) {
-    payload.reply_markup = {
-      inline_keyboard: inlineKeyboard,
-    };
-  }
-
   try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendChatAction`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        chat_id: chatId,
+        action,
+      }),
     });
     const data: any = await res.json();
-    if (data.ok) return true;
-
-    // Fallback without Markdown if markdown parsing failed
-    delete payload.parse_mode;
-    const fallbackRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const fallbackData: any = await fallbackRes.json();
-    return !!fallbackData.ok;
+    return !!data.ok;
   } catch (err) {
-    console.warn('sendTelegramMessage error:', err);
     return false;
   }
 }
 
 /**
- * Answer a Telegram Callback Query to dismiss the loading animation
+ * Split long message text (> 4000 chars) into safe logical chunks for Telegram API limit (4096 chars)
+ */
+export function splitTelegramMessage(text: string, maxLen = 3900): string[] {
+  if (!text || text.length <= maxLen) return [text];
+
+  const chunks: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) {
+      chunks.push(remaining);
+      break;
+    }
+
+    // Try finding the best splitting point: newline > period > space
+    let splitIdx = remaining.lastIndexOf('\n\n', maxLen);
+    if (splitIdx < maxLen * 0.5) {
+      splitIdx = remaining.lastIndexOf('\n', maxLen);
+    }
+    if (splitIdx < maxLen * 0.5) {
+      splitIdx = remaining.lastIndexOf('. ', maxLen);
+      if (splitIdx > 0) splitIdx += 1;
+    }
+    if (splitIdx < maxLen * 0.5) {
+      splitIdx = remaining.lastIndexOf(' ', maxLen);
+    }
+    if (splitIdx <= 0) {
+      splitIdx = maxLen;
+    }
+
+    chunks.push(remaining.slice(0, splitIdx).trim());
+    remaining = remaining.slice(splitIdx).trim();
+  }
+
+  return chunks;
+}
+
+/**
+ * Send message with Markdown support, auto chunking for long content, and optional Inline Keyboard
+ */
+export async function sendTelegramMessage(
+  botToken: string,
+  chatId: string | number,
+  text: string,
+  inlineKeyboard?: TelegramInlineKeyboard,
+  replyToMessageId?: number
+): Promise<boolean> {
+  if (!botToken || !chatId || !text) return false;
+
+  const chunks = splitTelegramMessage(text);
+  let overallSuccess = true;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const isLastChunk = i === chunks.length - 1;
+
+    const payload: any = {
+      chat_id: chatId,
+      text: chunk,
+      parse_mode: 'Markdown',
+    };
+
+    if (isLastChunk && inlineKeyboard && inlineKeyboard.length > 0) {
+      payload.reply_markup = {
+        inline_keyboard: inlineKeyboard,
+      };
+    }
+
+    if (i === 0 && replyToMessageId) {
+      payload.reply_to_message_id = replyToMessageId;
+    }
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data: any = await res.json();
+
+      if (data.ok) {
+        continue;
+      }
+
+      // If markdown error (e.g. Can't find end of entities), fallback without parse_mode
+      console.warn('Telegram Markdown error, attempting plain-text fallback:', data.description);
+      delete payload.parse_mode;
+      const fallbackRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const fallbackData: any = await fallbackRes.json();
+      if (!fallbackData.ok) {
+        console.error('sendTelegramMessage failed:', fallbackData);
+        overallSuccess = false;
+      }
+    } catch (err) {
+      console.warn('sendTelegramMessage network error:', err);
+      overallSuccess = false;
+    }
+  }
+
+  return overallSuccess;
+}
+
+/**
+ * Register standard Bot Commands with Telegram API so the '/' menu shows on mobile & desktop
+ */
+export async function setTelegramBotCommands(botToken: string): Promise<boolean> {
+  if (!botToken) return false;
+  try {
+    const commands = [
+      { command: 'today', description: '📋 Danh sách deadline công việc hôm nay' },
+      { command: 'tasks', description: '📋 Tất cả công việc chưa hoàn thành' },
+      { command: 'notes', description: '📝 Ghi chú cá nhân & ý tưởng' },
+      { command: 'morning', description: '🌅 Bản tin sáng AI Executive Briefing' },
+      { command: 'evening', description: '🌙 Báo cáo tổng kết tối AI' },
+      { command: 'weather', description: '🌤️ Dự báo thời tiết cập nhật' },
+      { command: 'ask', description: '🤖 Trợ lý AI hỏi đáp & tạo việc nhanh' },
+      { command: 'help', description: '💡 Hướng dẫn ra lệnh & Tin nhắn thoại' },
+    ];
+
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commands }),
+    });
+    const data: any = await res.json();
+    return !!data.ok;
+  } catch (err) {
+    console.warn('setTelegramBotCommands error:', err);
+    return false;
+  }
+}
+
+/**
+ * Answer a Telegram Callback Query to dismiss the button loading spinner
  */
 export async function answerCallbackQuery(
   botToken: string,
@@ -80,6 +195,55 @@ export async function answerCallbackQuery(
   } catch (err) {
     console.warn('answerCallbackQuery error:', err);
     return false;
+  }
+}
+
+/**
+ * Fetch updates for Long Polling
+ */
+export async function getTelegramUpdates(
+  botToken: string,
+  offset: number = 0,
+  timeoutSeconds: number = 20
+): Promise<{ ok: boolean; result: any[] }> {
+  if (!botToken) return { ok: false, result: [] };
+  try {
+    const url = `https://api.telegram.org/bot${botToken}/getUpdates?offset=${offset}&timeout=${timeoutSeconds}&allowed_updates=["message","edited_message","callback_query"]`;
+    const res = await fetch(url);
+    const data: any = await res.json();
+    return data;
+  } catch (err) {
+    return { ok: false, result: [] };
+  }
+}
+
+/**
+ * Delete active webhook (useful before starting Long Polling)
+ */
+export async function deleteTelegramWebhook(botToken: string): Promise<boolean> {
+  if (!botToken) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/deleteWebhook?drop_pending_updates=false`, {
+      method: 'POST',
+    });
+    const data: any = await res.json();
+    return !!data.ok;
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Get Webhook Info
+ */
+export async function getTelegramWebhookInfo(botToken: string): Promise<any> {
+  if (!botToken) return null;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
+    const data: any = await res.json();
+    return data.result || null;
+  } catch (err) {
+    return null;
   }
 }
 
@@ -117,8 +281,14 @@ export function buildTaskListKeyboard(tasks: Task[]): TelegramInlineKeyboard {
 
   // Quick navigation row
   keyboard.push([
+    { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
     { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' },
     { text: '📝 Ghi chú', callback_data: 'cmd:notes' },
+  ]);
+
+  keyboard.push([
+    { text: '🌅 Bản tin sáng', callback_data: 'cmd:morning' },
+    { text: '🌙 Báo cáo tối', callback_data: 'cmd:evening' },
     { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' },
   ]);
 

@@ -848,6 +848,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </button>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/telegram/set-commands', { method: 'POST' });
+                          const d = await res.json();
+                          setWebhookStatus(d.success ? '✅ Đã đăng ký menu lệnh (/) lên Telegram!' : '❌ ' + d.message);
+                        } catch (e: any) {
+                          setWebhookStatus('❌ ' + e.message);
+                        }
+                      }}
+                      className="py-2 px-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 font-bold uppercase tracking-wider text-[10px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span>⚡ Đăng Ký Menu (/)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/telegram/delete-webhook', { method: 'POST' });
+                          const d = await res.json();
+                          setWebhookStatus(d.success ? '✅ ' + d.message : '❌ ' + d.message);
+                        } catch (e: any) {
+                          setWebhookStatus('❌ ' + e.message);
+                        }
+                      }}
+                      className="py-2 px-2 rounded-sm bg-[#0C0C0C] hover:bg-rose-900/30 text-rose-300 border border-rose-800/40 font-bold uppercase tracking-wider text-[10px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span>🔄 Bật Auto Polling</span>
+                    </button>
+                  </div>
+
                   {webhookStatus && (
                     <div className="text-xs p-2.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] font-medium leading-relaxed animate-in fade-in">
                       {webhookStatus}

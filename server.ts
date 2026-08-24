@@ -56,11 +56,21 @@ import {
 import { aiFunctionDeclarations, executeAiFunctionCall } from './server/aiTools.ts';
 import {
   sendTelegramMessage,
+  sendTelegramChatAction,
   answerCallbackQuery,
   buildTaskReminderKeyboard,
   buildTaskListKeyboard,
+  setTelegramBotCommands,
+  deleteTelegramWebhook,
+  getTelegramWebhookInfo,
   TelegramInlineKeyboard
 } from './server/telegramHelper.ts';
+import {
+  processTelegramUpdate,
+  startTelegramPollingDaemon,
+  stopTelegramPollingDaemon,
+  TelegramEngineContext
+} from './server/telegramBotEngine.ts';
 import { transcribeTelegramVoice } from './server/voiceTranscriber.ts';
 import { generateDailyBriefing } from './server/dailyBriefing.ts';
 import { safeGenerateContent, GEMINI_MODEL_FALLBACK_CHAIN } from './server/geminiHelper.ts';
@@ -989,7 +999,17 @@ app.post('/api/briefing/generate', async (req: Request, res: Response) => {
   }
 });
 
-// Full 2-Way Conversational, Voice Recognition & Inline Keyboards Webhook Handler
+// Helper for Telegram Engine Context
+function getTelegramEngineContext(): TelegramEngineContext {
+  return {
+    gemini: getGeminiClient(),
+    uploadsDir: UPLOADS_DIR,
+    processAiChat: (message, enableSearch, sessionId, history) =>
+      processAiChat(message, enableSearch, sessionId, history),
+  };
+}
+
+// Telegram Bot Webhook Handler (Seamless fallback & real-time dispatch)
 app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
   const telegramConfig = await getDbTelegramConfig();
 
@@ -1002,373 +1022,42 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
     }
   }
 
-  const tasks = await getDbTasks();
-  const notes = await getDbNotes();
+  const result = await processTelegramUpdate(req.body || {}, getTelegramEngineContext());
+  res.json(result);
+});
 
-  const telegramUpdate = req.body || {};
-
-  // -----------------------------------------------------------
-  // A. HANDLE INLINE KEYBOARD CALLBACK QUERIES
-  // -----------------------------------------------------------
-  if (telegramUpdate.callback_query) {
-    const cbq = telegramUpdate.callback_query;
-    const data: string = cbq.data || '';
-    const chatId = String(cbq.message?.chat?.id || cbq.from?.id || telegramConfig.chatId);
-    const callbackQueryId = cbq.id;
-
-    console.log(`🔘 Telegram Inline Button Clicked: [${data}] from Chat ID: ${chatId}`);
-
-    // 1. Mark task completed
-    if (data.startsWith('done:')) {
-      const taskId = data.replace('done:', '');
-      const currentTasks = await getDbTasks();
-      const target = currentTasks.find(t => t.id === taskId);
-      if (target) {
-        target.status = 'completed';
-        target.updatedAt = new Date().toISOString();
-        await saveDbTask(target);
-        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `✅ Đã xong: ${target.title}`);
-        await sendTelegramMessage(
-          telegramConfig.botToken,
-          chatId,
-          `🎉 *ĐÃ HOÀN THÀNH CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\nTrạng thái: *Đã hoàn thành (Completed)* ✅\n\n_Dữ liệu đã được cập nhật trực tiếp vào Firestore!_`,
-          [[{ text: '📋 Xem danh sách việc hôm nay', callback_data: 'cmd:today' }]]
-        );
-      } else {
-        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này.');
-      }
-      return res.json({ success: true, action: 'done', taskId });
-    }
-
-    // 2. Snooze task deadline
-    if (data.startsWith('snooze:')) {
-      const parts = data.split(':');
-      const taskId = parts[1];
-      const mins = parseInt(parts[2] || '15', 10);
-      const currentTasks = await getDbTasks();
-      const target = currentTasks.find(t => t.id === taskId);
-      if (target) {
-        const newDeadline = new Date(new Date(target.deadline).getTime() + mins * 60 * 1000).toISOString();
-        target.deadline = newDeadline;
-        target.isNotified = false; // Reset notification flag for new reminder
-        target.updatedAt = new Date().toISOString();
-        await saveDbTask(target);
-        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `⏰ Đã hoãn thêm ${mins} phút!`);
-        await sendTelegramMessage(
-          telegramConfig.botToken,
-          chatId,
-          `⏰ *ĐÃ HOÃN DEADLINE*\n\n📌 Công việc: *${target.title}*\n⏳ Hạn chót mới: *${new Date(newDeadline).toLocaleString('vi-VN')}* (+${mins} phút)\n🎯 Mức độ: *${target.priority.toUpperCase()}*`,
-          buildTaskReminderKeyboard(target)
-        );
-      } else {
-        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này.');
-      }
-      return res.json({ success: true, action: 'snooze', taskId, mins });
-    }
-
-    // 3. Delete task
-    if (data.startsWith('del:')) {
-      const taskId = data.replace('del:', '');
-      const currentTasks = await getDbTasks();
-      const target = currentTasks.find(t => t.id === taskId);
-      if (target) {
-        await deleteDbTask(taskId);
-        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `🗑️ Đã xóa: ${target.title}`);
-        await sendTelegramMessage(
-          telegramConfig.botToken,
-          chatId,
-          `🗑️ *ĐÃ XÓA CÔNG VIỆC*\n\nĐã xóa vĩnh viễn công việc *"${target.title}"* khỏi Firestore.`,
-          [[{ text: '📋 Xem việc còn lại', callback_data: 'cmd:today' }]]
-        );
-      } else {
-        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Công việc không tồn tại.');
-      }
-      return res.json({ success: true, action: 'del', taskId });
-    }
-
-    // 4. Quick Commands & Briefings via buttons
-    if (data === 'cmd:today') {
-      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
-      const currentTasks = await getDbTasks();
-      const tzInfo = getTimeInZone(new Date(), telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
-      const todayStr = tzInfo.dateStr;
-      const todayTasks = currentTasks.filter(t => {
-        if (!t.deadline || t.status === 'completed' || t.status === 'canceled') return false;
-        const taskTz = getTimeInZone(new Date(t.deadline), telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
-        return taskTz.dateStr === todayStr;
-      });
-      let msg = '';
-      if (todayTasks.length === 0) {
-        msg = '🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*';
-      } else {
-        msg = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
-          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}`).join('\n\n');
-      }
-      await sendTelegramMessage(telegramConfig.botToken, chatId, msg, buildTaskListKeyboard(currentTasks));
-      return res.json({ success: true, action: 'today' });
-    }
-
-    if (data === 'cmd:tasks') {
-      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
-      const currentTasks = await getDbTasks();
-      const pending = currentTasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
-      const msg = `📋 *Danh sách công việc chưa hoàn thành (${pending.length}):*\n\n` +
-        pending.map((t, idx) => `${idx + 1}. *${t.title}* (${t.priority.toUpperCase()})\n   ⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')}`).join('\n\n');
-      await sendTelegramMessage(telegramConfig.botToken, chatId, msg, buildTaskListKeyboard(currentTasks));
-      return res.json({ success: true, action: 'tasks' });
-    }
-
-    if (data === 'cmd:notes') {
-      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
-      const currentNotes = await getDbNotes();
-      const msg = `📝 *Ghi chú cá nhân (${currentNotes.length}):*\n\n` +
-        currentNotes.slice(0, 5).map((n, idx) => `${idx + 1}. *${n.title}* (${n.tags.join(', ')})`).join('\n');
-      await sendTelegramMessage(telegramConfig.botToken, chatId, msg, [
-        [{ text: '📋 Danh sách việc', callback_data: 'cmd:tasks' }]
-      ]);
-      return res.json({ success: true, action: 'notes' });
-    }
-
-    if (data === 'cmd:weather') {
-      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
-      const aiRes = await processAiChat('Thời tiết Bắc Giang hôm nay', true);
-      await sendTelegramMessage(telegramConfig.botToken, chatId, aiRes.reply, [
-        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }]
-      ]);
-      return res.json({ success: true, action: 'weather' });
-    }
-
-    if (data === 'cmd:morning') {
-      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, 'Đang tổng hợp bản tin sáng...');
-      const currentTasks = await getDbTasks();
-      const currentNotes = await getDbNotes();
-      const briefing = await generateDailyBriefing('morning', getGeminiClient(), currentTasks, currentNotes);
-      await sendTelegramMessage(telegramConfig.botToken, chatId, briefing.reportText, [
-        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
-      ]);
-      return res.json({ success: true, action: 'morning' });
-    }
-
-    if (data === 'cmd:evening') {
-      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, 'Đang tổng hợp báo cáo tối...');
-      const currentTasks = await getDbTasks();
-      const currentNotes = await getDbNotes();
-      const briefing = await generateDailyBriefing('evening', getGeminiClient(), currentTasks, currentNotes);
-      await sendTelegramMessage(telegramConfig.botToken, chatId, briefing.reportText, [
-        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }]
-      ]);
-      return res.json({ success: true, action: 'evening' });
-    }
-
-    await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
-    return res.json({ success: true, action: 'unknown' });
+// Set Bot Quick-Command Menu (/) on Telegram API
+app.post('/api/telegram/set-commands', async (req: Request, res: Response) => {
+  const telegramConfig = await getDbTelegramConfig();
+  if (!telegramConfig.botToken) {
+    return res.status(400).json({ error: 'Chưa cấu hình Telegram Bot Token.' });
   }
-
-  // -----------------------------------------------------------
-  // B. HANDLE INCOMING MESSAGES (VOICE, DOCUMENTS, PHOTOS, TEXT)
-  // -----------------------------------------------------------
-  const msgObj = telegramUpdate.message || telegramUpdate.edited_message;
-  const voiceObj = msgObj?.voice || msgObj?.audio;
-  const documentObj = msgObj?.document;
-  const photoArray = msgObj?.photo;
-
-  const detectedChatId = msgObj?.chat?.id ? String(msgObj.chat.id) : null;
-  const chatId = detectedChatId || req.body.chatId || telegramConfig.chatId;
-
-  if (detectedChatId && detectedChatId !== telegramConfig.chatId) {
-    await saveDbTelegramConfig({
-      chatId: detectedChatId,
-      isConnected: true,
-    });
-    console.log(`Auto-registered Telegram Chat ID to Firestore: ${detectedChatId}`);
-  }
-
-  let botReply = '';
-  let replyKeyboard: TelegramInlineKeyboard | undefined = undefined;
-
-  // Case 1: Voice message received on Telegram
-  if (voiceObj && voiceObj.file_id && telegramConfig.botToken) {
-    console.log(`🎙️ Received Telegram Voice message (file_id: ${voiceObj.file_id}). Transcribing with Gemini Multimodal Audio...`);
-    try {
-      // Send instant receipt indicator
-      await sendTelegramMessage(telegramConfig.botToken, chatId, '🎙️ *Đang nhận diện giọng nói qua Gemini AI...*');
-
-      const transcribedText = await transcribeTelegramVoice(telegramConfig.botToken, voiceObj.file_id, getGeminiClient());
-      console.log(`🎙️ Gemini Multimodal Audio Transcription Result: "${transcribedText}"`);
-
-      // Pass transcribed text into Autonomous Action Agent / Function Calling
-      const aiResult = await processAiChat(transcribedText, true, `tg_${chatId}`);
-
-      botReply = `🎙️ *Giọng nói nhận diện được:*\n_"${transcribedText}"_\n\n${aiResult.reply}`;
-      replyKeyboard = [
-        [
-          { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
-          { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }
-        ]
-      ];
-    } catch (voiceError: any) {
-      console.error('Voice processing error:', voiceError);
-      botReply = `⚠️ *Không thể xử lý tin nhắn thoại:* ${voiceError?.message || 'Lỗi nhận dạng âm thanh'}`;
-    }
-  } else if ((documentObj || (photoArray && photoArray.length > 0)) && telegramConfig.botToken) {
-    // Case 2: Document / File / Photo sent on Telegram
-    try {
-      const fileId = documentObj?.file_id || photoArray[photoArray.length - 1].file_id;
-      const fileName = documentObj?.file_name || `photo_${Date.now()}.jpg`;
-      const mimeType = documentObj?.mime_type || 'image/jpeg';
-      const fileSize = documentObj?.file_size || photoArray[photoArray.length - 1].file_size || 102400;
-
-      // 1. Fetch file from Telegram API
-      const fileMetaRes = await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/getFile?file_id=${fileId}`);
-      const fileMeta: any = await fileMetaRes.json();
-
-      let isSavedLocally = false;
-      const localFileId = `file-tg-${Date.now()}`;
-
-      if (fileMeta.ok && fileMeta.result?.file_path) {
-        const downloadUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${fileMeta.result.file_path}`;
-        const binaryRes = await fetch(downloadUrl);
-        if (binaryRes.ok) {
-          const buffer = Buffer.from(await binaryRes.arrayBuffer());
-          const savePath = path.join(UPLOADS_DIR, `${localFileId}_${path.basename(fileName)}`);
-          fs.writeFileSync(savePath, buffer);
-          isSavedLocally = true;
-        }
-      }
-
-      // Determine category
-      const ext = fileName.split('.').pop()?.toLowerCase() || '';
-      let category: DriveFile['category'] = 'document';
-      if (['xlsx', 'xls', 'csv'].includes(ext)) category = 'spreadsheet';
-      else if (ext === 'pdf') category = 'pdf';
-      else if (['pptx', 'ppt'].includes(ext)) category = 'presentation';
-      else if (['png', 'jpg', 'jpeg', 'webp'].includes(ext) || mimeType.startsWith('image/')) category = 'image';
-
-      const newDriveFile: DriveFile = {
-        id: localFileId,
-        name: fileName,
-        mimeType: mimeType,
-        size: fileSize,
-        category: category,
-        isSyncedToDrive: false,
-        syncStatus: 'local_only',
-        downloadUrl: `/api/files/download/${localFileId}`,
-        previewUrl: `/api/files/preview/${localFileId}`,
-        uploadedAt: new Date().toISOString(),
-      };
-
-      await saveDbFile(newDriveFile);
-
-      botReply = `📄 *ĐÃ NHẬN TÀI LIỆU TỪ TELEGRAM*\n\n` +
-        `• **Tên tệp:** \`${fileName}\`\n` +
-        `• **Dung lượng:** \`${(fileSize / (1024 * 1024)).toFixed(2)} MB\`\n` +
-        `• **Trạng thái:** 🟡 *Đã lưu trữ cục bộ (Local Vault)*\n\n` +
-        `💡 _Tệp đã được đưa vào danh mục quản lý tài liệu. Bạn có thể mở Web App để xem trước trực tiếp hoặc bấm 1-Click để đẩy lên Google Drive cá nhân._`;
-
-      replyKeyboard = [
-        [
-          { text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' },
-          { text: '📋 Danh sách việc', callback_data: 'cmd:tasks' }
-        ]
-      ];
-    } catch (docErr: any) {
-      console.error('Telegram file error:', docErr);
-      botReply = `⚠️ *Lỗi khi lưu tệp:* ${docErr?.message || 'Không thể tải file từ Telegram'}`;
-    }
-  } else {
-    // Case 3: Standard Text message
-    const rawInput = (
-      msgObj?.text ||
-      req.body.command ||
-      req.body.text ||
-      ''
-    ).trim();
-
-    if (!rawInput) {
-      return res.json({ success: true, reply: 'Chưa nhận được nội dung tin nhắn.' });
-    }
-
-    let cleanInput = rawInput.replace(/@\w+/gi, '').trim();
-
-    if (cleanInput.match(/^\/(start|help)\b/i)) {
-      botReply = `🤖 *AI Personal Productivity Assistant & Agent (Cloud Firestore)*\n\nChào bạn! Tôi là Trợ lý AI Agent kết nối trực tiếp với Firestore của bạn. Tôi có thể **Tự Động Thực Hiện Hành Động** qua **lời nói ghi âm (Voice to Task)** hoặc tin nhắn tự nhiên:\n\n🎙️ *Bạn có thể bấm giữ micro trên Telegram và nói:*\n• "Thêm việc họp khách hàng lúc 3h chiều mai độ ưu tiên cao"\n• "Đã xong việc nộp báo cáo quý"\n• "Tạo ghi chú ý tưởng thiết kế app mới"\n\n✨ *Lệnh nhanh:*\n• \`/today\` - Deadline hôm nay\n• \`/tasks\` - Danh sách việc chưa xong\n• \`/morning\` - Bản tin sáng Daily Briefing\n• \`/evening\` - Báo cáo tổng kết tối\n• \`/notes\` - Ghi chú cá nhân`;
-      replyKeyboard = [
-        [
-          { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
-          { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }
-        ],
-        [
-          { text: '🌅 Bản tin sáng', callback_data: 'cmd:morning' },
-          { text: '🌙 Báo cáo tối', callback_data: 'cmd:evening' }
-        ]
-      ];
-    } else if (cleanInput.match(/^\/today\b/i)) {
-      const tzInfo = getTimeInZone(new Date(), telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
-      const todayStr = tzInfo.dateStr;
-      const todayTasks = tasks.filter(t => {
-        if (!t.deadline || t.status === 'completed' || t.status === 'canceled') return false;
-        const taskTz = getTimeInZone(new Date(t.deadline), telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
-        return taskTz.dateStr === todayStr;
-      });
-      if (todayTasks.length === 0) {
-        botReply = `🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*`;
-      } else {
-        botReply = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
-          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}\n   📌 Trạng thái: ${t.status}`).join('\n\n');
-      }
-      replyKeyboard = buildTaskListKeyboard(tasks);
-    } else if (cleanInput.match(/^\/tasks\b/i)) {
-      const pending = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
-      botReply = `📋 *Danh sách công việc chưa hoàn thành (${pending.length}):*\n\n` +
-        pending.map((t, idx) => `${idx + 1}. *${t.title}* (${t.priority.toUpperCase()})\n   ⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')}`).join('\n\n');
-      replyKeyboard = buildTaskListKeyboard(tasks);
-    } else if (cleanInput.match(/^\/notes\b/i)) {
-      botReply = `📝 *Ghi chú cá nhân (${notes.length}):*\n\n` +
-        notes.slice(0, 5).map((n, idx) => `${idx + 1}. *${n.title}* (${n.tags.join(', ')})`).join('\n');
-      replyKeyboard = [[{ text: '📋 Danh sách việc', callback_data: 'cmd:tasks' }]];
-    } else if (cleanInput.match(/^\/(morning|briefing)\b/i)) {
-      const briefing = await generateDailyBriefing('morning', getGeminiClient(), tasks, notes);
-      botReply = briefing.reportText;
-      replyKeyboard = [
-        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
-      ];
-    } else if (cleanInput.match(/^\/evening\b/i)) {
-      const briefing = await generateDailyBriefing('evening', getGeminiClient(), tasks, notes);
-      botReply = briefing.reportText;
-      replyKeyboard = [
-        [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }]
-      ];
-    } else {
-      let promptQuery = cleanInput.replace(/^\/(ask|chat|ai)\b/i, '').trim();
-
-      if (!promptQuery) {
-        botReply = `⚠️ Vui lòng nhập câu hỏi hoặc yêu cầu sau lệnh /ask. Ví dụ: "Thêm việc nộp thuế", "Thời tiết hôm nay".`;
-      } else {
-        const aiRes = await processAiChat(promptQuery, true, `tg_${chatId}`);
-        botReply = aiRes.reply;
-        replyKeyboard = [
-          [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
-        ];
-      }
-    }
-  }
-
-  // Record Telegram log to Firestore
-  await addDbNotificationLog({
-    id: `notif-${Date.now()}`,
-    title: `💬 Telegram Bot: ${botReply.slice(0, 30)}`,
-    message: botReply.slice(0, 100) + '...',
-    channel: 'telegram',
-    status: 'sent',
-    timestamp: new Date().toISOString(),
+  const success = await setTelegramBotCommands(telegramConfig.botToken);
+  res.json({
+    success,
+    message: success
+      ? 'Đã cấu hình danh sách lệnh nhanh (/) thành công trên máy chủ Telegram!'
+      : 'Không thể cập nhật danh sách lệnh lên Telegram',
   });
+});
 
-  // Deliver message with Inline Keyboards to Telegram
-  if (telegramConfig.botToken && chatId) {
-    await sendTelegramMessage(telegramConfig.botToken, chatId, botReply, replyKeyboard);
+// Delete Webhook and switch to Automatic Background Long Polling
+app.post('/api/telegram/delete-webhook', async (req: Request, res: Response) => {
+  const telegramConfig = await getDbTelegramConfig();
+  if (!telegramConfig.botToken) {
+    return res.status(400).json({ error: 'Chưa cấu hình Telegram Bot Token.' });
   }
-
-  res.json({ success: true, reply: botReply, chatId });
+  const deleted = await deleteTelegramWebhook(telegramConfig.botToken);
+  await saveDbTelegramConfig({
+    webhookUrl: '',
+    webhookSecret: '',
+  });
+  // Trigger long polling
+  startTelegramPollingDaemon(getTelegramEngineContext());
+  res.json({
+    success: deleted,
+    message: 'Đã hủy Webhook. Hệ thống tự động chuyển sang chế độ Long-Polling tức thì.',
+  });
 });
 
 // Helper to extract time parts in a specific timezone (defaults to Vietnam Asia/Ho_Chi_Minh)
@@ -1873,6 +1562,11 @@ async function startServer() {
       runSchedulerCheck().catch(err => console.warn('[Background Scheduler] tick error:', err));
     }, 30000);
     console.log(`⏰ Vietnam Timezone Background Scheduler initialized (30s tick)`);
+
+    // Start background Telegram Daemon (Auto-polling & Webhook listener)
+    startTelegramPollingDaemon(getTelegramEngineContext()).catch(err => {
+      console.warn('[Telegram Polling Daemon] startup notice:', err?.message || err);
+    });
   });
 }
 

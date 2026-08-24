@@ -16,7 +16,11 @@ import {
   ExternalLink,
   ShieldCheck,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Menu,
+  RefreshCw,
+  CornerDownRight,
+  MousePointerClick
 } from 'lucide-react';
 
 interface TelegramBotViewProps {
@@ -41,16 +45,59 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
   const [briefingStatus, setBriefingStatus] = useState<string | null>(null);
   const [briefingPreview, setBriefingPreview] = useState<{ title: string; text: string } | null>(null);
 
+  // Command registration and Webhook toggle state
+  const [actionStatus, setActionStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [isUpdatingCommands, setIsUpdatingCommands] = useState(false);
+  const [isSwitchingPolling, setIsSwitchingPolling] = useState(false);
+
   // Telegram 2-Way Bot Simulator Chat State
   const [simulatorChat, setSimulatorChat] = useState<Array<{ sender: 'user' | 'bot'; text: string; time: string }>>([
     {
       sender: 'bot',
-      text: '🤖 *Chào bạn! Tôi là Telegram AI Productivity Assistant (2-Way Interactive Bot).* \n\nBạn có thể gửi tin nhắn thoại hoặc tin nhắn văn bản (ví dụ: "Thời tiết hôm nay", "Thêm việc họp sáng mai", /morning, /evening) hoặc bấm các nút bên dưới để điều khiển.',
+      text: '🤖 *Chào bạn! Tôi là Telegram AI Productivity Assistant (2-Way Interactive Bot).* \n\nBạn có thể gửi tin nhắn thoại hoặc văn bản (ví dụ: "Thời tiết hôm nay", "Thêm việc họp sáng mai", /morning, /evening) hoặc bấm các nút bên dưới để điều khiển.',
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     }
   ]);
   const [customCommandInput, setCustomCommandInput] = useState('');
   const [isBotThinking, setIsBotThinking] = useState(false);
+
+  // Register bot commands (/) with Telegram API
+  const handleRegisterCommands = async () => {
+    setIsUpdatingCommands(true);
+    setActionStatus(null);
+    try {
+      const res = await fetch('/api/telegram/set-commands', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setActionStatus({ type: 'success', message: '✅ ' + data.message });
+      } else {
+        setActionStatus({ type: 'error', message: '❌ ' + (data.error || data.message) });
+      }
+    } catch (err: any) {
+      setActionStatus({ type: 'error', message: `❌ Lỗi kết nối: ${err.message}` });
+    } finally {
+      setIsUpdatingCommands(false);
+    }
+  };
+
+  // Delete Webhook & Enable Background Long-Polling
+  const handleDeleteWebhookToPolling = async () => {
+    setIsSwitchingPolling(true);
+    setActionStatus(null);
+    try {
+      const res = await fetch('/api/telegram/delete-webhook', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setActionStatus({ type: 'success', message: '✅ ' + data.message });
+      } else {
+        setActionStatus({ type: 'error', message: '❌ ' + (data.error || data.message) });
+      }
+    } catch (err: any) {
+      setActionStatus({ type: 'error', message: `❌ Lỗi kết nối: ${err.message}` });
+    } finally {
+      setIsSwitchingPolling(false);
+    }
+  };
 
   // Handler for Interactive Telegram Command
   const handleExecuteCommand = async (cmdText: string) => {
@@ -122,24 +169,36 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-editorial-serif font-bold text-white">Trung Tâm Tương Tác & Trợ Lý Telegram</h1>
+              <h1 className="text-xl font-editorial-serif font-bold text-white">Trung Tâm Tương Tác & Phản Hồi Trực Tiếp Telegram</h1>
               {isConfigured ? (
                 <span className="text-[10px] bg-[#0C0C0C] text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded font-mono flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" /> Bot Đã Kết Nối
                 </span>
               ) : (
                 <span className="text-[10px] bg-[#0C0C0C] text-amber-400 border border-amber-800/60 px-2 py-0.5 rounded font-mono flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" /> Chưa Có Token
+                  <AlertCircle className="w-3 h-3" /> Chưa Cấu Hình Token
                 </span>
               )}
             </div>
             <p className="text-xs text-[#888888] italic">
-              Nhận diện tin nhắn thoại (Voice to Task), AI Daily Briefing buổi sáng/tối và tương tác 2 chiều thời gian thực
+              Tương tác 2 chiều thông minh: Nhận diện giọng nói (Voice to Task), Quoted Reply (Xong/Hoãn), Nút bấm Inline và AI Daily Briefing
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {isConfigured && (
+            <button
+              onClick={handleRegisterCommands}
+              disabled={isUpdatingCommands}
+              className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              title="Đăng ký menu lệnh nhanh (/) trên ứng dụng Telegram"
+            >
+              <Menu className="w-3.5 h-3.5" />
+              <span>{isUpdatingCommands ? 'Đang Đăng Ký...' : 'Đăng Ký Menu (/) Telegram'}</span>
+            </button>
+          )}
+
           {onNavigateToSettings && (
             <button
               onClick={onNavigateToSettings}
@@ -158,6 +217,61 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
         </div>
       </div>
 
+      {/* Action Notification Banner */}
+      {actionStatus && (
+        <div
+          className={`p-3 rounded-sm text-xs border flex items-center justify-between ${
+            actionStatus.type === 'success'
+              ? 'bg-emerald-950/30 border-emerald-800/60 text-emerald-300'
+              : 'bg-rose-950/30 border-rose-800/60 text-rose-300'
+          }`}
+        >
+          <span>{actionStatus.message}</span>
+          <button
+            onClick={() => setActionStatus(null)}
+            className="text-xs opacity-60 hover:opacity-100 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Direct Telegram Interaction Feature Badges */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card 1: Voice to Task */}
+        <div className="bg-[#151515] border border-[#2A2A2A] hover:border-[#D4AF37]/40 p-4 rounded-sm space-y-2 transition-all">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <Mic className="w-4 h-4" />
+            <h3 className="text-xs font-bold uppercase tracking-wider">1. Ghi Âm & Tin Nhắn Thoại (Voice)</h3>
+          </div>
+          <p className="text-[11px] text-[#A0A0A0] leading-relaxed">
+            Giữ micro trên Telegram nói tự nhiên bằng tiếng Việt. Gemini AI giải mã âm thanh và tự động tạo công việc/ghi chú kèm thời hạn và mức độ ưu tiên.
+          </p>
+        </div>
+
+        {/* Card 2: Quoted Message Actions */}
+        <div className="bg-[#151515] border border-[#2A2A2A] hover:border-[#D4AF37]/40 p-4 rounded-sm space-y-2 transition-all">
+          <div className="flex items-center gap-2 text-amber-400">
+            <CornerDownRight className="w-4 h-4" />
+            <h3 className="text-xs font-bold uppercase tracking-wider">2. Quoted Reply (Trả lời trích dẫn)</h3>
+          </div>
+          <p className="text-[11px] text-[#A0A0A0] leading-relaxed">
+            Vuốt để trả lời tin nhắc việc của Bot trên Telegram với từ khóa: <em>"Xong rồi"</em>, <em>"Hoãn 15 phút"</em>, <em>"Xóa đi"</em> để thao tác tức thì.
+          </p>
+        </div>
+
+        {/* Card 3: Interactive Inline Keyboards */}
+        <div className="bg-[#151515] border border-[#2A2A2A] hover:border-[#D4AF37]/40 p-4 rounded-sm space-y-2 transition-all">
+          <div className="flex items-center gap-2 text-indigo-400">
+            <MousePointerClick className="w-4 h-4" />
+            <h3 className="text-xs font-bold uppercase tracking-wider">3. Nút Bấm Inline 1-Click</h3>
+          </div>
+          <p className="text-[11px] text-[#A0A0A0] leading-relaxed">
+            Tất cả thông báo nhắc nhở và báo cáo đều đính kèm nút bấm <strong>[✅ Đã xong]</strong>, <strong>[⏰ Hoãn]</strong>, <strong>[📋 Việc hôm nay]</strong>.
+          </p>
+        </div>
+      </div>
+
       {/* AI Daily Briefing & Voice to Task Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Module 1: AI Daily Briefing Center */}
@@ -166,7 +280,7 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
             <div className="flex items-center gap-2 text-[#D4AF37]">
               <CalendarCheck2 className="w-4 h-4" />
               <h2 className="text-sm font-bold uppercase tracking-wider">
-                1. AI Daily Executive Briefing (Sáng & Tối)
+                Bản Tin Sáng & Tối (AI Daily Briefing)
               </h2>
             </div>
             <span className="text-[10px] bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 px-2 py-0.5 rounded font-mono">
@@ -239,7 +353,7 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
             <div className="flex items-center gap-2 text-[#D4AF37]">
               <Mic className="w-4 h-4 text-[#D4AF37]" />
               <h2 className="text-sm font-bold uppercase tracking-wider">
-                2. Nhận Diện Tin Nhắn Thoại (Voice to Task)
+                Nhận Diện Tin Nhắn Thoại & Tệp
               </h2>
             </div>
             <span className="text-[10px] bg-[#1A1A1A] text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-mono">
@@ -261,14 +375,14 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
               <span>➔</span>
               <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">🧠 Gemini Audio Decoding</span>
               <span>➔</span>
-              <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">⚡ Function Calling (createTask)</span>
+              <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">⚡ Autonomous Tool Calling</span>
               <span>➔</span>
               <span className="bg-[#151515] px-2 py-1 rounded border border-[#2A2A2A]">🔥 Firestore Realtime Sync</span>
             </div>
           </div>
 
           <div className="space-y-1 text-xs">
-            <span className="text-[11px] text-[#888888] font-bold">Thử nghiệm câu lệnh giọng nói mẫu:</span>
+            <span className="text-[11px] text-[#888888] font-bold">Thử nghiệm câu lệnh mẫu:</span>
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 onClick={() => handleExecuteCommand('Thêm việc chuẩn bị tài liệu dự án trước 4h chiều mai độ ưu tiên cao')}
