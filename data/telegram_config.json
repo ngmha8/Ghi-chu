@@ -1,0 +1,14 @@
+{
+  "botToken": "8889918265:AAEmKnyTYmYbcZ2fRvr5epfuE9VBhU9UWOE",
+  "chatId": "5786910216",
+  "enabled": true,
+  "alertOffsetMinutes": 15,
+  "isConnected": false,
+  "timezone": "Asia/Ho_Chi_Minh",
+  "morningBriefingHour": 7,
+  "morningBriefingMinute": 0,
+  "eveningBriefingHour": 21,
+  "eveningBriefingMinute": 0,
+  "enableMorningBriefing": true,
+  "enableEveningBriefing": true
+}

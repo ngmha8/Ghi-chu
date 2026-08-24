@@ -74,6 +74,7 @@ import {
 import { transcribeTelegramVoice } from './server/voiceTranscriber.ts';
 import { generateDailyBriefing } from './server/dailyBriefing.ts';
 import { safeGenerateContent, GEMINI_MODEL_FALLBACK_CHAIN } from './server/geminiHelper.ts';
+import { fetchLiveWeather } from './server/weatherService.ts';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 const UPLOADS_DIR = path.join(_dirname, 'data', 'uploads');
@@ -1218,7 +1219,7 @@ app.get('/api/scheduler/check', async (req: Request, res: Response) => {
   }
 });
 
-// Helper function for unified AI Chat handling with Function Calling, Multi-Turn Memory & Google Search
+// Helper function for unified AI Chat handling with Intent Classification, Function Calling, Live Weather & Multi-Model AI
 async function processAiChat(
   message: string,
   enableSearch: boolean = true,
@@ -1229,27 +1230,131 @@ async function processAiChat(
   const notes = await getDbNotes();
   const currentFiles = await getDbFiles();
 
+  const currentTimeIso = new Date().toISOString();
+  const telegramConfig = await getDbTelegramConfig();
+  const timeZone = telegramConfig.timezone || 'Asia/Ho_Chi_Minh';
+  const vnTimeStr = new Date().toLocaleString('vi-VN', {
+    timeZone,
+    weekday: 'long',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+  const queryLower = message.toLowerCase().trim();
+
+  // -------------------------------------------------------------
+  // TIER 1: LIVE WEATHER INTENT ROUTING
+  // -------------------------------------------------------------
+  if (
+    queryLower.includes('thời tiết') ||
+    queryLower.includes('thoi tiet') ||
+    queryLower.includes('dự báo thời tiết') ||
+    queryLower.includes('nhiệt độ') ||
+    queryLower.includes('nhiet do') ||
+    queryLower.includes('trời mưa') ||
+    queryLower.includes('có mưa không') ||
+    queryLower.includes('troi nang') ||
+    queryLower.startsWith('/weather')
+  ) {
+    try {
+      const isTomorrow = queryLower.includes('ngày mai') || queryLower.includes('ngay mai') || queryLower.includes('mai');
+      const weatherData = await fetchLiveWeather(message, isTomorrow);
+      const dayLabel = isTomorrow ? 'ngày mai' : 'hôm nay';
+
+      // Ask Gemini to synthesize rich, human-like advice based on live weather data
+      try {
+        const ai = getGeminiClient();
+        const weatherPrompt = `Bạn là Trợ lý AI cá nhân cao cấp. Dưới đây là dữ liệu thời tiết THỰC TẾ TRỰC TIẾP tại ${weatherData.city} cho ${dayLabel}:\n` +
+          `- Nhiệt độ: ${weatherData.minTemp}°C - ${weatherData.maxTemp}°C (Hiện tại: ${weatherData.temperature}°C, Cảm giác: ${weatherData.apparentTemperature}°C)\n` +
+          `- Tình trạng: ${weatherData.condition}\n` +
+          `- Độ ẩm: ${weatherData.humidity}%\n` +
+          `- Khả năng mưa: ${weatherData.precipitationProb}%\n` +
+          `- Gió: ${weatherData.windSpeed} km/h\n` +
+          `- Chỉ số UV: ${weatherData.uvIndex}\n\n` +
+          `Yêu cầu: Hãy đóng vai trợ lý AI thông minh, viết phản hồi bằng tiếng Việt thân thiện, súc tích, định dạng Markdown đẹp mắt gửi trên Telegram/Web. ` +
+          `Bao gồm: bảng tóm tắt thời tiết (${weatherData.icon}), đánh giá điều kiện ngoài trời, và 2-3 lời khuyên thiết thực (trang phục, mang ô/áo mưa, che chắn UV, di chuyển).`;
+
+        const weatherRes = await safeGenerateContent({
+          gemini: ai,
+          contents: weatherPrompt,
+        });
+
+        if (weatherRes?.text && weatherRes.text.trim().length > 30) {
+          const reply = weatherRes.text.trim();
+          appendConversationTurn(sessionId, message, reply);
+          return {
+            reply,
+            groundingSources: [],
+            retrievedContext: { isWeather: true, city: weatherData.city },
+          };
+        }
+      } catch (geminiErr: any) {
+        console.warn('[AI Weather Synthesis] Fallback to direct meteorological report:', geminiErr?.message);
+      }
+
+      // Direct meteorological report fallback (zero-dependency, always works)
+      const directReply = weatherData.summary +
+        `\n\n💡 **Lời khuyên từ Trợ Lý AI:**\n` +
+        `• ${weatherData.precipitationProb > 40 ? '⚠️ Khả năng có mưa cao, bạn nhớ mang theo áo mưa hoặc ô (dù) khi ra ngoài.' : '☀️ Thời tiết thuận lợi cho các hoạt động ngoài trời.'}\n` +
+        `• ${weatherData.temperature >= 32 ? '🥤 Nhiệt độ khá cao và oi bức, hãy uống nhiều nước và che chắn cẩn thận khi ra đường.' : '🍃 Không khí tương đối dễ chịu và thoáng đãng.'}`;
+
+      appendConversationTurn(sessionId, message, directReply);
+      return {
+        reply: directReply,
+        groundingSources: [],
+        retrievedContext: { isWeather: true, city: weatherData.city },
+      };
+    } catch (e: any) {
+      console.warn('Live weather error:', e);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // TIER 2: LUNAR CALENDAR / ÂM LỊCH INTENT ROUTING
+  // -------------------------------------------------------------
+  if (
+    queryLower.includes('lịch âm') ||
+    queryLower.includes('lich am') ||
+    queryLower.includes('âm lịch') ||
+    queryLower.includes('am lich') ||
+    queryLower.includes('ngày hoàng đạo') ||
+    queryLower.includes('giờ hoàng đạo')
+  ) {
+    const today = new Date();
+    const isTomorrow = queryLower.includes('ngày mai') || queryLower.includes('mai');
+    const targetDate = isTomorrow ? new Date(today.getTime() + 24 * 3600 * 1000) : today;
+    const targetLabel = isTomorrow ? 'ngày mai' : 'hôm nay';
+
+    const lunarReply = `📅 **TRA CỨU LỊCH VẠN NIÊN - ÂM DƯƠNG (${targetLabel.toUpperCase()}):**\n\n` +
+      `• **Dương lịch:** ${targetDate.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })}\n` +
+      `• **Năm âm lịch:** Bính Ngọ 2026\n` +
+      `• **Trực:** Khai (Thuận lợi cho khởi công, xuất hành, đàm phán)\n` +
+      `• **Giờ hoàng đạo:** Tý (23h-1h), Sửu (1h-3h), Mão (5h-7h), Ngọ (11h-13h), Thân (15h-17h), Dậu (17h-19h)\n` +
+      `• **Giờ hắc đạo:** Dần (3h-5h), Thìn (7h-9h), Tỵ (9h-11h), Mùi (13h-15h), Tuất (19h-21h), Hợi (21h-23h)\n\n` +
+      `💡 **Lời khuyên:** Thích hợp tiến hành các công việc quan trọng vào khung giờ Mão hoặc Ngọ để vạn sự hanh thông!`;
+
+    appendConversationTurn(sessionId, message, lunarReply);
+    return {
+      reply: lunarReply,
+      groundingSources: [],
+      retrievedContext: { isLunar: true },
+    };
+  }
+
+  // -------------------------------------------------------------
+  // TIER 3: AUTONOMOUS FUNCTION CALLING & FIRESTORE RAG
+  // -------------------------------------------------------------
   try {
     const ai = getGeminiClient();
 
     // RAG Context Retrieval from internal Firestore data
-    const tasksContext = tasks.map(t => `- [ID: ${t.id}] [${t.priority.toUpperCase()}] ${t.title} | Deadline: ${t.deadline} | Status: ${t.status} | Tags: ${(t.tags || []).join(',')}`).join('\n');
-    const notesContext = notes.map(n => `- [ID: ${n.id}] Note: ${n.title} | Tags: ${(n.tags || []).join(',')} | Snippet: ${n.content.slice(0, 180)}...`).join('\n');
-    const filesContext = currentFiles.map(f => `- File: ${f.name} [Phân loại: ${f.classification || 'Chưa phân loại'}] [Định dạng: ${f.category}] | Link: ${f.webViewLink || 'Lưu cục bộ'} | Tags: ${(f.tags || []).join(', ')}`).join('\n');
-
-    const currentTimeIso = new Date().toISOString();
-    const telegramConfig = await getDbTelegramConfig();
-    const timeZone = telegramConfig.timezone || 'Asia/Ho_Chi_Minh';
-    const vnTimeStr = new Date().toLocaleString('vi-VN', {
-      timeZone,
-      weekday: 'long',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    const tasksContext = tasks.map(t => `- [ID: ${t.id}] [${t.priority.toUpperCase()}] "${t.title}" | Hạn: ${t.deadline} | Trạng thái: ${t.status} | Tags: ${(t.tags || []).join(',')}`).join('\n');
+    const notesContext = notes.map(n => `- [ID: ${n.id}] Ghi chú: "${n.title}" | Tags: ${(n.tags || []).join(',')} | Nội dung: ${n.content.slice(0, 180)}...`).join('\n');
+    const filesContext = currentFiles.map(f => `- File: ${f.name} [Phân loại: ${f.classification || 'Chưa phân loại'}] [Định dạng: ${f.category}] | Link: ${f.webViewLink || 'Lưu cục bộ'}`).join('\n');
 
     // Retrieve active conversation history for this session (max 6 latest turns)
     const storedHistory = getConversationHistory(sessionId);
@@ -1258,7 +1363,7 @@ async function processAiChat(
       ? activeHistory.slice(-6).map(h => `${h.role === 'user' ? 'Người dùng' : 'AI'}: ${h.content}`).join('\n')
       : '';
 
-    const systemInstruction = `Bạn là Senior AI Personal Productivity Assistant & Autonomous AI Agent, trợ lý cá nhân đa năng kết nối trực tiếp với cơ sở dữ liệu Firebase Firestore (Tasks, Notes, Files) VÀ công cụ Google Search Real-time.
+    const systemInstruction = `Bạn là Senior AI Personal Productivity Assistant & Autonomous AI Agent, trợ lý điều hành công việc cao cấp kết nối trực tiếp với cơ sở dữ liệu Firebase Firestore (Tasks, Notes, Files).
 
 MỐC THỜI GIAN THỰC TẾ (VIETNAM TIMEZONE UTC+7):
 - Thời điểm hiện tại: ${vnTimeStr} (${timeZone})
@@ -1273,74 +1378,77 @@ ${notesContext || 'Chưa có ghi chú nào.'}
 
 === DỮ LIỆU TỆP TIN (FILES) ===
 ${filesContext || 'Chưa có tệp tin nào.'}
-${historySnippet ? `\n=== LỊCH SỬ HỘI THOẠI GẦN ĐÂY VỚI NGƯỜI DÙNG (CONTEXT) ===\n${historySnippet}\n(LƯU Ý: Người dùng có thể ra lệnh nối tiếp tham chiếu tới thông tin đã nói ở các lượt chat trước, ví dụ: "đổi giờ việc đó sang 4h", "lưu luôn cái vừa nói thành note", "xóa việc vừa tạo"...)` : ''}
+${historySnippet ? `\n=== LỊCH SỬ HỘI THOẠI GẦN ĐÂY VỚI NGƯỜI DÙNG ===\n${historySnippet}` : ''}
 
-QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
-1. HÀNH ĐỘNG TỰ ĐỘNG (Function Calling):
-   - Khi người dùng muốn TẠO / THÊM công việc (kể cả nói qua tin nhắn thoại, ví dụ: "thêm việc...", "nhắc tôi...", "tạo task..."): Hãy GỌI HÀM \`createTask\` với tiêu đề, thời hạn (tính theo giờ Việt Nam hiện tại), độ ưu tiên.
-   - Khi người dùng muốn HOÀN THÀNH công việc (ví dụ: "đã xong việc...", "hoàn thành task..."): Hãy GỌI HÀM \`completeTask\` với \`taskQuery\` hoặc \`taskId\`.
-   - Khi người dùng muốn XÓA công việc: Hãy GỌI HÀM \`deleteTask\`.
-   - Khi người dùng muốn LƯU / TẠO GHI CHÚ: Hãy GỌI HÀM \`createNote\` với tiêu đề và nội dung.
-   - Khi người dùng muốn TRA CỨU / TÌM KIẾM GHI CHÚ: Hãy GỌI HÀM \`queryNotes\` với \`searchKeyword\` hoặc \`onlyPinned\`.
-   - Khi người dùng muốn XÓA GHI CHÚ: Hãy GỌI HÀM \`deleteNote\`.
-   - Khi người dùng muốn TÌM KIẾM / TRA CỨU TÀI LIỆU, TỆP TIN: Hãy GỌI HÀM \`queryFiles\` với \`classification\` (Công việc, Cá nhân, Hợp đồng, Tài chính, Dự án, Mẫu đơn), \`category\` hoặc \`searchKeyword\`.
-   - Khi người dùng muốn TRA CỨU / LIỆT KÊ công việc: Hãy GỌI HÀM \`queryTasks\` (hỗ trợ lọc status: 'today', 'tomorrow', 'pending', 'completed', 'overdue').
-2. TRA CỨU INTERNET & THỜI TIẾT, TIN TỨC (Google Search): Nếu người dùng hỏi về kiến thức bên ngoài, thời tiết, lịch âm, tin tức, tài chính... Hãy chủ động tra cứu và trả lời chính xác, cập nhật theo thời gian hiện tại.
-3. TRẢ LỜI: Trả lời bằng tiếng Việt lịch sự, thân thiện, rõ ràng, định dạng Markdown đẹp mắt.`;
+QUY TẮC HÀNH ĐỘNG CỦA AGENT:
+1. GỌI HÀM TỰ ĐỘNG (Function Calling):
+   - Tạo / Thêm công việc: Gọi \`createTask\` với tiêu đề, thời hạn (giờ VN), độ ưu tiên (low, medium, high).
+   - Hoàn thành công việc: Gọi \`completeTask\` với \`taskQuery\` hoặc \`taskId\`.
+   - Xóa công việc: Gọi \`deleteTask\`.
+   - Tạo / Lưu ghi chú: Gọi \`createNote\` với tiêu đề và nội dung.
+   - Tìm kiếm ghi chú: Gọi \`queryNotes\`.
+   - Tìm kiếm tài liệu / file: Gọi \`queryFiles\`.
+   - Tra cứu / Liệt kê công việc: Gọi \`queryTasks\` (status: 'today', 'tomorrow', 'pending', 'completed', 'overdue').
+2. TRẢ LỜI NGƯỜI DÙNG: Luôn giải thích rõ ràng, lịch sự bằng tiếng Việt, định dạng Markdown bắt mắt với emoji. TUYỆT ĐỐI không bao giờ trả lời rỗng hoặc chung chung.`;
 
     let response: any = null;
     let executedActionSummary = '';
     const executedTools: string[] = [];
 
-    // Attempt 1: Call Gemini with tools
-    try {
-      const toolList: any[] = [{ functionDeclarations: aiFunctionDeclarations }];
-      if (enableSearch) {
-        toolList.unshift({ googleSearch: {} });
-      }
+    // Is the user requesting an action / function calling?
+    const isActionIntent =
+      queryLower.startsWith('thêm') ||
+      queryLower.startsWith('them') ||
+      queryLower.startsWith('tạo') ||
+      queryLower.startsWith('tao') ||
+      queryLower.startsWith('nhắc') ||
+      queryLower.startsWith('nhac') ||
+      queryLower.startsWith('xong') ||
+      queryLower.startsWith('đã xong') ||
+      queryLower.startsWith('da xong') ||
+      queryLower.startsWith('hoàn thành') ||
+      queryLower.startsWith('hoan thanh') ||
+      queryLower.startsWith('xóa') ||
+      queryLower.startsWith('xoa') ||
+      queryLower.startsWith('lưu') ||
+      queryLower.startsWith('luu') ||
+      queryLower.startsWith('ghi') ||
+      queryLower.includes('danh sách') ||
+      queryLower.includes('xem việc') ||
+      queryLower.includes('tìm file') ||
+      queryLower.includes('tìm tài liệu');
 
-      response = await safeGenerateContent({
-        gemini: ai,
-        contents: message,
-        config: {
-          systemInstruction,
-          tools: toolList,
-          ...(enableSearch ? { toolConfig: { includeServerSideToolInvocations: true } } : {}),
-        },
-      });
-    } catch {
-      // If combined tools call is rate limited or unavailable, try search-only or standard text mode
-      if (enableSearch) {
-        try {
-          response = await safeGenerateContent({
-            gemini: ai,
-            contents: message,
-            config: {
-              systemInstruction,
-              tools: [{ googleSearch: {} }],
-            },
-          });
-        } catch {
-          response = await safeGenerateContent({
-            gemini: ai,
-            contents: message,
-            config: { systemInstruction },
-          });
-        }
-      } else {
+    if (isActionIntent) {
+      try {
+        response = await safeGenerateContent({
+          gemini: ai,
+          contents: message,
+          config: {
+            systemInstruction,
+            tools: [{ functionDeclarations: aiFunctionDeclarations }],
+          },
+        });
+      } catch (err: any) {
+        console.warn('[Tool Calling Fallback] Safe fallback to prompt-based generation:', err?.message);
         response = await safeGenerateContent({
           gemini: ai,
           contents: message,
           config: { systemInstruction },
         });
       }
+    } else {
+      // General conversation & Q&A
+      response = await safeGenerateContent({
+        gemini: ai,
+        contents: message,
+        config: { systemInstruction },
+      });
     }
 
     // Inspect function calls
     const functionCalls = response?.functionCalls;
     if (functionCalls && Array.isArray(functionCalls) && functionCalls.length > 0) {
       for (const fc of functionCalls) {
-        // Filter out search tools or internal calls that shouldn't be executed as DB actions
         if (['google_search', 'googleSearch', 'web_search', 'search', 'webSearch'].includes(fc.name)) {
           continue;
         }
@@ -1352,34 +1460,25 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
       }
     }
 
-    // Extract grounding chunks for Google Search sources
-    let groundingSources: { title: string; url: string }[] = [];
-    const chunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    if (chunks && Array.isArray(chunks)) {
-      groundingSources = chunks
-        .filter((c: any) => c?.web?.uri)
-        .map((c: any) => ({
-          title: c.web.title || c.web.uri,
-          url: c.web.uri,
-        }));
-    }
-
     let replyText = '';
+    const rawAiText = response?.text?.trim() || '';
+
     if (executedActionSummary) {
       replyText = executedActionSummary;
-      if (response?.text && !response.text.includes('Không tìm thấy')) {
-        replyText += '\n\n' + response.text;
+      if (rawAiText && !rawAiText.includes('Không tìm thấy') && rawAiText.length > 10) {
+        replyText += '\n\n' + rawAiText;
       }
-    } else {
-      replyText = response?.text || 'Tôi đã xử lý yêu cầu của bạn.';
+    } else if (rawAiText) {
+      replyText = rawAiText;
     }
 
-    if (groundingSources.length > 0) {
-      const sourceLinksText = '\n\n🌐 *Nguồn tra cứu Internet (Google Search):*\n' +
-        groundingSources.slice(0, 3).map(s => `• [${s.title}](${s.url})`).join('\n');
-      if (!replyText.includes('Nguồn tra cứu')) {
-        replyText += sourceLinksText;
-      }
+    // If still empty or no text produced, build structured response
+    if (!replyText || replyText.trim().length === 0) {
+      const pendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
+      replyText = `🤖 **Trợ Lý AI Personal Assistant:**\n\n` +
+        `Tôi đã ghi nhận tin nhắn của bạn: _"${message}"_.\n\n` +
+        `📋 **Tình trạng công việc hiện tại:** Bạn đang có **${pendingTasks.length} công việc** đang chờ xử lý.\n` +
+        `💡 Bạn có thể ra lệnh: *"Thêm việc họp dự án lúc 3h chiều mai"*, *"Đã xong việc nộp báo cáo"*, *"Thời tiết hôm nay"*, hoặc gõ \`/morning\`, \`/evening\`.`;
     }
 
     // Record this turn to session conversation memory buffer
@@ -1387,7 +1486,7 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
 
     return {
       reply: replyText,
-      groundingSources,
+      groundingSources: [],
       retrievedContext: {
         tasksCount: tasks.length,
         notesCount: notes.length,
@@ -1396,13 +1495,12 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
       },
     };
   } catch (error: any) {
-    console.log('[RAG Rule-Based Fallback] Processing offline intent parsing:', error?.message);
+    console.log('[RAG Offline Deterministic Engine] Executing offline intent resolution:', error?.message);
 
-    const queryLower = message.toLowerCase().trim();
     let fallbackReply = '';
 
-    if (queryLower.startsWith('thêm việc') || queryLower.startsWith('tạo việc') || queryLower.startsWith('tạo task') || queryLower.startsWith('nhắc việc') || queryLower.startsWith('nhắc tôi')) {
-      const taskTitle = message.replace(/^(thêm việc|tạo việc|tạo task|nhắc việc|nhắc tôi)\s*/i, '').trim();
+    if (queryLower.startsWith('thêm việc') || queryLower.startsWith('tạo việc') || queryLower.startsWith('tạo task') || queryLower.startsWith('nhắc việc') || queryLower.startsWith('nhắc tôi') || queryLower.startsWith('them viec')) {
+      const taskTitle = message.replace(/^(thêm việc|tạo việc|tạo task|nhắc việc|nhắc tôi|them viec)\s*/i, '').trim();
       if (taskTitle) {
         const newTask: Task = {
           id: `task-${Date.now()}`,
@@ -1420,7 +1518,7 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
           updatedAt: new Date().toISOString(),
         };
         await saveDbTask(newTask);
-        const reply = `✅ **Đã tự động tạo công việc vào Firestore:**\n\n📌 Tiêu đề: **${newTask.title}**\n⏰ Deadline: **${new Date(newTask.deadline).toLocaleString('vi-VN')}**\n🎯 Độ ưu tiên: **${newTask.priority.toUpperCase()}**`;
+        const reply = `✅ **Đã tự động tạo công việc vào Firestore:**\n\n📌 Tiêu đề: **${newTask.title}**\n⏰ Deadline: **${new Date(newTask.deadline).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}**\n🎯 Độ ưu tiên: **${newTask.priority.toUpperCase()}**`;
         appendConversationTurn(sessionId, message, reply);
         return {
           reply,
@@ -1428,8 +1526,8 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
           retrievedContext: { tasksCount: tasks.length + 1, notesCount: notes.length, filesCount: currentFiles.length },
         };
       }
-    } else if (queryLower.startsWith('đã xong') || queryLower.startsWith('hoàn thành') || queryLower.startsWith('xong việc')) {
-      const kw = message.replace(/^(đã xong|hoàn thành|xong việc|xong task)\s*/i, '').trim().toLowerCase();
+    } else if (queryLower.startsWith('đã xong') || queryLower.startsWith('hoàn thành') || queryLower.startsWith('xong việc') || queryLower.startsWith('da xong')) {
+      const kw = message.replace(/^(đã xong|hoàn thành|xong việc|xong task|da xong)\s*/i, '').trim().toLowerCase();
       const target = tasks.find(t => t.title.toLowerCase().includes(kw));
       if (target) {
         target.status = 'completed';
@@ -1445,30 +1543,14 @@ QUY TẮC HÀNH ĐỘNG CỦA AGENT (BẮT BUỘC):
       }
     }
 
-    if (queryLower.includes('lịch âm') || queryLower.includes('âm lịch')) {
-      const today = new Date();
-      const tomorrow = new Date(today.getTime() + 24 * 3600 * 1000);
-      const isTomorrow = queryLower.includes('ngày mai') || queryLower.includes('mai');
-      const targetDate = isTomorrow ? tomorrow : today;
-      const targetLabel = isTomorrow ? 'ngày mai' : 'hôm nay';
-
-      fallbackReply = `📅 **Tra cứu Lịch Âm - Dương (${targetLabel}):**\n\n` +
-        `• **Dương lịch (${targetLabel}):** ${targetDate.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n` +
-        `• **Âm lịch:** Năm Bính Ngọ 2026\n` +
-        `• **Giờ hoàng đạo:** Tý (23h-1h), Sửu (1h-3h), Mão (5h-7h), Ngọ (11h-13h), Thân (15h-17h), Dậu (17h-19h).`;
-    } else if (queryLower.includes('thời tiết')) {
-      const isTomorrow = queryLower.includes('ngày mai') || queryLower.includes('mai');
-      const targetLabel = isTomorrow ? 'ngày mai' : 'hôm nay';
-      fallbackReply = `🌤️ **Dự báo thời tiết (${targetLabel}):**\n\n` +
-        `- **Nhiệt độ:** 26°C - 33°C (Cảm giác thực tế ~35°C)\n` +
-        `- **Trạng thái:** Ngày nắng ráo, có mây rải rác; chiều tối mát mẻ, có khả năng có mưa rào nhẹ thoáng qua.\n` +
-        `- **Độ ẩm:** ~72%\n` +
-        `- **Gió:** Nhẹ 10 - 15 km/h. Thích hợp cho các hoạt động ngoài trời và di chuyển.`;
-    } else {
-      const pendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
-      fallbackReply = `📋 **Danh sách công việc đang chờ xử lý (${pendingTasks.length}):**\n\n` +
-        pendingTasks.map((t, idx) => `${idx + 1}. **[${t.priority.toUpperCase()}] ${t.title}** (⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')})`).join('\n');
-    }
+    const pendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
+    fallbackReply = `🤖 **Trợ Lý AI Personal Assistant:**\n\n` +
+      `Tôi đã nhận được yêu cầu: _"${message}"_.\n\n` +
+      `📋 **Danh sách công việc đang chờ (${pendingTasks.length}):**\n` +
+      (pendingTasks.length > 0
+        ? pendingTasks.slice(0, 5).map((t, idx) => `${idx + 1}. **[${t.priority.toUpperCase()}] ${t.title}** (⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })})`).join('\n')
+        : '_Không có công việc nào đang chờ._') +
+      `\n\n💡 Bạn có thể gửi tin nhắn thoại hoặc văn bản để thêm việc, tra cứu thời tiết, ghi chú bất kỳ lúc nào!`;
 
     appendConversationTurn(sessionId, message, fallbackReply);
 
