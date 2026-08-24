@@ -5,8 +5,8 @@ import {
   initGoogleAuth,
   signInWithGoogleWorkspace,
   googleSignOut,
+  GoogleOAuthUser,
 } from '../services/googleAuth.js';
-import { User } from 'firebase/auth';
 import {
   Settings,
   Bot,
@@ -172,7 +172,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showSaGuide, setShowSaGuide] = useState(false);
 
   // Google OAuth User State
-  const [googleUser, setGoogleUser] = useState<User | null>(null);
+  const [googleUser, setGoogleUser] = useState<GoogleOAuthUser | null>(null);
   const [isLoggingInGoogle, setIsLoggingInGoogle] = useState(false);
   const [oauthStatusMsg, setOauthStatusMsg] = useState<string | null>(null);
 

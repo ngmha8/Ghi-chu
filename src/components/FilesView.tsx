@@ -6,10 +6,10 @@ import {
   initGoogleAuth,
   signInWithGoogleWorkspace,
   googleSignOut,
-  getGoogleAccessToken
+  getGoogleAccessToken,
+  GoogleOAuthUser
 } from '../services/googleAuth.js';
 import { uploadLocalFileToUserGoogleDrive } from '../services/googleDriveUpload.js';
-import { User as FirebaseUser } from 'firebase/auth';
 import {
   FolderSync,
   UploadCloud,
@@ -108,7 +108,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const [isSyncingSa, setIsSyncingSa] = useState(false);
 
   // Google OAuth User State
-  const [googleUser, setGoogleUser] = useState<FirebaseUser | null>(null);
+  const [googleUser, setGoogleUser] = useState<GoogleOAuthUser | null>(null);
   const [isLoggingInGoogle, setIsLoggingInGoogle] = useState(false);
   const [syncingDriveFileId, setSyncingDriveFileId] = useState<string | null>(null);
 
