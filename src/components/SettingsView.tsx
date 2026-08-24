@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import {
   getPinSettings,
+  fetchPinSettingsFromServer,
   setPin,
   setPinEnabled,
   setAutolockMinutes,
@@ -84,6 +85,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [pinStatusMsg, setPinStatusMsg] = useState<string | null>(null);
   const [pinErrorMsg, setPinErrorMsg] = useState<string | null>(null);
   const [isChangingPin, setIsChangingPin] = useState(false);
+
+  // Sync PIN settings from central server on mount
+  useEffect(() => {
+    fetchPinSettingsFromServer()
+      .then(s => {
+        setPinSettingsState(s);
+        if (s.hint) setPinHintInput(s.hint);
+      })
+      .catch(() => {});
+  }, []);
 
   // --- Telegram State ---
   const [tokenInput, setTokenInput] = useState(telegramConfig.botToken || '');
@@ -372,16 +383,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const totalMb = (totalBytes / (1024 * 1024)).toFixed(2);
 
   // --- PIN Security Handlers ---
-  const handleTogglePin = (enabled: boolean) => {
-    setPinEnabled(enabled);
+  const handleTogglePin = async (enabled: boolean) => {
+    await setPinEnabled(enabled);
     const updated = getPinSettings();
     setPinSettingsState(updated);
-    setPinStatusMsg(enabled ? '✅ Đã BẬT yêu cầu mã PIN khi truy cập trang web!' : '⚠️ Đã TẮT bảo vệ mã PIN.');
+    setPinStatusMsg(enabled ? '✅ Đã BẬT yêu cầu mã PIN khi truy cập trên tất cả thiết bị!' : '⚠️ Đã TẮT bảo vệ mã PIN.');
     setTimeout(() => setPinStatusMsg(null), 4000);
   };
 
-  const handleAutolockChange = (mins: number) => {
-    setAutolockMinutes(mins);
+  const handleAutolockChange = async (mins: number) => {
+    await setAutolockMinutes(mins);
     const updated = getPinSettings();
     setPinSettingsState(updated);
     setPinStatusMsg(
@@ -397,15 +408,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setPinErrorMsg(null);
     setPinStatusMsg(null);
 
-    // If custom PIN exists or old PIN is required
-    if (pinSettings.hasCustomPin || currentPinInput.trim() !== '') {
-      const isCurrentValid = verifyPin(currentPinInput.trim()) || (await verifyPinAsync(currentPinInput.trim()));
-      if (!isCurrentValid) {
-        setPinErrorMsg('Mã PIN hiện tại không đúng!');
-        return;
-      }
-    }
-
     if (newPinInput.length < 4) {
       setPinErrorMsg('Mã PIN mới phải có ít nhất 4 chữ số!');
       return;
@@ -417,19 +419,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
 
     setIsChangingPin(true);
-    const ok = await setPin(newPinInput.trim(), pinHintInput.trim());
-    setIsChangingPin(false);
+    try {
+      // If custom PIN exists or old PIN is required
+      if (pinSettings.hasCustomPin || currentPinInput.trim() !== '') {
+        const isCurrentValid = await verifyPinAsync(currentPinInput.trim());
+        if (!isCurrentValid) {
+          setPinErrorMsg('Mã PIN hiện tại không đúng!');
+          setIsChangingPin(false);
+          return;
+        }
+      }
 
-    if (ok) {
-      const updated = getPinSettings();
+      await setPin(newPinInput.trim(), pinHintInput.trim(), currentPinInput.trim());
+      const updated = await fetchPinSettingsFromServer();
       setPinSettingsState(updated);
       setCurrentPinInput('');
       setNewPinInput('');
       setConfirmPinInput('');
-      setPinStatusMsg('🎉 Đã cập nhật mã PIN bảo mật mới thành công (Mã hóa SHA-256)!');
+      setPinStatusMsg('🎉 Đã đổi mã PIN mới thành công! Hệ thống đã đồng bộ cho mọi thiết bị và trình duyệt.');
       setTimeout(() => setPinStatusMsg(null), 5000);
-    } else {
-      setPinErrorMsg('Không thể lưu mã PIN.');
+    } catch (err: any) {
+      setPinErrorMsg(err?.message || 'Không thể lưu mã PIN lên máy chủ.');
+    } finally {
+      setIsChangingPin(false);
     }
   };
 

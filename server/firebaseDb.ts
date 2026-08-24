@@ -21,6 +21,24 @@ export const initialDriveServiceAccountConfig: DriveServiceAccountConfig = {
   isConnected: false,
 };
 
+export interface SecurityPinConfig {
+  pin: string;
+  isEnabled: boolean;
+  autolockMinutes: number;
+  hint: string;
+  updatedAt: string;
+}
+
+export const defaultSecurityPin = process.env.ADMIN_PIN || process.env.APP_PIN || '1234';
+
+export let cachedSecurityPinConfig: SecurityPinConfig = {
+  pin: defaultSecurityPin,
+  isEnabled: true,
+  autolockMinutes: 0,
+  hint: defaultSecurityPin === '1234' ? 'Mã PIN mặc định là 1234' : 'Mã PIN bảo vệ hệ thống',
+  updatedAt: new Date().toISOString(),
+};
+
 // In-Memory cache for high-speed access & offline resilience
 export let cachedTasks: Task[] = [...initialTasks];
 export let cachedNotes: Note[] = [...initialNotes];
@@ -28,6 +46,7 @@ export let cachedFiles: DriveFile[] = [...initialFiles];
 export let cachedTelegramConfig: TelegramConfig = { ...initialTelegramConfig };
 export let cachedNotificationLogs: NotificationLog[] = [...initialNotificationLogs];
 export let cachedDriveServiceAccountConfig: DriveServiceAccountConfig = { ...initialDriveServiceAccountConfig };
+export let cachedSecurityPin: string = defaultSecurityPin;
 
 // Local JSON file backup path
 const DATA_DIR = path.join(_dirname, 'data');
@@ -36,6 +55,7 @@ const LOCAL_TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const LOCAL_NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const LOCAL_FILES_FILE = path.join(DATA_DIR, 'files.json');
 const LOCAL_DRIVE_SA_FILE = path.join(DATA_DIR, 'drive_service_account.json');
+const LOCAL_SECURITY_PIN_FILE = path.join(DATA_DIR, 'security_pin.json');
 
 if (!fs.existsSync(DATA_DIR)) {
   try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
@@ -63,6 +83,17 @@ try {
     const data = JSON.parse(fs.readFileSync(LOCAL_FILES_FILE, 'utf-8'));
     if (Array.isArray(data)) cachedFiles = data;
   }
+  if (fs.existsSync(LOCAL_SECURITY_PIN_FILE)) {
+    const data = JSON.parse(fs.readFileSync(LOCAL_SECURITY_PIN_FILE, 'utf-8'));
+    if (data) {
+      if (data.pin) cachedSecurityPin = data.pin.toString();
+      cachedSecurityPinConfig = {
+        ...cachedSecurityPinConfig,
+        ...data,
+        pin: data.pin ? data.pin.toString() : cachedSecurityPin,
+      };
+    }
+  }
 } catch (e) {
   console.warn('Could not read local backup files:', e);
 }
@@ -74,6 +105,7 @@ function saveLocalBackups() {
     fs.writeFileSync(LOCAL_TASKS_FILE, JSON.stringify(cachedTasks, null, 2), 'utf-8');
     fs.writeFileSync(LOCAL_NOTES_FILE, JSON.stringify(cachedNotes, null, 2), 'utf-8');
     fs.writeFileSync(LOCAL_FILES_FILE, JSON.stringify(cachedFiles, null, 2), 'utf-8');
+    fs.writeFileSync(LOCAL_SECURITY_PIN_FILE, JSON.stringify(cachedSecurityPinConfig, null, 2), 'utf-8');
   } catch (e) {
     console.warn('Error saving local backup:', e);
   }
@@ -198,6 +230,51 @@ export async function saveDbDriveServiceAccountConfig(
   };
   saveLocalBackups();
   return cachedDriveServiceAccountConfig;
+}
+
+// -------------------------------------------------------------
+// CRUD METHODS (SECURITY PIN)
+// -------------------------------------------------------------
+export async function getDbSecurityPinConfig(): Promise<SecurityPinConfig & { hasCustomPin: boolean }> {
+  return {
+    ...cachedSecurityPinConfig,
+    hasCustomPin: cachedSecurityPinConfig.pin !== '1234',
+  };
+}
+
+export async function getDbSecurityPin(): Promise<string> {
+  return cachedSecurityPinConfig.pin;
+}
+
+export async function saveDbSecurityPin(pin: string, hint?: string): Promise<SecurityPinConfig> {
+  const cleanPin = pin.trim();
+  cachedSecurityPin = cleanPin;
+  cachedSecurityPinConfig = {
+    ...cachedSecurityPinConfig,
+    pin: cleanPin,
+    hint: hint !== undefined ? hint.trim() : cachedSecurityPinConfig.hint,
+    updatedAt: new Date().toISOString(),
+  };
+  saveLocalBackups();
+  return cachedSecurityPinConfig;
+}
+
+export async function saveDbSecurityPinSettings(updates: Partial<SecurityPinConfig>): Promise<SecurityPinConfig> {
+  cachedSecurityPinConfig = {
+    ...cachedSecurityPinConfig,
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+  if (updates.pin) {
+    cachedSecurityPin = updates.pin.trim();
+  }
+  saveLocalBackups();
+  return cachedSecurityPinConfig;
+}
+
+export async function verifyDbSecurityPin(pin: string): Promise<boolean> {
+  if (!cachedSecurityPinConfig.isEnabled) return true;
+  return String(pin).trim() === cachedSecurityPinConfig.pin;
 }
 
 // -------------------------------------------------------------

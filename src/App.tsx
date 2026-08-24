@@ -25,7 +25,8 @@ import {
   isSessionUnlocked,
   lockSession,
   updateActivityTimestamp,
-  getPinSettings
+  getPinSettings,
+  fetchPinSettingsFromServer
 } from './services/pinSecurity.js';
 
 export default function App() {
@@ -93,6 +94,13 @@ export default function App() {
       }
     }
     loadData();
+
+    // Sync PIN configuration from server
+    fetchPinSettingsFromServer().then(pinCfg => {
+      if (!pinCfg.isEnabled) {
+        setIsUnlocked(true);
+      }
+    }).catch(() => {});
 
     // 1. Subscribe to Real-time Firestore Listeners
     const unsubTasks = subscribeTasks((liveTasks) => {

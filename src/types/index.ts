@@ -132,3 +132,11 @@ export interface UserProfile {
   avatarUrl: string;
   isGoogleConnected: boolean;
 }
+
+export interface SecurityPinSettings {
+  isEnabled: boolean;
+  hasCustomPin: boolean;
+  autolockMinutes: number;
+  hint: string;
+  updatedAt?: string;
+}

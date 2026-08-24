@@ -1,4 +1,4 @@
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage, DriveServiceAccountConfig } from '../types/index.js';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage, DriveServiceAccountConfig, SecurityPinSettings } from '../types/index.js';
 
 export const api = {
   // Task Endpoints
@@ -297,6 +297,76 @@ export const api = {
     const data = await res.json();
     if (!res.ok || !data.success) {
       throw new Error(data.error || 'Lỗi đồng bộ tệp từ Google Drive');
+    }
+    return data;
+  },
+
+  // Centralized Security PIN API (persists across all devices, browsers, and Render deploys)
+  getSecurityPinSettings: async (): Promise<SecurityPinSettings> => {
+    try {
+      const res = await fetch('/api/security/pin');
+      if (!res.ok) {
+        return { isEnabled: true, hasCustomPin: false, autolockMinutes: 0, hint: 'Mã PIN mặc định ban đầu là 1234' };
+      }
+      const data = await res.json();
+      return {
+        isEnabled: data.isEnabled !== undefined ? data.isEnabled : true,
+        hasCustomPin: Boolean(data.hasCustomPin),
+        autolockMinutes: data.autolockMinutes !== undefined ? data.autolockMinutes : 0,
+        hint: data.hint || 'Mã PIN mặc định ban đầu là 1234',
+        updatedAt: data.updatedAt,
+      };
+    } catch {
+      return { isEnabled: true, hasCustomPin: false, autolockMinutes: 0, hint: 'Mã PIN mặc định ban đầu là 1234' };
+    }
+  },
+
+  verifySecurityPin: async (pin: string): Promise<{ isValid: boolean; isEnabled: boolean }> => {
+    try {
+      const res = await fetch('/api/security/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      if (!res.ok) return { isValid: false, isEnabled: true };
+      const data = await res.json();
+      return { isValid: Boolean(data.isValid), isEnabled: data.isEnabled !== false };
+    } catch {
+      // Fallback
+      return { isValid: false, isEnabled: true };
+    }
+  },
+
+  updateSecurityPin: async (params: {
+    newPin: string;
+    hint?: string;
+    oldPin?: string;
+  }): Promise<{ success: boolean; message: string; settings: SecurityPinSettings }> => {
+    const res = await fetch('/api/security/pin', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Không thể cập nhật mã PIN lên máy chủ');
+    }
+    return data;
+  },
+
+  updateSecurityPinSettings: async (params: {
+    isEnabled?: boolean;
+    autolockMinutes?: number;
+    hint?: string;
+  }): Promise<{ success: boolean; message: string; settings: SecurityPinSettings }> => {
+    const res = await fetch('/api/security/pin/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Không thể cập nhật cài đặt bảo mật lên máy chủ');
     }
     return data;
   }

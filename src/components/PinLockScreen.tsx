@@ -11,7 +11,14 @@ import {
   Sparkles,
   Delete
 } from 'lucide-react';
-import { verifyPin, verifyPinAsync, unlockSession, getPinSettings } from '../services/pinSecurity.js';
+import {
+  verifyPin,
+  verifyPinAsync,
+  unlockSession,
+  getPinSettings,
+  fetchPinSettingsFromServer,
+  PinSettings
+} from '../services/pinSecurity.js';
 
 interface PinLockScreenProps {
   onUnlock: () => void;
@@ -26,9 +33,20 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [showHint, setShowHint] = useState(false);
+  const [settings, setSettings] = useState<PinSettings>(() => getPinSettings());
   
-  const settings = getPinSettings();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync settings with server immediately on mount
+  useEffect(() => {
+    fetchPinSettingsFromServer().then(s => {
+      setSettings(s);
+      if (!s.isEnabled) {
+        unlockSession();
+        onUnlock();
+      }
+    });
+  }, [onUnlock]);
 
   // Focus input automatically
   useEffect(() => {
@@ -79,7 +97,8 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
 
     // Auto verify if reached 4 or more digits
     if (newPin.length >= 4) {
-      if (verifyPin(newPin) || (await verifyPinAsync(newPin))) {
+      const ok = await verifyPinAsync(newPin);
+      if (ok) {
         triggerSuccessUnlock();
       }
     }
@@ -113,7 +132,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
       return;
     }
 
-    const isValid = verifyPin(pinToTest) || (await verifyPinAsync(pinToTest));
+    const isValid = await verifyPinAsync(pinToTest);
     if (isValid) {
       triggerSuccessUnlock();
     } else {
@@ -147,11 +166,14 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
         inputMode="numeric"
         pattern="[0-9]*"
         value={pinInput}
-        onChange={(e) => {
+        onChange={async (e) => {
           const val = e.target.value.replace(/\D/g, '').slice(0, 8);
           setPinInput(val);
-          if (val.length >= 4 && verifyPin(val)) {
-            triggerSuccessUnlock();
+          if (val.length >= 4) {
+            const ok = await verifyPinAsync(val);
+            if (ok) {
+              triggerSuccessUnlock();
+            }
           }
         }}
         className="opacity-0 absolute -z-10 w-0 h-0"

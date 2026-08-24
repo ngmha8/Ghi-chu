@@ -1,4 +1,6 @@
-// PIN Security Service for Personal Assistant with Cryptographic SHA-256 Hashing
+// PIN Security Service for Personal Assistant with Centralized Server Sync & SHA-256 Hashing
+import { api } from './api.js';
+import { SecurityPinSettings } from '../types/index.js';
 
 const STORAGE_PIN_HASH_KEY = 'ai_app_security_pin_hash';
 const STORAGE_PIN_SALT_KEY = 'ai_app_security_pin_salt';
@@ -8,6 +10,7 @@ const STORAGE_AUTOLOCK_KEY = 'ai_app_autolock_minutes';
 const SESSION_UNLOCKED_KEY = 'ai_app_session_unlocked';
 const STORAGE_LAST_ACTIVE_KEY = 'ai_app_last_active_time';
 const STORAGE_PIN_HINT_KEY = 'ai_app_pin_hint';
+const STORAGE_HAS_CUSTOM_PIN_KEY = 'ai_app_has_custom_pin';
 
 export const DEFAULT_PIN = '1234';
 
@@ -63,6 +66,29 @@ function quickSyncHash(pin: string, salt: string): string {
   return Math.abs(hash).toString(16);
 }
 
+/**
+ * Sync PIN Settings from Central Server (Render DB / Server Store)
+ */
+export async function fetchPinSettingsFromServer(): Promise<PinSettings> {
+  try {
+    const serverSettings = await api.getSecurityPinSettings();
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_PIN_ENABLED_KEY, serverSettings.isEnabled ? 'true' : 'false');
+      localStorage.setItem(STORAGE_AUTOLOCK_KEY, serverSettings.autolockMinutes.toString());
+      localStorage.setItem(STORAGE_PIN_HINT_KEY, serverSettings.hint || 'Mã PIN mặc định ban đầu là 1234');
+      localStorage.setItem(STORAGE_HAS_CUSTOM_PIN_KEY, serverSettings.hasCustomPin ? 'true' : 'false');
+    }
+    return {
+      isEnabled: serverSettings.isEnabled,
+      hasCustomPin: serverSettings.hasCustomPin,
+      autolockMinutes: serverSettings.autolockMinutes,
+      hint: serverSettings.hint || 'Mã PIN mặc định ban đầu là 1234',
+    };
+  } catch (e) {
+    return getPinSettings();
+  }
+}
+
 export function getPinSettings(): PinSettings {
   if (typeof window === 'undefined') {
     return { isEnabled: true, hasCustomPin: false, autolockMinutes: 0, hint: 'Mã mặc định là 1234' };
@@ -73,14 +99,9 @@ export function getPinSettings(): PinSettings {
   const isEnabledVal = localStorage.getItem(STORAGE_PIN_ENABLED_KEY);
   const autolockVal = localStorage.getItem(STORAGE_AUTOLOCK_KEY);
   const hintVal = localStorage.getItem(STORAGE_PIN_HINT_KEY);
+  const hasCustomVal = localStorage.getItem(STORAGE_HAS_CUSTOM_PIN_KEY);
 
-  // Auto-migrate legacy plain text pin if exists
-  if (legacyPin && !savedHash) {
-    setPin(legacyPin, hintVal || undefined);
-    localStorage.removeItem(STORAGE_PIN_LEGACY_KEY);
-  }
-
-  const hasCustom = Boolean(savedHash) || Boolean(legacyPin && legacyPin !== DEFAULT_PIN);
+  const hasCustom = hasCustomVal === 'true' || Boolean(savedHash) || Boolean(legacyPin && legacyPin !== DEFAULT_PIN);
 
   return {
     isEnabled: isEnabledVal === null ? true : isEnabledVal === 'true',
@@ -90,52 +111,101 @@ export function getPinSettings(): PinSettings {
   };
 }
 
-export async function setPin(newPin: string, hint?: string): Promise<boolean> {
+export async function setPin(newPin: string, hint?: string, oldPin?: string): Promise<boolean> {
   if (!newPin || newPin.length < 4) return false;
   
-  const salt = generateSalt();
-  const hashed = await hashPin(newPin, salt);
-  const quickHash = quickSyncHash(newPin, salt);
+  try {
+    // 1. Save to Central Server Database (syncs for all browsers, devices & Render instances)
+    await api.updateSecurityPin({
+      newPin: newPin.trim(),
+      hint: hint !== undefined ? hint.trim() : undefined,
+      oldPin: oldPin ? oldPin.trim() : undefined,
+    });
 
-  localStorage.setItem(STORAGE_PIN_SALT_KEY, salt);
-  localStorage.setItem(STORAGE_PIN_HASH_KEY, hashed);
-  localStorage.setItem('ai_app_security_pin_quick', quickHash);
-  localStorage.removeItem(STORAGE_PIN_LEGACY_KEY); // Remove plaintext pin
+    // 2. Update local cryptographic cache
+    const salt = generateSalt();
+    const hashed = await hashPin(newPin, salt);
+    const quickHash = quickSyncHash(newPin, salt);
 
-  if (hint !== undefined) {
-    localStorage.setItem(STORAGE_PIN_HINT_KEY, hint);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_PIN_SALT_KEY, salt);
+      localStorage.setItem(STORAGE_PIN_HASH_KEY, hashed);
+      localStorage.setItem('ai_app_security_pin_quick', quickHash);
+      localStorage.setItem(STORAGE_HAS_CUSTOM_PIN_KEY, 'true');
+      localStorage.removeItem(STORAGE_PIN_LEGACY_KEY); // Remove plaintext pin
+
+      if (hint !== undefined) {
+        localStorage.setItem(STORAGE_PIN_HINT_KEY, hint);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Failed to update PIN on server:', error);
+    throw error;
   }
-  return true;
 }
 
-export function setPinEnabled(enabled: boolean): void {
-  localStorage.setItem(STORAGE_PIN_ENABLED_KEY, enabled ? 'true' : 'false');
-  if (!enabled) {
-    sessionStorage.setItem(SESSION_UNLOCKED_KEY, 'true');
+export async function setPinEnabled(enabled: boolean): Promise<void> {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_PIN_ENABLED_KEY, enabled ? 'true' : 'false');
+    if (!enabled) {
+      sessionStorage.setItem(SESSION_UNLOCKED_KEY, 'true');
+    }
+  }
+
+  try {
+    await api.updateSecurityPinSettings({ isEnabled: enabled });
+  } catch (e) {
+    console.warn('Failed to sync PIN enabled state to server:', e);
   }
 }
 
-export function setAutolockMinutes(minutes: number): void {
-  localStorage.setItem(STORAGE_AUTOLOCK_KEY, minutes.toString());
+export async function setAutolockMinutes(minutes: number): Promise<void> {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_AUTOLOCK_KEY, minutes.toString());
+  }
+
+  try {
+    await api.updateSecurityPinSettings({ autolockMinutes: minutes });
+  } catch (e) {
+    console.warn('Failed to sync autolock minutes to server:', e);
+  }
 }
 
 /**
- * Async verify PIN using SHA-256 cryptographic digest
+ * Async verify PIN using Server API with fallback to local SHA-256 cryptographic digest
  */
 export async function verifyPinAsync(inputPin: string): Promise<boolean> {
   if (typeof window === 'undefined') return inputPin === DEFAULT_PIN;
 
+  try {
+    // 1. Verify directly with Server (authoritative source across all machines)
+    const result = await api.verifySecurityPin(inputPin);
+    if (result.isValid) {
+      // Refresh local hash on successful verify
+      const salt = generateSalt();
+      const hashed = await hashPin(inputPin, salt);
+      const quickHash = quickSyncHash(inputPin, salt);
+      localStorage.setItem(STORAGE_PIN_SALT_KEY, salt);
+      localStorage.setItem(STORAGE_PIN_HASH_KEY, hashed);
+      localStorage.setItem('ai_app_security_pin_quick', quickHash);
+      localStorage.setItem(STORAGE_HAS_CUSTOM_PIN_KEY, inputPin !== DEFAULT_PIN ? 'true' : 'false');
+      return true;
+    }
+  } catch {
+    // In case server is temporarily unreachable, fallback to local hash
+  }
+
+  // 2. Offline / Local fallback check
   const savedHash = localStorage.getItem(STORAGE_PIN_HASH_KEY);
   const salt = localStorage.getItem(STORAGE_PIN_SALT_KEY);
   const legacyPin = localStorage.getItem(STORAGE_PIN_LEGACY_KEY);
 
-  // Case 1: No saved hash yet -> check default PIN
   if (!savedHash || !salt) {
     if (legacyPin) return inputPin === legacyPin;
     return inputPin === DEFAULT_PIN;
   }
 
-  // Case 2: SHA-256 verify
   const inputHash = await hashPin(inputPin, salt);
   return inputHash === savedHash;
 }
@@ -160,7 +230,6 @@ export function verifyPin(inputPin: string): boolean {
     return quickSyncHash(inputPin, salt) === quickHash;
   }
 
-  // Fallback check
   return false;
 }
 
