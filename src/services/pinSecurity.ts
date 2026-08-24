@@ -179,7 +179,7 @@ export async function verifyPinAsync(inputPin: string): Promise<boolean> {
   if (typeof window === 'undefined') return inputPin === DEFAULT_PIN;
 
   try {
-    // 1. Verify directly with Server (authoritative source across all machines)
+    // 1. Verify directly with Server (authoritative source across all machines & browsers)
     const result = await api.verifySecurityPin(inputPin);
     if (result.isValid) {
       // Refresh local hash on successful verify
@@ -191,15 +191,24 @@ export async function verifyPinAsync(inputPin: string): Promise<boolean> {
       localStorage.setItem('ai_app_security_pin_quick', quickHash);
       localStorage.setItem(STORAGE_HAS_CUSTOM_PIN_KEY, inputPin !== DEFAULT_PIN ? 'true' : 'false');
       return true;
+    } else {
+      // Server is online and explicitly stated the PIN is incorrect
+      return false;
     }
   } catch {
-    // In case server is temporarily unreachable, fallback to local hash
+    // In case server is temporarily unreachable (offline mode), fallback to local cache
   }
 
   // 2. Offline / Local fallback check
+  const hasCustom = localStorage.getItem(STORAGE_HAS_CUSTOM_PIN_KEY) === 'true';
   const savedHash = localStorage.getItem(STORAGE_PIN_HASH_KEY);
   const salt = localStorage.getItem(STORAGE_PIN_SALT_KEY);
   const legacyPin = localStorage.getItem(STORAGE_PIN_LEGACY_KEY);
+
+  if (hasCustom && !savedHash) {
+    // If a custom PIN is active on server, reject default 1234
+    return false;
+  }
 
   if (!savedHash || !salt) {
     if (legacyPin) return inputPin === legacyPin;
@@ -216,10 +225,15 @@ export async function verifyPinAsync(inputPin: string): Promise<boolean> {
 export function verifyPin(inputPin: string): boolean {
   if (typeof window === 'undefined') return inputPin === DEFAULT_PIN;
 
+  const hasCustom = localStorage.getItem(STORAGE_HAS_CUSTOM_PIN_KEY) === 'true';
   const savedHash = localStorage.getItem(STORAGE_PIN_HASH_KEY);
   const quickHash = localStorage.getItem('ai_app_security_pin_quick');
   const salt = localStorage.getItem(STORAGE_PIN_SALT_KEY);
   const legacyPin = localStorage.getItem(STORAGE_PIN_LEGACY_KEY);
+
+  if (hasCustom && !savedHash) {
+    return false;
+  }
 
   if (!savedHash || !salt) {
     if (legacyPin) return inputPin === legacyPin;

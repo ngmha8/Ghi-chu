@@ -48,8 +48,11 @@ export let cachedNotificationLogs: NotificationLog[] = [...initialNotificationLo
 export let cachedDriveServiceAccountConfig: DriveServiceAccountConfig = { ...initialDriveServiceAccountConfig };
 export let cachedSecurityPin: string = defaultSecurityPin;
 
-// Local JSON file backup path
-const DATA_DIR = path.join(_dirname, 'data');
+// Local JSON file backup path - resolved across both process.cwd() and __dirname
+const CWD_DATA_DIR = path.join(process.cwd(), 'data');
+const LOCAL_DATA_DIR = path.join(_dirname, 'data');
+const DATA_DIR = CWD_DATA_DIR;
+
 const LOCAL_CONFIG_FILE = path.join(DATA_DIR, 'telegram_config.json');
 const LOCAL_TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const LOCAL_NOTES_FILE = path.join(DATA_DIR, 'notes.json');
@@ -57,57 +60,78 @@ const LOCAL_FILES_FILE = path.join(DATA_DIR, 'files.json');
 const LOCAL_DRIVE_SA_FILE = path.join(DATA_DIR, 'drive_service_account.json');
 const LOCAL_SECURITY_PIN_FILE = path.join(DATA_DIR, 'security_pin.json');
 
-if (!fs.existsSync(DATA_DIR)) {
-  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+try {
+  if (!fs.existsSync(CWD_DATA_DIR)) fs.mkdirSync(CWD_DATA_DIR, { recursive: true });
+  if (!fs.existsSync(LOCAL_DATA_DIR)) fs.mkdirSync(LOCAL_DATA_DIR, { recursive: true });
+} catch (e) {}
+
+// Helper to safely load JSON from primary or secondary location
+function loadJsonFileSafe(fileName: string): any {
+  const primary = path.join(CWD_DATA_DIR, fileName);
+  const secondary = path.join(LOCAL_DATA_DIR, fileName);
+  try {
+    if (fs.existsSync(primary)) {
+      return JSON.parse(fs.readFileSync(primary, 'utf-8'));
+    }
+    if (fs.existsSync(secondary)) {
+      return JSON.parse(fs.readFileSync(secondary, 'utf-8'));
+    }
+  } catch (e) {
+    console.warn(`Could not read ${fileName}:`, e);
+  }
+  return null;
 }
 
 // Read local backups if present
 try {
-  if (fs.existsSync(LOCAL_CONFIG_FILE)) {
-    const data = JSON.parse(fs.readFileSync(LOCAL_CONFIG_FILE, 'utf-8'));
-    cachedTelegramConfig = { ...cachedTelegramConfig, ...data };
-  }
-  if (fs.existsSync(LOCAL_DRIVE_SA_FILE)) {
-    const data = JSON.parse(fs.readFileSync(LOCAL_DRIVE_SA_FILE, 'utf-8'));
-    cachedDriveServiceAccountConfig = { ...cachedDriveServiceAccountConfig, ...data };
-  }
-  if (fs.existsSync(LOCAL_TASKS_FILE)) {
-    const data = JSON.parse(fs.readFileSync(LOCAL_TASKS_FILE, 'utf-8'));
-    if (Array.isArray(data)) cachedTasks = data;
-  }
-  if (fs.existsSync(LOCAL_NOTES_FILE)) {
-    const data = JSON.parse(fs.readFileSync(LOCAL_NOTES_FILE, 'utf-8'));
-    if (Array.isArray(data)) cachedNotes = data;
-  }
-  if (fs.existsSync(LOCAL_FILES_FILE)) {
-    const data = JSON.parse(fs.readFileSync(LOCAL_FILES_FILE, 'utf-8'));
-    if (Array.isArray(data)) cachedFiles = data;
-  }
-  if (fs.existsSync(LOCAL_SECURITY_PIN_FILE)) {
-    const data = JSON.parse(fs.readFileSync(LOCAL_SECURITY_PIN_FILE, 'utf-8'));
-    if (data) {
-      if (data.pin) cachedSecurityPin = data.pin.toString();
-      cachedSecurityPinConfig = {
-        ...cachedSecurityPinConfig,
-        ...data,
-        pin: data.pin ? data.pin.toString() : cachedSecurityPin,
-      };
-    }
+  const cfgData = loadJsonFileSafe('telegram_config.json');
+  if (cfgData) cachedTelegramConfig = { ...cachedTelegramConfig, ...cfgData };
+
+  const saData = loadJsonFileSafe('drive_service_account.json');
+  if (saData) cachedDriveServiceAccountConfig = { ...cachedDriveServiceAccountConfig, ...saData };
+
+  const tasksData = loadJsonFileSafe('tasks.json');
+  if (Array.isArray(tasksData)) cachedTasks = tasksData;
+
+  const notesData = loadJsonFileSafe('notes.json');
+  if (Array.isArray(notesData)) cachedNotes = notesData;
+
+  const filesData = loadJsonFileSafe('files.json');
+  if (Array.isArray(filesData)) cachedFiles = filesData;
+
+  const pinData = loadJsonFileSafe('security_pin.json');
+  if (pinData) {
+    if (pinData.pin) cachedSecurityPin = pinData.pin.toString();
+    cachedSecurityPinConfig = {
+      ...cachedSecurityPinConfig,
+      ...pinData,
+      pin: pinData.pin ? pinData.pin.toString() : cachedSecurityPin,
+    };
   }
 } catch (e) {
   console.warn('Could not read local backup files:', e);
 }
 
 function saveLocalBackups() {
-  try {
-    fs.writeFileSync(LOCAL_CONFIG_FILE, JSON.stringify(cachedTelegramConfig, null, 2), 'utf-8');
-    fs.writeFileSync(LOCAL_DRIVE_SA_FILE, JSON.stringify(cachedDriveServiceAccountConfig, null, 2), 'utf-8');
-    fs.writeFileSync(LOCAL_TASKS_FILE, JSON.stringify(cachedTasks, null, 2), 'utf-8');
-    fs.writeFileSync(LOCAL_NOTES_FILE, JSON.stringify(cachedNotes, null, 2), 'utf-8');
-    fs.writeFileSync(LOCAL_FILES_FILE, JSON.stringify(cachedFiles, null, 2), 'utf-8');
-    fs.writeFileSync(LOCAL_SECURITY_PIN_FILE, JSON.stringify(cachedSecurityPinConfig, null, 2), 'utf-8');
-  } catch (e) {
-    console.warn('Error saving local backup:', e);
+  const dataMap: Record<string, string> = {
+    'telegram_config.json': JSON.stringify(cachedTelegramConfig, null, 2),
+    'drive_service_account.json': JSON.stringify(cachedDriveServiceAccountConfig, null, 2),
+    'tasks.json': JSON.stringify(cachedTasks, null, 2),
+    'notes.json': JSON.stringify(cachedNotes, null, 2),
+    'files.json': JSON.stringify(cachedFiles, null, 2),
+    'security_pin.json': JSON.stringify(cachedSecurityPinConfig, null, 2),
+  };
+
+  const targetDirs = Array.from(new Set([CWD_DATA_DIR, LOCAL_DATA_DIR]));
+  for (const dir of targetDirs) {
+    try {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      for (const [fName, content] of Object.entries(dataMap)) {
+        fs.writeFileSync(path.join(dir, fName), content, 'utf-8');
+      }
+    } catch (e) {
+      console.warn(`Error saving local backup to ${dir}:`, e);
+    }
   }
 }
 

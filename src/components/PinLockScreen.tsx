@@ -345,7 +345,11 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
                 <span>Thông tin bảo mật:</span>
               </div>
               <p className="text-[11px] text-[#AAAAAA]">
-                • {settings.hint || 'Mã PIN mặc định ban đầu là: 1234'}
+                • {settings.hasCustomPin 
+                    ? (settings.hint && settings.hint !== 'Mã PIN mặc định là 1234' && settings.hint !== 'Mã PIN mặc định ban đầu là 1234'
+                        ? `Gợi ý: ${settings.hint}` 
+                        : 'Mã PIN đã được chủ tài khoản thiết lập tùy chỉnh.')
+                    : (settings.hint || 'Mã PIN mặc định ban đầu là: 1234')}
               </p>
               <p className="text-[11px] text-[#777777]">
                 • Bạn có thể đổi mã PIN hoặc tắt tính năng này bất cứ lúc nào trong mục <strong>Cài Đặt ➔ Bảo Mật & Mã PIN</strong> sau khi đăng nhập.
