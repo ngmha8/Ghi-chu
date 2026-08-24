@@ -6,6 +6,8 @@ import {
   signInWithGoogleWorkspace,
   googleSignOut,
   GoogleOAuthUser,
+  getActiveGoogleClientId,
+  setCustomGoogleClientId,
 } from '../services/googleAuth.js';
 import {
   Settings,
@@ -175,6 +177,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [googleUser, setGoogleUser] = useState<GoogleOAuthUser | null>(null);
   const [isLoggingInGoogle, setIsLoggingInGoogle] = useState(false);
   const [oauthStatusMsg, setOauthStatusMsg] = useState<string | null>(null);
+  const [customClientIdInput, setCustomClientIdInput] = useState(() => getActiveGoogleClientId());
+  const [clientIdSavedSuccess, setClientIdSavedSuccess] = useState(false);
 
   // Listen to Google Auth
   useEffect(() => {
@@ -945,6 +949,76 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     Chưa đăng nhập
                   </span>
                 )}
+              </div>
+            </div>
+
+            {/* Google OAuth 2.0 Client ID Input Block */}
+            <div className="p-4 rounded bg-[#0C0C0C] border border-[#262626] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Google OAuth 2.0 Client ID (Tùy Chỉnh)</span>
+                </div>
+                <div className="text-[10px] text-[#888888] font-mono">
+                  Khớp với Google Cloud Credentials
+                </div>
+              </div>
+
+              <p className="text-[11px] text-[#888888] leading-relaxed">
+                Dán mã <strong>Client ID</strong> từ trang Google Cloud Console của bạn vào đây (dạng <code>...apps.googleusercontent.com</code>):
+              </p>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  type="text"
+                  value={customClientIdInput}
+                  onChange={(e) => setCustomClientIdInput(e.target.value)}
+                  placeholder="Ví dụ: 743701407061-xxx.apps.googleusercontent.com"
+                  className="flex-1 bg-black border border-[#333333] focus:border-[#D4AF37] rounded px-3 py-2 text-xs text-white outline-none font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomGoogleClientId(customClientIdInput);
+                    setClientIdSavedSuccess(true);
+                    setTimeout(() => setClientIdSavedSuccess(false), 3000);
+                  }}
+                  className="px-4 py-2 bg-[#252525] hover:bg-[#333333] text-[#D4AF37] border border-[#444] rounded text-xs font-semibold transition-colors shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {clientIdSavedSuccess ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400">Đã lưu Client ID!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Lưu Client ID</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-[#222222] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-[#888888]">
+                <div>
+                  Nguồn gốc JavaScript (Origin) cần khai báo:
+                  <span className="ml-1 text-amber-300 font-mono font-bold select-all underline">
+                    {typeof window !== 'undefined' ? window.location.origin : ''}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      navigator.clipboard?.writeText(window.location.origin);
+                      alert(`Đã sao chép: ${window.location.origin}`);
+                    }
+                  }}
+                  className="px-2 py-1 bg-[#222] hover:bg-[#333] text-white rounded text-[10px] flex items-center gap-1 font-mono shrink-0 cursor-pointer"
+                >
+                  <Copy className="w-3 h-3 text-[#D4AF37]" />
+                  <span>Sao chép Origin</span>
+                </button>
               </div>
             </div>
 
