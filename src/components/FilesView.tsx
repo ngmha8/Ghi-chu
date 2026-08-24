@@ -3,6 +3,14 @@ import { DriveFile, Task, Note, DriveServiceAccountConfig, DocumentCategory } fr
 import { TagSearchInput } from './TagSearchInput.js';
 import { api } from '../services/api.js';
 import {
+  initGoogleAuth,
+  signInWithGoogleWorkspace,
+  googleSignOut,
+  getGoogleAccessToken
+} from '../services/googleAuth.js';
+import { uploadLocalFileToUserGoogleDrive } from '../services/googleDriveUpload.js';
+import { User as FirebaseUser } from 'firebase/auth';
+import {
   FolderSync,
   UploadCloud,
   FileText,
@@ -64,7 +72,7 @@ interface FilesViewProps {
   files: DriveFile[];
   tasks: Task[];
   notes: Note[];
-  onFileUpload: (fileData: Partial<DriveFile>) => void;
+  onFileUpload: (fileData: Partial<DriveFile>) => Promise<DriveFile | null> | void;
   onFileDelete: (id: string) => void;
   onFileUpdate?: (id: string, fileData: Partial<DriveFile>) => void;
   openAiChatWithPrompt: (prompt: string) => void;
@@ -99,13 +107,28 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const [saConfig, setSaConfig] = useState<DriveServiceAccountConfig | null>(null);
   const [isSyncingSa, setIsSyncingSa] = useState(false);
 
+  // Google OAuth User State
+  const [googleUser, setGoogleUser] = useState<FirebaseUser | null>(null);
+  const [isLoggingInGoogle, setIsLoggingInGoogle] = useState(false);
+  const [syncingDriveFileId, setSyncingDriveFileId] = useState<string | null>(null);
+
   // Syncing state per file
   const [syncingFileIds, setSyncingFileIds] = useState<Record<string, boolean>>({});
 
-  // Real Upload progress
+  // Upload progress for local ingestion
   const [uploadProgress, setUploadProgress] = useState<{
     fileName: string;
     progress: number;
+    statusText: string;
+    active: boolean;
+  } | null>(null);
+
+  // Google Drive Sync Progress State (Progress Bar & Current File)
+  const [driveSyncProgress, setDriveSyncProgress] = useState<{
+    fileName: string;
+    current: number;
+    total: number;
+    percent: number;
     statusText: string;
     active: boolean;
   } | null>(null);
@@ -133,6 +156,21 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Category Deletion Confirmation & Warning State
   const [categoryToDelete, setCategoryToDelete] = useState<{ category: DocumentCategory; fileCount: number } | null>(null);
+
+  // Initialize Google Auth state listener
+  useEffect(() => {
+    const unsub = initGoogleAuth(
+      (user, token) => {
+        setGoogleUser(user);
+      },
+      () => {
+        setGoogleUser(null);
+      }
+    );
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
 
   // Load Service Account config on mount
   useEffect(() => {
@@ -206,6 +244,166 @@ export const FilesView: React.FC<FilesViewProps> = ({
       .catch(() => {})
       .finally(() => setIsLoadingPreview(false));
   }, [previewFile]);
+
+  // Handle Google Workspace 1-Click Sign-in
+  const handleGoogleSignInClick = async () => {
+    setIsLoggingInGoogle(true);
+    setAuthError(null);
+    try {
+      const res = await signInWithGoogleWorkspace();
+      if (res?.user) {
+        setGoogleUser(res.user);
+        setSyncStatusMsg(`✅ Đã kết nối Google Drive tài khoản: ${res.user.email}`);
+        setTimeout(() => setSyncStatusMsg(null), 4000);
+      }
+    } catch (err: any) {
+      setAuthError(`Lỗi đăng nhập Google: ${err?.message || 'Không thể xác thực'}`);
+    } finally {
+      setIsLoggingInGoogle(false);
+    }
+  };
+
+  const handleGoogleSignOutClick = async () => {
+    try {
+      await googleSignOut();
+      setGoogleUser(null);
+      setSyncStatusMsg('Đã đăng xuất tài khoản Google.');
+      setTimeout(() => setSyncStatusMsg(null), 3000);
+    } catch (err: any) {
+      console.warn('Sign out error:', err);
+    }
+  };
+
+  // 1-Click Sync Local File to Personal Google Drive
+  const handleSyncLocalFileToUserDrive = async (file: DriveFile) => {
+    setSyncingDriveFileId(file.id);
+    setAuthError(null);
+    setDriveSyncProgress({
+      fileName: file.name,
+      current: 1,
+      total: 1,
+      percent: 25,
+      statusText: 'Đang chuẩn bị đẩy tệp lên Google Drive...',
+      active: true,
+    });
+    setSyncStatusMsg(`Đang đẩy tệp "${file.name}" lên Google Drive cá nhân...`);
+
+    try {
+      const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
+      
+      setDriveSyncProgress(prev => prev ? { ...prev, percent: 60, statusText: 'Đang tải nhị phân lên Google Drive...' } : null);
+      const uploaded = await uploadLocalFileToUserGoogleDrive(file.id, targetFolderId);
+
+      setDriveSyncProgress(prev => prev ? { ...prev, percent: 95, statusText: 'Đã hoàn tất lưu Drive & giải phóng bộ nhớ cục bộ...' } : null);
+
+      if (onFileUpdate && uploaded.file) {
+        onFileUpdate(file.id, uploaded.file);
+      } else if (onFileUpdate) {
+        onFileUpdate(file.id, {
+          isSyncedToDrive: true,
+          driveFileId: uploaded.driveFileId,
+          webViewLink: uploaded.webViewLink,
+          syncStatus: 'synced',
+        } as any);
+      }
+
+      setDriveSyncProgress({
+        fileName: file.name,
+        current: 1,
+        total: 1,
+        percent: 100,
+        statusText: 'Đã lưu Google Drive thành công!',
+        active: false,
+      });
+
+      setSyncStatusMsg(`✅ Đã lưu "${file.name}" lên Google Drive & dọn dẹp file nội bộ!`);
+      setTimeout(() => {
+        setSyncStatusMsg(null);
+        setDriveSyncProgress(null);
+      }, 4000);
+    } catch (err: any) {
+      console.error('Error syncing file to Drive:', err);
+      setAuthError(`Lỗi đồng bộ lên Google Drive: ${err?.message || 'Vui lòng kiểm tra quyền truy cập.'}`);
+      setDriveSyncProgress(null);
+    } finally {
+      setSyncingDriveFileId(null);
+    }
+  };
+
+  // 1-Click Sync ALL Local Files to Personal Google Drive
+  const handleSyncAllLocalFilesToUserDrive = async () => {
+    const localFiles = files.filter(f => !f.isSyncedToDrive && f.syncStatus !== 'synced');
+    if (localFiles.length === 0) {
+      setSyncStatusMsg('Tất cả các tệp hiện tại đã được đồng bộ trên Google Drive!');
+      setTimeout(() => setSyncStatusMsg(null), 3000);
+      return;
+    }
+
+    setAuthError(null);
+    setDriveSyncProgress({
+      fileName: localFiles[0].name,
+      current: 1,
+      total: localFiles.length,
+      percent: 5,
+      statusText: `Bắt đầu đồng bộ 1/${localFiles.length}...`,
+      active: true,
+    });
+    setSyncStatusMsg(`Bắt đầu đồng bộ ${localFiles.length} tệp cục bộ lên Google Drive...`);
+    let successCount = 0;
+    const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
+
+    for (let i = 0; i < localFiles.length; i++) {
+      const f = localFiles[i];
+      const currentPercent = Math.round(((i) / localFiles.length) * 100);
+      setSyncingDriveFileId(f.id);
+      setDriveSyncProgress({
+        fileName: f.name,
+        current: i + 1,
+        total: localFiles.length,
+        percent: Math.max(5, currentPercent),
+        statusText: `Đang tải (${i + 1}/${localFiles.length}): ${f.name}...`,
+        active: true,
+      });
+
+      try {
+        const uploaded = await uploadLocalFileToUserGoogleDrive(f.id, targetFolderId);
+        if (onFileUpdate && uploaded.file) {
+          onFileUpdate(f.id, uploaded.file);
+        } else if (onFileUpdate) {
+          onFileUpdate(f.id, {
+            isSyncedToDrive: true,
+            driveFileId: uploaded.driveFileId,
+            webViewLink: uploaded.webViewLink,
+            syncStatus: 'synced',
+          } as any);
+        }
+        successCount++;
+        const nextPercent = Math.round(((i + 1) / localFiles.length) * 100);
+        setDriveSyncProgress(prev => prev ? { ...prev, percent: nextPercent, statusText: `Đã xong (${i + 1}/${localFiles.length}): ${f.name}` } : null);
+      } catch (err: any) {
+        console.error(`Error syncing file ${f.name}:`, err);
+        setAuthError(`Lỗi khi tải tệp "${f.name}": ${err?.message || 'Lỗi xác thực'}`);
+      }
+    }
+
+    setSyncingDriveFileId(null);
+    if (successCount > 0) {
+      setDriveSyncProgress({
+        fileName: `${successCount} tệp`,
+        current: successCount,
+        total: localFiles.length,
+        percent: 100,
+        statusText: `Đã đồng bộ thành công ${successCount}/${localFiles.length} tệp!`,
+        active: false,
+      });
+      setSyncStatusMsg(`✅ Đã đồng bộ thành công ${successCount}/${localFiles.length} tệp lên Google Drive & xóa lưu trữ cục bộ!`);
+    }
+
+    setTimeout(() => {
+      setSyncStatusMsg(null);
+      setDriveSyncProgress(null);
+    }, 4500);
+  };
 
   // Unified handler to sync all pre-existing files directly from Google Drive
   const handleUnifiedSyncDriveFiles = async () => {
@@ -368,14 +566,21 @@ export const FilesView: React.FC<FilesViewProps> = ({
     setUploadProgress({
       active: true,
       fileName: rawFile.name,
-      progress: 25,
-      statusText: 'Đang chuẩn bị tải lên...'
+      progress: 30,
+      statusText: 'Đang chuẩn bị tệp và mã hóa dữ liệu...'
     });
 
     let base64Data = '';
     try {
       base64Data = await fileToBase64(rawFile);
     } catch (e) {}
+
+    setUploadProgress({
+      active: true,
+      fileName: rawFile.name,
+      progress: 70,
+      statusText: 'Đang lưu trữ và đồng bộ Google Drive...'
+    });
 
     const filePayload: Partial<DriveFile> & { base64Data?: string } = {
       id: fileId,
@@ -392,14 +597,24 @@ export const FilesView: React.FC<FilesViewProps> = ({
       base64Data: base64Data,
     };
 
-    onFileUpload(filePayload);
-    setUploadProgress({
-      active: true,
-      fileName: rawFile.name,
-      progress: 100,
-      statusText: 'Hoàn tất tải lên!'
-    });
-    setTimeout(() => setUploadProgress(null), 1500);
+    const created = await onFileUpload(filePayload);
+
+    if (created?.isSyncedToDrive && created?.webViewLink) {
+      setUploadProgress({
+        active: true,
+        fileName: rawFile.name,
+        progress: 100,
+        statusText: '✅ Đã tải lên và kết nối Google Drive thành công!'
+      });
+    } else {
+      setUploadProgress({
+        active: true,
+        fileName: rawFile.name,
+        progress: 100,
+        statusText: '✅ Đã lưu trữ an toàn trong kho dữ liệu & lập chỉ mục AI!'
+      });
+    }
+    setTimeout(() => setUploadProgress(null), 2500);
   };
 
   const handleTriggerPicker = () => {
@@ -551,6 +766,38 @@ export const FilesView: React.FC<FilesViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Google Account 1-Click Connection Status */}
+          {googleUser ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm bg-emerald-950/60 border border-emerald-700/80 text-[11px] font-mono text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="truncate max-w-[140px]" title={googleUser.email || ''}>
+                {googleUser.email}
+              </span>
+              <button
+                onClick={handleGoogleSignOutClick}
+                className="text-[10px] text-emerald-200/60 hover:text-white underline cursor-pointer ml-1"
+                title="Đăng xuất tài khoản Google"
+              >
+                Thoát
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleGoogleSignInClick}
+              disabled={isLoggingInGoogle}
+              className="px-3 py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-white border border-[#3A3A3A] hover:border-[#D4AF37] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+              title="Đăng nhập Google Account để đồng bộ 1-Click sang Drive"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              <span>{isLoggingInGoogle ? 'Đang kết nối...' : 'Đăng Nhập Google'}</span>
+            </button>
+          )}
+
           {/* Quick Category Manager Button */}
           <button
             onClick={() => setIsManagingCategories(true)}
@@ -565,12 +812,25 @@ export const FilesView: React.FC<FilesViewProps> = ({
           <button
             onClick={handleUnifiedSyncDriveFiles}
             disabled={isSyncing || isSyncingSa}
-            className="px-3.5 py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/60 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-            title="Quét và đồng bộ toàn bộ danh sách tệp sẵn có trong thư mục Google Drive về ứng dụng"
+            className="px-3 py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/60 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+            title="Quét và nạp các tệp mới từ thư mục Google Drive về ứng dụng"
           >
-            <FolderSync className={`w-4 h-4 text-[#D4AF37] ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
-            <span>{isSyncing || isSyncingSa ? 'Đang đồng bộ...' : 'Đồng Bộ Từ Drive'}</span>
+            <FolderSync className={`w-3.5 h-3.5 text-[#D4AF37] ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
+            <span>{isSyncing || isSyncingSa ? 'Đang tải...' : 'Đồng Bộ Từ Drive'}</span>
           </button>
+
+          {/* Prominent Sync ALL Local Files to Personal Google Drive Button */}
+          {files.some(f => !f.isSyncedToDrive && f.syncStatus !== 'synced') && (
+            <button
+              onClick={handleSyncAllLocalFilesToUserDrive}
+              disabled={!!syncingDriveFileId}
+              className="px-3.5 py-2 rounded-sm bg-gradient-to-r from-emerald-950 to-[#1A1A1A] hover:from-emerald-900 hover:to-[#252525] text-emerald-400 border border-emerald-600/80 hover:border-emerald-400 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+              title="Đẩy tất cả các tệp đang lưu cục bộ lên Google Drive cá nhân của bạn"
+            >
+              <Cloud className={`w-4 h-4 text-emerald-400 ${syncingDriveFileId ? 'animate-bounce' : ''}`} />
+              <span>{syncingDriveFileId ? 'Đang Đẩy Lên Drive...' : 'Đồng Bộ File Cục Bộ Lên Drive'}</span>
+            </button>
+          )}
 
           {/* Quick External Link to Google Drive folder */}
           {saConfig?.folderId && (
@@ -734,6 +994,36 @@ export const FilesView: React.FC<FilesViewProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Google Drive Sync Progress Indicator if active */}
+      {driveSyncProgress && (
+        <div className="p-4 rounded-sm bg-[#121E18] border border-emerald-500/80 space-y-2.5 shadow-xl animate-in fade-in">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2.5 text-emerald-400 font-bold">
+              <Cloud className={`w-4 h-4 text-emerald-400 ${driveSyncProgress.active ? 'animate-bounce' : ''}`} />
+              <span>
+                {driveSyncProgress.statusText}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                {driveSyncProgress.current}/{driveSyncProgress.total} tệp
+              </span>
+              <span className="font-mono text-emerald-400 font-extrabold text-xs">{driveSyncProgress.percent}%</span>
+            </div>
+          </div>
+          <div className="w-full bg-[#080E0B] h-3 rounded-full overflow-hidden border border-emerald-800/80 p-0.5">
+            <div
+              className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-300 ease-out shadow-sm"
+              style={{ width: `${Math.max(4, Math.min(100, driveSyncProgress.percent))}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-emerald-300/70 font-mono">
+            <span>Tệp đang xử lý: <strong className="text-white">{driveSyncProgress.fileName}</strong></span>
+            <span>⚡ Tự động giải phóng lưu trữ cục bộ</span>
+          </div>
+        </div>
+      )}
 
       {/* Upload Progress Indicator if active */}
       {uploadProgress && (
@@ -1041,35 +1331,50 @@ export const FilesView: React.FC<FilesViewProps> = ({
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex items-center justify-between pt-2 border-t border-[#2A2A2A]">
+                <div className="flex items-center justify-between pt-2 border-t border-[#2A2A2A] gap-1">
                   <button
                     onClick={() => openAiChatWithPrompt(`Hãy phân tích và tóm tắt nội dung tài liệu "${file.name}" (Nhóm: ${resolvedCat.name}, Định dạng: ${file.category})`)}
                     className="text-[10px] font-bold text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Sparkles className="w-3 h-3" />
-                    <span>Hỏi AI về file</span>
+                    <span>Hỏi AI</span>
                   </button>
 
-                  {isSynced && file.webViewLink ? (
-                    <a
-                      href={file.webViewLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-2 py-1 rounded-sm bg-emerald-950/40 text-emerald-400 border border-emerald-800/80 hover:bg-emerald-600 hover:text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors"
-                      title="Mở tệp trực tiếp trong Google Drive"
-                    >
-                      <span>Mở Google Drive</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  ) : (
-                    <button
-                      onClick={() => setPreviewFile(file)}
-                      className="px-2 py-1 rounded-sm bg-[#0C0C0C] text-[#E0E0E0] border border-[#2A2A2A] hover:bg-[#D4AF37] hover:text-black text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
-                    >
-                      <span>Xem Trước</span>
-                      <Eye className="w-2.5 h-2.5" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {/* If local-only, show 1-Click Push to Personal Google Drive */}
+                    {!isSynced && (
+                      <button
+                        onClick={() => handleSyncLocalFileToUserDrive(file)}
+                        disabled={syncingDriveFileId === file.id}
+                        className="px-2 py-1 rounded-sm bg-[#1A1A1A] hover:bg-[#D4AF37] text-[#D4AF37] hover:text-black border border-[#D4AF37]/50 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                        title="Đẩy file này lên Google Drive cá nhân của bạn"
+                      >
+                        <Cloud className={`w-3 h-3 ${syncingDriveFileId === file.id ? 'animate-bounce' : ''}`} />
+                        <span>{syncingDriveFileId === file.id ? 'Đang lưu...' : 'Lưu lên Drive'}</span>
+                      </button>
+                    )}
+
+                    {isSynced && file.webViewLink ? (
+                      <a
+                        href={file.webViewLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2 py-1 rounded-sm bg-emerald-950/40 text-emerald-400 border border-emerald-800/80 hover:bg-emerald-600 hover:text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors"
+                        title="Mở tệp trực tiếp trong Google Drive"
+                      >
+                        <span>Mở Drive</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => setPreviewFile(file)}
+                        className="px-2 py-1 rounded-sm bg-[#0C0C0C] text-[#E0E0E0] border border-[#2A2A2A] hover:bg-[#D4AF37] hover:text-black text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>Xem Trước</span>
+                        <Eye className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

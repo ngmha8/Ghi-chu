@@ -258,13 +258,13 @@ app.post('/api/files', async (req: Request, res: Response) => {
         mimeType,
         fileBuffer
       );
-      if (uploadedToDrive?.id) {
+      if (uploadedToDrive?.uploadedToDrive && uploadedToDrive.id) {
         driveFileId = uploadedToDrive.id;
         webViewLink = uploadedToDrive.webViewLink;
         isSynced = true;
       }
-    } catch (driveErr) {
-      console.warn('Background Service Account Drive upload notice:', driveErr);
+    } catch (driveErr: any) {
+      console.info(`ℹ️ File "${fileName}" stored safely in local vault: ${driveErr?.message || 'Drive sync deferred'}`);
     }
   }
 
@@ -275,6 +275,8 @@ app.post('/api/files', async (req: Request, res: Response) => {
     size: size,
     webViewLink: isSynced && webViewLink ? webViewLink : undefined,
     category: req.body.category || 'document',
+    classification: req.body.classification || 'work',
+    tags: req.body.tags || [],
     isSyncedToDrive: isSynced,
     driveFileId: driveFileId,
     syncStatus: isSynced ? 'synced' : 'local_only',
@@ -318,7 +320,23 @@ app.get('/api/files/download/:id', async (req: Request, res: Response) => {
     const matched = filesInDir.find(fn => fn.startsWith(fileId));
     if (matched) {
       const fullPath = path.join(UPLOADS_DIR, matched);
-      return res.download(fullPath, file.name);
+      if (fs.existsSync(fullPath)) {
+        const ext = path.extname(file.name).toLowerCase();
+        let safeMime = file.mimeType || 'application/octet-stream';
+        if (ext === '.docx') safeMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        else if (ext === '.doc') safeMime = 'application/msword';
+        else if (ext === '.xlsx') safeMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        else if (ext === '.xls') safeMime = 'application/vnd.ms-excel';
+        else if (ext === '.pdf') safeMime = 'application/pdf';
+
+        const safeAsciiName = file.name.replace(/[^\x20-\x7E]/g, '_');
+        res.setHeader('Content-Type', safeMime);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`
+        );
+        return res.sendFile(fullPath);
+      }
     }
   } catch (e) {
     console.warn('Error checking uploads folder:', e);
@@ -388,6 +406,135 @@ app.post('/api/files/sync-drive/:id', async (req: Request, res: Response) => {
 
   const saved = await saveDbFile(updated);
   res.json({ success: true, file: saved });
+});
+
+// Upload a local vault file to Google Drive using User OAuth Access Token (Bearer Header)
+app.post('/api/files/upload-to-user-drive/:id', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Thiếu Google OAuth Access Token. Vui lòng bấm Đăng Nhập Google để kết nối.' });
+    }
+    const userToken = authHeader.substring(7);
+    const fileId = req.params.id;
+    const targetFolderId = req.body?.folderId;
+
+    const files = await getDbFiles();
+    const file = files.find(f => f.id === fileId);
+    if (!file) {
+      return res.status(404).json({ error: 'Không tìm thấy thông tin tệp.' });
+    }
+
+    // Locate local binary buffer
+    let fileBuffer: Buffer | null = null;
+    try {
+      const filesInDir = fs.readdirSync(UPLOADS_DIR);
+      const matched = filesInDir.find(fn => fn.startsWith(fileId));
+      if (matched) {
+        const fullPath = path.join(UPLOADS_DIR, matched);
+        if (fs.existsSync(fullPath)) {
+          fileBuffer = fs.readFileSync(fullPath);
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading file from disk:', e);
+    }
+
+    if (!fileBuffer && file.textContent) {
+      fileBuffer = Buffer.from(file.textContent, 'utf-8');
+    }
+
+    if (!fileBuffer) {
+      return res.status(404).json({ error: 'Không tìm thấy dữ liệu tệp nhị phân trên máy chủ.' });
+    }
+
+    // Google Drive v3 Multipart upload
+    const metadata: { name: string; mimeType: string; parents?: string[] } = {
+      name: file.name,
+      mimeType: file.mimeType || 'application/octet-stream',
+    };
+    if (targetFolderId && targetFolderId.trim().length > 0) {
+      metadata.parents = [targetFolderId.trim()];
+    }
+
+    const boundary = '-------NodeDriveOAuthUpload' + Date.now().toString(36);
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelimiter = `\r\n--${boundary}--`;
+
+    const metadataPart = Buffer.from(
+      `${delimiter}Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}`
+    );
+    const mediaHeaderPart = Buffer.from(
+      `${delimiter}Content-Type: ${file.mimeType || 'application/octet-stream'}\r\n\r\n`
+    );
+    const endPart = Buffer.from(`${closeDelimiter}`);
+
+    const multipartBody = Buffer.concat([metadataPart, mediaHeaderPart, fileBuffer, endPart]);
+
+    const driveRes = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+          'Content-Length': multipartBody.length.toString(),
+        },
+        body: multipartBody,
+      }
+    );
+
+    if (!driveRes.ok) {
+      const errText = await driveRes.text();
+      console.error('Google Drive API error:', errText);
+      let errMsg = `Lỗi Google Drive (${driveRes.status})`;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed?.error?.message) errMsg = parsed.error.message;
+      } catch (e) {}
+      return res.status(driveRes.status).json({ error: errMsg });
+    }
+
+    const driveResult: any = await driveRes.json();
+    const driveFileId = driveResult.id;
+    const webViewLink = driveResult.webViewLink || `https://drive.google.com/file/d/${driveFileId}/view`;
+
+    // Delete local physical file if it exists to free local disk space
+    try {
+      const filesInDir = fs.readdirSync(UPLOADS_DIR);
+      const matched = filesInDir.find(fn => fn.startsWith(fileId));
+      if (matched) {
+        const fullPath = path.join(UPLOADS_DIR, matched);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+          console.log(`[Storage] Deleted local physical file after Drive upload: ${matched}`);
+        }
+      }
+    } catch (cleanErr) {
+      console.warn('Could not remove local file copy:', cleanErr);
+    }
+
+    // Update DB record
+    const updated: DriveFile = {
+      ...file,
+      driveFileId: driveFileId,
+      webViewLink: webViewLink,
+      isSyncedToDrive: true,
+      syncStatus: 'synced',
+      syncError: undefined,
+    };
+
+    const saved = await saveDbFile(updated);
+
+    return res.json({
+      success: true,
+      file: saved,
+      driveResult,
+    });
+  } catch (error: any) {
+    console.error('Error uploading file to user drive:', error);
+    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+  }
 });
 
 app.put('/api/files/:id', async (req: Request, res: Response) => {

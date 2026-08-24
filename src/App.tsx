@@ -240,12 +240,14 @@ export default function App() {
   // -------------------------------------------------------------
   // FILE HANDLERS
   // -------------------------------------------------------------
-  const handleFileUpload = async (fileData: Partial<DriveFile>) => {
+  const handleFileUpload = async (fileData: Partial<DriveFile>): Promise<DriveFile | null> => {
     try {
       const created = await api.uploadFile(fileData);
-      setFiles(prev => [created, ...prev]);
+      setFiles(prev => [created, ...prev.filter(f => f.id !== created.id)]);
+      return created;
     } catch (err) {
       console.error('Error uploading file:', err);
+      return null;
     }
   };
 

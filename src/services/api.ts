@@ -100,6 +100,16 @@ export const api = {
     return res.json();
   },
 
+  syncFileToDrive: async (id: string, driveData: { driveFileId: string; webViewLink?: string }): Promise<{ success: boolean; file: DriveFile }> => {
+    const res = await fetch(`/api/files/sync-drive/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(driveData),
+    });
+    if (!res.ok) throw new Error('Failed to sync file status');
+    return res.json();
+  },
+
   // Telegram Config & Webhook Bot Endpoints
   getTelegramConfig: async (): Promise<{ config: TelegramConfig; logs: NotificationLog[] }> => {
     const res = await fetch('/api/telegram/config');
