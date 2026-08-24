@@ -190,8 +190,14 @@ export const signInWithGoogleWorkspace = async (): Promise<{
           resolve({ user: userProfile, accessToken });
         },
         error_callback: (err: any) => {
-          console.error('GIS Client error:', err);
-          reject(new Error(err?.message || 'Đã hủy hoặc gặp lỗi trong quá trình xác thực Google.'));
+          // If the user closed the popup window manually, treat as cancellation rather than hard error
+          const msg = err?.message || '';
+          if (err?.type === 'popup_closed' || msg.toLowerCase().includes('popup window closed') || msg.toLowerCase().includes('popup_closed')) {
+            reject(new Error('Đã hủy đăng nhập Google (cửa sổ xác thực đã được đóng).'));
+            return;
+          }
+          console.warn('GIS Client notification:', err);
+          reject(new Error(msg || 'Đã hủy hoặc gặp lỗi trong quá trình xác thực Google.'));
         },
       });
 

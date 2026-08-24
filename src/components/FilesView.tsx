@@ -257,7 +257,12 @@ export const FilesView: React.FC<FilesViewProps> = ({
         setTimeout(() => setSyncStatusMsg(null), 4000);
       }
     } catch (err: any) {
-      setAuthError(`Lỗi đăng nhập Google: ${err?.message || 'Không thể xác thực'}`);
+      const msg = err?.message || 'Không thể xác thực';
+      if (msg.includes('đã được đóng') || msg.includes('Đã hủy')) {
+        setAuthError(msg);
+      } else {
+        setAuthError(`Lỗi đăng nhập Google: ${msg}`);
+      }
     } finally {
       setIsLoggingInGoogle(false);
     }
