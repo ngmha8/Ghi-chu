@@ -141,3 +141,37 @@ export interface SecurityPinSettings {
   updatedAt?: string;
 }
 
+export type AiMemoryCategory = 'preference' | 'identity' | 'rule' | 'workflow' | 'domain_knowledge' | 'habit';
+
+export interface AiMemoryFact {
+  id: string;
+  category: AiMemoryCategory;
+  fact: string;
+  confidence: number; // 0.1 to 1.0
+  source: 'chat' | 'voice' | 'explicit' | 'reflection' | 'task_pattern';
+  occurrences: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiLearningInsight {
+  id: string;
+  title: string;
+  summary: string;
+  actionableAdvice: string;
+  category: 'productivity' | 'focus' | 'workload' | 'pattern';
+  generatedAt: string;
+  confidenceScore: number;
+}
+
+export interface AiLearningStats {
+  totalMemories: number;
+  activeMemoriesCount: number;
+  insightsCount: number;
+  topCategories: { category: string; count: number }[];
+  learningLevel: string; // 'Tập sự' | 'Thấu hiểu' | 'Đồng hành thông thái' | 'Cố vấn tri kỷ'
+  learningScore: number; // 0 - 100
+  lastReflectedAt?: string;
+}
+

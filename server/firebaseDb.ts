@@ -18,7 +18,10 @@ import type {
   TelegramConfig,
   NotificationLog,
   DriveServiceAccountConfig,
-  DocumentCategory
+  DocumentCategory,
+  AiMemoryFact,
+  AiLearningInsight,
+  AiLearningStats
 } from '../src/types/index.ts';
 import {
   initialTasks,
@@ -26,7 +29,9 @@ import {
   initialFiles,
   initialTelegramConfig,
   initialNotificationLogs,
-  initialCategories
+  initialCategories,
+  initialAiMemories,
+  initialAiInsights
 } from './initialData.ts';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
@@ -68,6 +73,8 @@ export let cachedTelegramConfig: TelegramConfig = { ...initialTelegramConfig };
 export let cachedNotificationLogs: NotificationLog[] = [...initialNotificationLogs];
 export let cachedDriveServiceAccountConfig: DriveServiceAccountConfig = { ...initialDriveServiceAccountConfig };
 export let cachedSecurityPin: string = defaultSecurityPin;
+export let cachedAiMemories: AiMemoryFact[] = [...initialAiMemories];
+export let cachedAiInsights: AiLearningInsight[] = [...initialAiInsights];
 
 // Local JSON file backup path
 const CWD_DATA_DIR = path.join(process.cwd(), 'data');
@@ -118,6 +125,12 @@ try {
   const filesData = loadJsonFileSafe('files.json');
   if (Array.isArray(filesData)) cachedFiles = filesData;
 
+  const memData = loadJsonFileSafe('ai_memories.json');
+  if (Array.isArray(memData) && memData.length > 0) cachedAiMemories = memData;
+
+  const insData = loadJsonFileSafe('ai_insights.json');
+  if (Array.isArray(insData) && insData.length > 0) cachedAiInsights = insData;
+
   const pinData = loadJsonFileSafe('security_pin.json');
   if (pinData) {
     if (pinData.pin) cachedSecurityPin = pinData.pin.toString();
@@ -139,6 +152,8 @@ function saveLocalBackups() {
     'tasks.json': JSON.stringify(cachedTasks, null, 2),
     'notes.json': JSON.stringify(cachedNotes, null, 2),
     'files.json': JSON.stringify(cachedFiles, null, 2),
+    'ai_memories.json': JSON.stringify(cachedAiMemories, null, 2),
+    'ai_insights.json': JSON.stringify(cachedAiInsights, null, 2),
     'security_pin.json': JSON.stringify(cachedSecurityPinConfig, null, 2),
   };
 
@@ -304,6 +319,37 @@ export async function initializeFirestoreData() {
       console.log(`📥 Loaded Security PIN Config from Firebase Firestore.`);
     } else {
       await firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
+    }
+
+    // 8. Sync AI Learned Memories (Self-Learning Memory Store)
+    const memsSnap = await getDocs(collection(firestoreDb, 'ai_memories'));
+    if (!memsSnap.empty) {
+      const cloudMems: AiMemoryFact[] = [];
+      memsSnap.forEach(d => {
+        cloudMems.push({ ...(d.data() as AiMemoryFact), id: d.id });
+      });
+      cachedAiMemories = cloudMems;
+      console.log(`📥 Loaded ${cloudMems.length} learned AI memories from Firebase Firestore.`);
+    } else if (cachedAiMemories.length > 0) {
+      console.log(`📤 Seeding ${cachedAiMemories.length} initial AI memories to Firestore...`);
+      for (const m of cachedAiMemories) {
+        await firestoreSetDoc('ai_memories', m.id, m);
+      }
+    }
+
+    // 9. Sync AI Learning Insights
+    const insSnap = await getDocs(collection(firestoreDb, 'ai_insights'));
+    if (!insSnap.empty) {
+      const cloudIns: AiLearningInsight[] = [];
+      insSnap.forEach(d => {
+        cloudIns.push({ ...(d.data() as AiLearningInsight), id: d.id });
+      });
+      cachedAiInsights = cloudIns;
+      console.log(`📥 Loaded ${cloudIns.length} AI learning insights from Firebase Firestore.`);
+    } else if (cachedAiInsights.length > 0) {
+      for (const ins of cachedAiInsights) {
+        await firestoreSetDoc('ai_insights', ins.id, ins);
+      }
     }
 
     // Save final merged state to local backups
@@ -576,3 +622,103 @@ export function appendConversationTurn(
 export function clearConversationHistory(sessionId: string): void {
   conversationMemoryStore.delete(sessionId);
 }
+
+// -------------------------------------------------------------
+// CRUD METHODS (AI SELF-LEARNING MEMORY & INSIGHTS)
+// -------------------------------------------------------------
+export async function getDbAiMemories(): Promise<AiMemoryFact[]> {
+  return cachedAiMemories.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+}
+
+export async function getActiveDbAiMemories(): Promise<AiMemoryFact[]> {
+  return cachedAiMemories.filter(m => m.isActive !== false);
+}
+
+export async function saveDbAiMemory(memory: AiMemoryFact): Promise<AiMemoryFact> {
+  const index = cachedAiMemories.findIndex(m => m.id === memory.id);
+  if (index >= 0) {
+    cachedAiMemories[index] = {
+      ...cachedAiMemories[index],
+      ...memory,
+      updatedAt: new Date().toISOString(),
+    };
+  } else {
+    cachedAiMemories.unshift(memory);
+  }
+  saveLocalBackups();
+  firestoreSetDoc('ai_memories', memory.id, memory);
+  return memory;
+}
+
+export async function deleteDbAiMemory(id: string): Promise<boolean> {
+  cachedAiMemories = cachedAiMemories.filter(m => m.id !== id);
+  saveLocalBackups();
+  firestoreDeleteDoc('ai_memories', id);
+  return true;
+}
+
+export async function getDbAiInsights(): Promise<AiLearningInsight[]> {
+  return cachedAiInsights.sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime());
+}
+
+export async function saveDbAiInsight(insight: AiLearningInsight): Promise<AiLearningInsight> {
+  const index = cachedAiInsights.findIndex(i => i.id === insight.id);
+  if (index >= 0) {
+    cachedAiInsights[index] = insight;
+  } else {
+    cachedAiInsights.unshift(insight);
+  }
+  if (cachedAiInsights.length > 50) {
+    cachedAiInsights = cachedAiInsights.slice(0, 50);
+  }
+  saveLocalBackups();
+  firestoreSetDoc('ai_insights', insight.id, insight);
+  return insight;
+}
+
+export async function deleteDbAiInsight(id: string): Promise<boolean> {
+  cachedAiInsights = cachedAiInsights.filter(i => i.id !== id);
+  saveLocalBackups();
+  firestoreDeleteDoc('ai_insights', id);
+  return true;
+}
+
+export async function getDbAiLearningStats(): Promise<AiLearningStats> {
+  const activeMemories = cachedAiMemories.filter(m => m.isActive !== false);
+  const total = cachedAiMemories.length;
+
+  const categoryCounts: Record<string, number> = {};
+  for (const m of activeMemories) {
+    categoryCounts[m.category] = (categoryCounts[m.category] || 0) + 1;
+  }
+
+  const topCategories = Object.entries(categoryCounts).map(([cat, count]) => ({
+    category: cat,
+    count,
+  })).sort((a, b) => b.count - a.count);
+
+  // Score calculation: 10 + (activeMemories * 15) + (insights * 10) capped at 100
+  const calculatedScore = Math.min(100, 20 + activeMemories.length * 12 + cachedAiInsights.length * 8);
+
+  let learningLevel = 'Tập sự (Novice)';
+  if (calculatedScore >= 85) {
+    learningLevel = 'Cố vấn tri kỷ (Executive Twin)';
+  } else if (calculatedScore >= 60) {
+    learningLevel = 'Đồng hành thông thái (Wise Companion)';
+  } else if (calculatedScore >= 40) {
+    learningLevel = 'Thấu hiểu (Adaptive Partner)';
+  }
+
+  const latestInsight = cachedAiInsights[0];
+
+  return {
+    totalMemories: total,
+    activeMemoriesCount: activeMemories.length,
+    insightsCount: cachedAiInsights.length,
+    topCategories,
+    learningLevel,
+    learningScore: calculatedScore,
+    lastReflectedAt: latestInsight ? latestInsight.generatedAt : undefined,
+  };
+}
+

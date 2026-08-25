@@ -12,12 +12,13 @@ import {
   ShieldCheck,
   Bot,
   Settings,
-  Lock
+  Lock,
+  Brain
 } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'settings' | 'architecture';
-  setActiveTab: (tab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'settings' | 'architecture') => void;
+  activeTab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'ai-learning' | 'settings' | 'architecture';
+  setActiveTab: (tab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'ai-learning' | 'settings' | 'architecture') => void;
   openNewTaskModal: () => void;
   openNewNoteModal: () => void;
   isAiDrawerOpen: boolean;
@@ -214,6 +215,21 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Bot className="w-3.5 h-3.5" />
             <span>Telegram Bot</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ai-learning')}
+            className={`px-3 py-2 font-medium flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'ai-learning'
+                ? 'text-indigo-400 border-b-2 border-indigo-400 font-bold bg-indigo-500/10'
+                : 'text-indigo-300/80 hover:text-white'
+            }`}
+          >
+            <Brain className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="flex items-center gap-1.5">
+              Tự Học & Tâm Trí AI
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            </span>
           </button>
 
           <button

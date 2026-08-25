@@ -1,4 +1,17 @@
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage, DriveServiceAccountConfig, SecurityPinSettings, DocumentCategory } from '../types/index.js';
+import {
+  Task,
+  Note,
+  DriveFile,
+  TelegramConfig,
+  NotificationLog,
+  ChatMessage,
+  DriveServiceAccountConfig,
+  SecurityPinSettings,
+  DocumentCategory,
+  AiMemoryFact,
+  AiLearningInsight,
+  AiLearningStats
+} from '../types/index.js';
 
 export const api = {
   // Category Endpoints (Document Classification)
@@ -411,5 +424,52 @@ export const api = {
       throw new Error(data.error || 'Không thể cập nhật cài đặt bảo mật lên máy chủ');
     }
     return data;
-  }
+  },
+
+  // AI Autonomous Self-Learning & Memory APIs
+  getAiLearningStats: async (): Promise<AiLearningStats> => {
+    const res = await fetch('/api/ai/learning/stats');
+    if (!res.ok) throw new Error('Không thể tải thống kê tự học của AI');
+    return res.json();
+  },
+
+  getAiMemories: async (): Promise<AiMemoryFact[]> => {
+    const res = await fetch('/api/ai/learning/memories');
+    if (!res.ok) throw new Error('Không thể tải danh sách ký ức AI');
+    return res.json();
+  },
+
+  saveAiMemory: async (memory: Partial<AiMemoryFact>): Promise<AiMemoryFact> => {
+    const res = await fetch('/api/ai/learning/memories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(memory),
+    });
+    if (!res.ok) throw new Error('Không thể lưu ký ức cho AI');
+    return res.json();
+  },
+
+  deleteAiMemory: async (id: string): Promise<{ success: boolean }> => {
+    const res = await fetch(`/api/ai/learning/memories/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xóa ký ức AI');
+    return res.json();
+  },
+
+  toggleAiMemory: async (id: string): Promise<AiMemoryFact> => {
+    const res = await fetch(`/api/ai/learning/memories/${id}/toggle`, { method: 'PATCH' });
+    if (!res.ok) throw new Error('Không thể bật/tắt ký ức');
+    return res.json();
+  },
+
+  getAiInsights: async (): Promise<AiLearningInsight[]> => {
+    const res = await fetch('/api/ai/learning/insights');
+    if (!res.ok) throw new Error('Không thể tải danh sách đúc kết AI');
+    return res.json();
+  },
+
+  triggerAiSelfReflection: async (): Promise<{ success: boolean; insights: AiLearningInsight[]; message: string }> => {
+    const res = await fetch('/api/ai/learning/reflect', { method: 'POST' });
+    if (!res.ok) throw new Error('Lỗi khi kích hoạt phiên tự học và suy ngẫm');
+    return res.json();
+  },
 };

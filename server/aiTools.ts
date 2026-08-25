@@ -9,9 +9,13 @@ import {
   getDbFiles,
   saveDbFile,
   getDbTelegramConfig,
-  getDbCategories
+  getDbCategories,
+  getDbAiMemories,
+  getActiveDbAiMemories,
+  saveDbAiMemory,
+  deleteDbAiMemory,
 } from './firebaseDb.ts';
-import { Task, Note, DriveFile } from '../src/types/index.ts';
+import { Task, Note, DriveFile, AiMemoryFact } from '../src/types/index.ts';
 
 // 1. Function Declarations for Gemini Tool Calling
 export const aiFunctionDeclarations: FunctionDeclaration[] = [
@@ -182,6 +186,55 @@ export const aiFunctionDeclarations: FunctionDeclaration[] = [
         searchKeyword: {
           type: Type.STRING,
           description: 'Từ khóa tìm kiếm trong tiêu đề hoặc mô tả',
+        },
+      },
+    },
+  },
+  {
+    name: 'rememberUserFact',
+    description: 'Ghi nhớ một thói quen, sở thích, danh tính, quy tắc hoặc chuyên môn của người dùng vào bộ nhớ dài hạn của AI (Long-Term Self-Learning Memory). Gọi hàm này khi người dùng yêu cầu "Hãy nhớ...", "Ghi nhớ rằng...", "Từ nay hãy...", hoặc khi người dùng chia sẻ thông tin cá nhân quan trọng.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        fact: {
+          type: Type.STRING,
+          description: 'Nội dung sự thật hoặc quy tắc cô đọng cần ghi nhớ (ví dụ: "Người dùng thích xưng hô là Alex", "Luôn ưu tiên họp vào buổi sáng", "Chuyên môn chính là React và AI")',
+        },
+        category: {
+          type: Type.STRING,
+          enum: ['preference', 'identity', 'rule', 'workflow', 'domain_knowledge', 'habit'],
+          description: 'Phân loại nhóm ký ức: preference (sở thích), identity (danh tính), rule (quy tắc), workflow (quy trình làm việc), domain_knowledge (chuyên môn), habit (thói quen)',
+        },
+      },
+      required: ['fact'],
+    },
+  },
+  {
+    name: 'forgetUserFact',
+    description: 'Xóa hoặc hủy bỏ một ký ức/thói quen đã ghi nhớ trước đây khi người dùng yêu cầu "Quên thói quen...", "Xóa ký ức...", "Không cần nhớ quy tắc...".',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        factQuery: {
+          type: Type.STRING,
+          description: 'Từ khóa hoặc nội dung ký ức cần quên',
+        },
+        memoryId: {
+          type: Type.STRING,
+          description: 'ID của ký ức nếu biết chính xác',
+        },
+      },
+    },
+  },
+  {
+    name: 'queryMemories',
+    description: 'Tra cứu danh sách những điều AI đã tự học và ghi nhớ về người dùng trong bộ nhớ dài hạn.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        category: {
+          type: Type.STRING,
+          description: 'Phân loại ký ức cần tìm kiếm (preference, identity, rule, workflow, domain_knowledge, habit, hoặc all)',
         },
       },
     },
@@ -588,6 +641,108 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       success: true,
       data: filtered,
       message: `📋 **Danh sách công việc (${filtered.length}):**\n\n${listText}`,
+    };
+  }
+
+  // -------------------------------------------------------------
+  // AI SELF-LEARNING & LONG-TERM MEMORY FUNCTION CALLS
+  // -------------------------------------------------------------
+  if (name === 'rememberUserFact') {
+    const factText = String(args.fact || '').trim();
+    if (!factText) {
+      return { success: false, message: 'Thiếu nội dung ký ức cần ghi nhớ.' };
+    }
+
+    const category = ['preference', 'identity', 'rule', 'workflow', 'domain_knowledge', 'habit'].includes(args.category)
+      ? args.category
+      : 'preference';
+
+    const existingMemories = await getDbAiMemories();
+    const existing = existingMemories.find(m => m.fact.toLowerCase().includes(factText.toLowerCase()) || factText.toLowerCase().includes(m.fact.toLowerCase()));
+
+    let savedFact: AiMemoryFact;
+    if (existing) {
+      savedFact = await saveDbAiMemory({
+        ...existing,
+        occurrences: (existing.occurrences || 1) + 1,
+        confidence: Math.min(0.99, (existing.confidence || 0.8) + 0.1),
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      savedFact = await saveDbAiMemory({
+        id: `mem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        category: category as any,
+        fact: factText,
+        confidence: 0.95,
+        source: 'explicit',
+        occurrences: 1,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    const categoryLabels: Record<string, string> = {
+      preference: 'Sở thích & Phong cách',
+      identity: 'Danh tính cá nhân',
+      rule: 'Quy tắc bắt buộc',
+      workflow: 'Quy trình làm việc',
+      domain_knowledge: 'Chuyên môn trọng tâm',
+      habit: 'Thói quen sinh hoạt',
+    };
+
+    return {
+      success: true,
+      data: savedFact,
+      message: `🧠 **Đã tiếp thu và khắc sâu vào bộ nhớ dài hạn của AI:**\n\n• **Phân loại:** \`${categoryLabels[savedFact.category] || savedFact.category}\`\n• **Ký ức:** _"${savedFact.fact}"_\n• **Độ tin cậy:** **${Math.round((savedFact.confidence || 0.95) * 100)}%**\n\n_Tôi sẽ tự động áp dụng thông tin này trong tất cả các tương tác tiếp theo!_`,
+    };
+  }
+
+  if (name === 'forgetUserFact') {
+    const memories = await getDbAiMemories();
+    let target = memories.find(m => m.id === args.memoryId);
+
+    if (!target && args.factQuery) {
+      const q = String(args.factQuery).toLowerCase();
+      target = memories.find(m => m.fact.toLowerCase().includes(q));
+    }
+
+    if (!target) {
+      return {
+        success: false,
+        message: `⚠️ Không tìm thấy ký ức nào phù hợp với yêu cầu xóa "${args.factQuery || args.memoryId}".`,
+      };
+    }
+
+    await deleteDbAiMemory(target.id);
+    return {
+      success: true,
+      message: `🗑️ **Đã xóa khỏi bộ nhớ tự học của AI:**\n\n• Ký ức: _"${target.fact}"_`,
+    };
+  }
+
+  if (name === 'queryMemories') {
+    const memories = await getActiveDbAiMemories();
+    let filtered = memories;
+
+    if (args.category && args.category !== 'all') {
+      filtered = memories.filter(m => m.category === args.category);
+    }
+
+    if (filtered.length === 0) {
+      return {
+        success: true,
+        data: [],
+        message: '🧠 Hiện tại AI chưa lưu ký ức nào thuộc phân loại này.',
+      };
+    }
+
+    const memList = filtered.map((m, idx) => `${idx + 1}. **[${m.category.toUpperCase()}]** ${m.fact} _(Tin cậy: ${Math.round(m.confidence * 100)}%, Củng cố: ${m.occurrences} lần)_`).join('\n');
+
+    return {
+      success: true,
+      data: filtered,
+      message: `🧠 **Những điều AI đã tự học và ghi nhớ về bạn (${filtered.length}):**\n\n${memList}`,
     };
   }
 

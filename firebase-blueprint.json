@@ -89,6 +89,36 @@
         "isDefault": { "type": "boolean" }
       },
       "required": ["id", "name", "color", "icon"]
+    },
+    "AiMemoryFact": {
+      "title": "AiMemoryFact",
+      "description": "Learned user preferences, habits, working styles, and long-term memory facts",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string", "enum": ["preference", "identity", "rule", "workflow", "domain_knowledge", "habit"] },
+        "fact": { "type": "string" },
+        "confidence": { "type": "number" },
+        "source": { "type": "string" },
+        "occurrences": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["category", "fact", "confidence", "isActive"]
+    },
+    "AiLearningInsight": {
+      "title": "AiLearningInsight",
+      "description": "Autonomous cognitive reflection insights and behavioral patterns",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "actionableAdvice": { "type": "string" },
+        "category": { "type": "string" },
+        "confidenceScore": { "type": "number" },
+        "generatedAt": { "type": "string" }
+      },
+      "required": ["title", "summary", "category"]
     }
   },
   "firestore": {
@@ -115,6 +145,14 @@
     "/notifications/{notificationId}": {
       "entity": "NotificationLog",
       "description": "Notification history"
+    },
+    "/ai_memories/{memoryId}": {
+      "entity": "AiMemoryFact",
+      "description": "Learned facts and user preferences"
+    },
+    "/ai_insights/{insightId}": {
+      "entity": "AiLearningInsight",
+      "description": "Autonomous learning reflections"
     }
   }
 }

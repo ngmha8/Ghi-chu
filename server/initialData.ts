@@ -1,4 +1,14 @@
-import type { Task, Note, DriveFile, TelegramConfig, NotificationLog, UserProfile, DocumentCategory } from '../src/types/index.ts';
+import type {
+  Task,
+  Note,
+  DriveFile,
+  TelegramConfig,
+  NotificationLog,
+  UserProfile,
+  DocumentCategory,
+  AiMemoryFact,
+  AiLearningInsight
+} from '../src/types/index.ts';
 
 export const initialCategories: DocumentCategory[] = [
   {
@@ -88,3 +98,72 @@ export const initialUserProfile: UserProfile = {
   avatarUrl: '',
   isGoogleConnected: false,
 };
+
+export const initialAiMemories: AiMemoryFact[] = [
+  {
+    id: 'mem-1',
+    category: 'preference',
+    fact: 'Người dùng đánh giá cao phong cách giao tiếp súc tích, trực diện, luận điểm có cấu trúc gạch đầu dòng rõ ràng và giải pháp có tính hành động cao.',
+    confidence: 0.95,
+    source: 'reflection',
+    occurrences: 4,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'mem-2',
+    category: 'identity',
+    fact: 'Múi giờ hoạt động chuẩn là Việt Nam (Asia/Ho_Chi_Minh / UTC+7). Khung giờ công việc tích cực từ 07:00 đến 22:00.',
+    confidence: 0.98,
+    source: 'reflection',
+    occurrences: 5,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'mem-3',
+    category: 'domain_knowledge',
+    fact: 'Lĩnh vực công tác và quan tâm chính: Phát triển ứng dụng Web hiệu năng cao, Trí tuệ nhân tạo, Tự động hóa quy trình và Quản trị năng suất cá nhân.',
+    confidence: 0.92,
+    source: 'reflection',
+    occurrences: 3,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'mem-4',
+    category: 'workflow',
+    fact: 'Khi tiếp nhận yêu cầu có yếu tố gấp/khẩn cấp, tự động gán độ ưu tiên High và thiết lập thông báo Telegram trước thời hạn 15-30 phút.',
+    confidence: 0.9,
+    source: 'task_pattern',
+    occurrences: 3,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+export const initialAiInsights: AiLearningInsight[] = [
+  {
+    id: 'insight-1',
+    title: 'Nhịp sinh học và Hiệu suất Tập trung',
+    summary: 'Người dùng thường xử lý các đầu việc chiến lược và công nghệ vào buổi sáng và đầu giờ chiều.',
+    actionableAdvice: 'Ưu tiên xếp các công việc tư duy sâu và giải quyết vấn đề kỹ thuật phức tạp vào khung giờ 08:30 - 11:30.',
+    category: 'focus',
+    confidenceScore: 0.88,
+    generatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'insight-2',
+    title: 'Tối ưu Hóa Quy Trình Ghi Chú & Quản Lý File',
+    summary: 'Các tài liệu công việc và kỹ thuật có xu hướng được tra cứu thường xuyên cùng với các ghi chú liên quan.',
+    actionableAdvice: 'Tự động liên kết các tài liệu Drive liên quan khi tạo công việc mới có cùng chủ đề.',
+    category: 'productivity',
+    confidenceScore: 0.85,
+    generatedAt: new Date().toISOString(),
+  }
+];
+

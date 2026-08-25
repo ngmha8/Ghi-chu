@@ -12,7 +12,7 @@ import {
   initialNotificationLogs,
   initialUserProfile
 } from './server/initialData.ts';
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig } from './src/types/index.ts';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig, AiMemoryFact, AiLearningInsight, AiLearningStats } from './src/types/index.ts';
 import {
   initializeFirestoreData,
   getDbTasks,
@@ -42,12 +42,22 @@ import {
   getConversationHistory,
   appendConversationTurn,
   clearConversationHistory,
+  getDbAiMemories,
+  getActiveDbAiMemories,
+  saveDbAiMemory,
+  deleteDbAiMemory,
+  getDbAiInsights,
+  saveDbAiInsight,
+  deleteDbAiInsight,
+  getDbAiLearningStats,
   cachedTasks,
   cachedNotes,
   cachedFiles,
   cachedTelegramConfig,
   cachedNotificationLogs,
-  cachedDriveServiceAccountConfig
+  cachedDriveServiceAccountConfig,
+  cachedAiMemories,
+  cachedAiInsights
 } from './server/firebaseDb.ts';
 import {
   testServiceAccountFolderAccess,
@@ -58,6 +68,11 @@ import {
   parseServiceAccountJson
 } from './server/googleDriveServiceAccount.ts';
 import { aiFunctionDeclarations, executeAiFunctionCall } from './server/aiTools.ts';
+import {
+  synthesizeLearnedPromptContext,
+  triggerPassiveLearningExtraction,
+  runAutonomousCognitiveReflection
+} from './server/aiLearningEngine.ts';
 import {
   sendTelegramMessage,
   sendTelegramChatAction,
@@ -1492,14 +1507,17 @@ async function processAiChat(
       ? activeHistory.slice(-8).map(h => `${h.role === 'user' ? 'Người dùng' : 'Trợ lý AI'}: ${h.content}`).join('\n')
       : '';
 
-    const systemInstruction = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp & Bạn Đồng Hành Trí Tuệ (Senior AI Executive Companion & Cognitive Partner).
+    // Autonomous Continuous Learning & Memory Synthesis
+    const learnedMemoryContext = await synthesizeLearnedPromptContext();
+
+    const systemInstruction = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp & Bạn Đồng Hành Trí Tuệ Tự Học (Senior AI Executive Companion & Autonomous Cognitive Partner).
 Bạn sở hữu năng lực phân tích vượt trội của một chuyên gia công nghệ và quản trị hơn 20 năm kinh nghiệm, đồng thời mang trái tim thấu cảm, tinh tế, ấm áp và giàu lòng trắc ẩn (High IQ + High EQ).
 
 HỆ THỐNG DỮ LIỆU ĐANG KẾT NỐI (FIRESTORE CLOUD PERSISTENCE):
 - Thời điểm hiện tại (Việt Nam UTC+7): ${vnTimeStr} (${timeZone})
 - Timestamp ISO chuẩn: ${currentTimeIso}
 
-=== DANH SÁCH CÔNG VIỆC TRONG FIRESTORE (TASKS) ===
+${learnedMemoryContext ? `${learnedMemoryContext}\n\n` : ''}=== DANH SÁCH CÔNG VIỆC TRONG FIRESTORE (TASKS) ===
 ${tasksContext || 'Chưa có công việc nào.'}
 
 === DANH SÁCH GHI CHÚ (NOTES) ===
@@ -1510,15 +1528,16 @@ ${filesContext || 'Chưa có tệp tin nào.'}
 
 ${historySnippet ? `=== LỊCH SỬ HỘI THOẠI GẦN ĐÂY ===\n${historySnippet}\n` : ''}
 
-NGUYÊN TẮC PHẢN HỒI & NHÂN TÍNH HÓA (HUMAN-CENTRIC EXCELLENCE):
+NGUYÊN TẮC PHẢN HỒI & TỰ HỌC THÍCH ỨNG (ADAPTIVE EXCELLENCE):
 1. **Trí tuệ Cảm xúc & Sự Thấu Hiểu (Empathy & Warmth)**:
    - Luôn lắng nghe chân thành, nhận diện cảm xúc người dùng (căng thẳng, mệt mỏi, hào hứng, lo lắng) để chia sẻ, động viên một cách tự nhiên, không rập khuôn hay máy móc.
-   - Xưng hô lịch thiệp, tôn trọng, thân thiện và ấm áp ("Tôi" - "Bạn" hoặc xưng hô tự nhiên theo văn cảnh).
+   - Xưng hô lịch thiệp, tôn trọng, thân thiện và ấm áp ("Tôi" - "Bạn" hoặc xưng hô tự nhiên theo văn cảnh và thói quen đã học).
 2. **Cố Vấn Toàn Năng & Tư Duy Sâu Sắc (Strategic & Deep Reasoning)**:
    - Sẵn sàng và xuất sắc trả lời MỌI loại câu hỏi: Lập trình & Kỹ thuật chuyên sâu, Quản lý công việc & thời gian, Tư duy logic, Sáng tạo nội dung, Tâm lý & Cân bằng cuộc sống, Kiến thức tổng quát, Chiến lược kinh doanh...
    - Phân tích đa chiều, đưa ra giải pháp thực tế có thể hành động ngay (Actionable Insights).
-3. **Thực thi Hành động Tự động (Autonomous Function Calling)**:
+3. **Thực thi Hành động & Tự Học Tự Động (Autonomous Function Calling & Memory)**:
    - Khi người dùng muốn tạo việc, nhắc việc, hoàn thành, xóa, ghi chú, tìm tài liệu: hãy gọi ngay các Tool tương ứng (\`createTask\`, \`completeTask\`, \`deleteTask\`, \`createNote\`, \`queryNotes\`, \`queryTasks\`, \`queryFiles\`).
+   - Khi người dùng muốn AI ghi nhớ thông tin/sở thích/quy tắc/thói quen hoặc chia sẻ thông tin quan trọng, hãy gọi ngay tool \`rememberUserFact\` hoặc \`forgetUserFact\`.
    - Căn cứ vào giờ Việt Nam (UTC+7) để tính toán chính xác deadline khi thêm công việc.
 4. **Trình bày Chuẩn mực & Thu hút**:
    - Sử dụng định dạng Markdown đẹp mắt, cấu trúc rõ ràng (tiêu đề, gạch đầu dòng, highlight ý chính), kết hợp emoji tinh tế.`;
@@ -1549,7 +1568,15 @@ NGUYÊN TẮC PHẢN HỒI & NHÂN TÍNH HÓA (HUMAN-CENTRIC EXCELLENCE):
       queryLower.includes('xem việc') ||
       queryLower.includes('tìm file') ||
       queryLower.includes('tìm tài liệu') ||
-      queryLower.includes('tra cứu ghi chú');
+      queryLower.includes('tra cứu ghi chú') ||
+      queryLower.includes('hãy nhớ') ||
+      queryLower.includes('nhớ rằng') ||
+      queryLower.includes('ghi nhớ') ||
+      queryLower.includes('từ nay') ||
+      queryLower.includes('quên') ||
+      queryLower.includes('xóa ký ức') ||
+      queryLower.includes('bộ nhớ') ||
+      queryLower.includes('tự học');
 
     if (isActionIntent) {
       try {
@@ -1646,6 +1673,11 @@ NGUYÊN TẮC PHẢN HỒI & NHÂN TÍNH HÓA (HUMAN-CENTRIC EXCELLENCE):
 
     // Record this turn to session conversation memory buffer
     appendConversationTurn(sessionId, message, replyText);
+
+    // Asynchronously trigger Autonomous Meta-Cognitive Self-Learning in background
+    triggerPassiveLearningExtraction(message, replyText, ai).catch(err => {
+      console.warn('[AI Self-Learning Async Error]:', err?.message);
+    });
 
     return {
       reply: replyText,
@@ -1749,6 +1781,101 @@ app.post('/api/chat/clear', (req: Request, res: Response) => {
   clearConversationHistory(sessionId);
   res.json({ success: true, message: `Cleared memory for session ${sessionId}` });
 });
+
+// -------------------------------------------------------------
+// 7.1. AI AUTONOMOUS SELF-LEARNING & LONG-TERM MEMORY ENDPOINTS
+// -------------------------------------------------------------
+app.get('/api/ai/learning/stats', async (req: Request, res: Response) => {
+  try {
+    const stats = await getDbAiLearningStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/ai/learning/memories', async (req: Request, res: Response) => {
+  try {
+    const memories = await getDbAiMemories();
+    res.json(memories);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/ai/learning/memories', async (req: Request, res: Response) => {
+  try {
+    const { fact, category = 'preference', confidence = 0.95 } = req.body;
+    if (!fact || typeof fact !== 'string') {
+      return res.status(400).json({ error: 'Nội dung sự thật/quy tắc (fact) là bắt buộc.' });
+    }
+
+    const newMemory: AiMemoryFact = {
+      id: req.body.id || `mem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      category: ['preference', 'identity', 'rule', 'workflow', 'domain_knowledge', 'habit'].includes(category)
+        ? category
+        : 'preference',
+      fact: fact.trim(),
+      confidence: Number(confidence) || 0.95,
+      source: req.body.source || 'explicit',
+      occurrences: Number(req.body.occurrences) || 1,
+      isActive: req.body.isActive !== false,
+      createdAt: req.body.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const saved = await saveDbAiMemory(newMemory);
+    res.json(saved);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/ai/learning/memories/:id', async (req: Request, res: Response) => {
+  try {
+    await deleteDbAiMemory(req.params.id);
+    res.json({ success: true, message: 'Đã xóa ký ức khỏi bộ nhớ dài hạn.' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/ai/learning/memories/:id/toggle', async (req: Request, res: Response) => {
+  try {
+    const memories = await getDbAiMemories();
+    const target = memories.find(m => m.id === req.params.id);
+    if (!target) {
+      return res.status(404).json({ error: 'Không tìm thấy ký ức.' });
+    }
+
+    target.isActive = !target.isActive;
+    target.updatedAt = new Date().toISOString();
+    await saveDbAiMemory(target);
+    res.json(target);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/ai/learning/insights', async (req: Request, res: Response) => {
+  try {
+    const insights = await getDbAiInsights();
+    res.json(insights);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/ai/learning/reflect', async (req: Request, res: Response) => {
+  try {
+    const aiClient = getGeminiClient();
+    const result = await runAutonomousCognitiveReflection(aiClient);
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 // -------------------------------------------------------------
 // 8. SYSTEM ARCHITECTURE SCHEMA SPECIFICATION ENDPOINT

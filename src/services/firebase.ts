@@ -8,7 +8,16 @@ import {
   deleteDoc,
   getDocs,
 } from 'firebase/firestore';
-import type { Task, Note, DriveFile, TelegramConfig, NotificationLog, DocumentCategory } from '../types/index.ts';
+import type {
+  Task,
+  Note,
+  DriveFile,
+  TelegramConfig,
+  NotificationLog,
+  DocumentCategory,
+  AiMemoryFact,
+  AiLearningInsight
+} from '../types/index.ts';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App & Firestore Database
@@ -135,3 +144,44 @@ export function subscribeNotifications(onUpdate: (logs: NotificationLog[]) => vo
     return () => {};
   }
 }
+
+export function subscribeAiMemories(onUpdate: (memories: AiMemoryFact[]) => void): () => void {
+  try {
+    const colRef = collection(db, 'ai_memories');
+    return onSnapshot(colRef, (snapshot) => {
+      if (snapshot.empty) return;
+      const memories: AiMemoryFact[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data() as AiMemoryFact;
+        memories.push({ ...data, id: docSnap.id });
+      });
+      onUpdate(memories.sort((a, b) => (b.confidence || 0) - (a.confidence || 0)));
+    }, (error) => {
+      console.warn('Firestore ai_memories subscription fallback:', error);
+    });
+  } catch (err) {
+    console.warn('Could not initialize ai_memories subscription:', err);
+    return () => {};
+  }
+}
+
+export function subscribeAiInsights(onUpdate: (insights: AiLearningInsight[]) => void): () => void {
+  try {
+    const colRef = collection(db, 'ai_insights');
+    return onSnapshot(colRef, (snapshot) => {
+      if (snapshot.empty) return;
+      const insights: AiLearningInsight[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data() as AiLearningInsight;
+        insights.push({ ...data, id: docSnap.id });
+      });
+      onUpdate(insights.sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()));
+    }, (error) => {
+      console.warn('Firestore ai_insights subscription fallback:', error);
+    });
+  } catch (err) {
+    console.warn('Could not initialize ai_insights subscription:', err);
+    return () => {};
+  }
+}
+

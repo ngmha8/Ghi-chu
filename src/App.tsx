@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage, DocumentCategory } from './types/index.js';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage, DocumentCategory, AiMemoryFact, AiLearningInsight, AiLearningStats } from './types/index.js';
 import { api } from './services/api.js';
 import {
   fetchCategoriesFromServer,
@@ -13,6 +13,8 @@ import {
   subscribeCategories,
   subscribeNotifications,
   subscribeTelegramConfig,
+  subscribeAiMemories,
+  subscribeAiInsights
 } from './services/firebase.ts';
 
 import { Header } from './components/Header.tsx';
@@ -23,6 +25,7 @@ import { FilesView } from './components/FilesView.tsx';
 import { TelegramBotView } from './components/TelegramBotView.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { SystemArchView } from './components/SystemArchView.tsx';
+import { AiLearningView } from './components/AiLearningView.tsx';
 import { AiChatDrawer } from './components/AiChatDrawer.tsx';
 import { TaskModal } from './components/TaskModal.tsx';
 import { NoteModal } from './components/NoteModal.tsx';
@@ -37,7 +40,7 @@ import {
 
 export default function App() {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => isSessionUnlocked());
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'settings' | 'architecture'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'ai-learning' | 'settings' | 'architecture'>('dashboard');
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -52,6 +55,11 @@ export default function App() {
   });
   const [notificationLogs, setNotificationLogs] = useState<NotificationLog[]>([]);
 
+  // AI Autonomous Self-Learning & Mind State
+  const [aiMemories, setAiMemories] = useState<AiMemoryFact[]>([]);
+  const [aiInsights, setAiInsights] = useState<AiLearningInsight[]>([]);
+  const [aiStats, setAiStats] = useState<AiLearningStats | null>(null);
+
   // AI Assistant Chat Drawer State
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
   const [aiPromptToTrigger, setAiPromptToTrigger] = useState<string>('');
@@ -59,7 +67,7 @@ export default function App() {
     {
       id: 'msg-welcome',
       role: 'assistant',
-      content: '👋 Xin chào! Tôi là AI Personal Assistant. Tôi có thể giúp bạn kiểm tra danh sách công việc, tóm tắt ghi chú, hoặc tìm kiếm thông tin mới nhất trên Google Search khi bạn yêu cầu.',
+      content: '👋 Xin chào! Tôi là AI Personal Assistant với năng lực Tự Học & Trí Tuệ Thấu Cảm. Tôi liên tục tiếp thu phong cách và quy tắc làm việc của bạn để hỗ trợ nhanh và chuẩn xác nhất.',
       timestamp: new Date().toISOString(),
     }
   ]);
@@ -70,6 +78,21 @@ export default function App() {
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  const refreshAiLearningData = async () => {
+    try {
+      const [mems, ins, stats] = await Promise.all([
+        api.getAiMemories(),
+        api.getAiInsights(),
+        api.getAiLearningStats(),
+      ]);
+      setAiMemories(mems);
+      setAiInsights(ins);
+      setAiStats(stats);
+    } catch (e) {
+      console.warn('Error refreshing AI learning data:', e);
+    }
+  };
 
   // Collect all available tags across tasks and notes
   const allAvailableTags = useMemo(() => {
@@ -86,12 +109,15 @@ export default function App() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [tasksData, notesData, filesData, telegramData, categoriesData] = await Promise.all([
+        const [tasksData, notesData, filesData, telegramData, categoriesData, memsData, insData, statsData] = await Promise.all([
           api.getTasks(),
           api.getNotes(),
           api.getFiles(),
           api.getTelegramConfig(),
           fetchCategoriesFromServer(),
+          api.getAiMemories().catch(() => []),
+          api.getAiInsights().catch(() => []),
+          api.getAiLearningStats().catch(() => null),
         ]);
         setTasks(tasksData);
         setNotes(notesData);
@@ -101,6 +127,9 @@ export default function App() {
         if (categoriesData && categoriesData.length > 0) {
           setCategories(categoriesData);
         }
+        if (memsData && memsData.length > 0) setAiMemories(memsData);
+        if (insData && insData.length > 0) setAiInsights(insData);
+        if (statsData) setAiStats(statsData);
       } catch (err) {
         console.error('Error fetching initial data:', err);
       }
@@ -148,6 +177,18 @@ export default function App() {
     const unsubConfig = subscribeTelegramConfig((liveConfig) => {
       if (liveConfig) {
         setTelegramConfig(liveConfig);
+      }
+    });
+
+    const unsubMemories = subscribeAiMemories((liveMems) => {
+      if (liveMems && liveMems.length > 0) {
+        setAiMemories(liveMems);
+      }
+    });
+
+    const unsubInsights = subscribeAiInsights((liveIns) => {
+      if (liveIns && liveIns.length > 0) {
+        setAiInsights(liveIns);
       }
     });
 
@@ -487,6 +528,16 @@ export default function App() {
             onSendTestMessage={handleSendTestTelegramMessage}
             onSendTelegramCommand={handleSendTelegramCommand}
             onNavigateToSettings={() => setActiveTab('settings')}
+          />
+        )}
+
+        {activeTab === 'ai-learning' && (
+          <AiLearningView
+            memories={aiMemories}
+            insights={aiInsights}
+            stats={aiStats}
+            onRefresh={refreshAiLearningData}
+            onOpenAiDrawerWithPrompt={openAiChatWithPrompt}
           />
         )}
 

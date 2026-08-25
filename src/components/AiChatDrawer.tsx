@@ -210,6 +210,10 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
             <div className="grid grid-cols-1 gap-2 text-left pt-2">
               {[
                 {
+                  icon: <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />,
+                  title: 'Bạn đã ghi nhớ và học được những gì về thói quen và quy tắc của tôi?',
+                },
+                {
                   icon: <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />,
                   title: 'Hôm nay tôi có những công việc nào gấp cần ưu tiên giải quyết?',
                 },
@@ -218,8 +222,8 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
                   title: 'Phân tích giúp tôi chiến lược quản lý thời gian hiệu quả theo Ma trận Eisenhower.',
                 },
                 {
-                  icon: <CloudSun className="w-3.5 h-3.5 text-amber-400" />,
-                  title: 'Dự báo thời tiết hôm nay và cho tôi vài lời khuyên sức khỏe.',
+                  icon: <Zap className="w-3.5 h-3.5 text-amber-400" />,
+                  title: 'Hãy suy ngẫm dữ liệu và đưa ra đúc kết chiến lược tăng hiệu suất tuần này.',
                 },
                 {
                   icon: <HeartHandshake className="w-3.5 h-3.5 text-emerald-400" />,
