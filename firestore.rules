@@ -10,10 +10,19 @@ service cloud.firestore {
     match /files/{fileId} {
       allow read, write: if true;
     }
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
     match /config/{configId} {
       allow read, write: if true;
     }
     match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+    match /{document=**} {
       allow read, write: if true;
     }
   }

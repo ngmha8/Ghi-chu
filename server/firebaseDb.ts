@@ -1,6 +1,25 @@
 import fs from 'fs';
 import path from 'path';
-import type { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig, DocumentCategory } from '../src/types/index.ts';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  getDoc,
+  deleteDoc,
+  Firestore,
+} from 'firebase/firestore';
+import type {
+  Task,
+  Note,
+  DriveFile,
+  TelegramConfig,
+  NotificationLog,
+  DriveServiceAccountConfig,
+  DocumentCategory
+} from '../src/types/index.ts';
 import {
   initialTasks,
   initialNotes,
@@ -50,18 +69,10 @@ export let cachedNotificationLogs: NotificationLog[] = [...initialNotificationLo
 export let cachedDriveServiceAccountConfig: DriveServiceAccountConfig = { ...initialDriveServiceAccountConfig };
 export let cachedSecurityPin: string = defaultSecurityPin;
 
-// Local JSON file backup path - resolved across both process.cwd() and __dirname
+// Local JSON file backup path
 const CWD_DATA_DIR = path.join(process.cwd(), 'data');
 const LOCAL_DATA_DIR = path.join(_dirname, 'data');
 const DATA_DIR = CWD_DATA_DIR;
-
-const LOCAL_CONFIG_FILE = path.join(DATA_DIR, 'telegram_config.json');
-const LOCAL_TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
-const LOCAL_NOTES_FILE = path.join(DATA_DIR, 'notes.json');
-const LOCAL_FILES_FILE = path.join(DATA_DIR, 'files.json');
-const LOCAL_CATEGORIES_FILE = path.join(DATA_DIR, 'categories.json');
-const LOCAL_DRIVE_SA_FILE = path.join(DATA_DIR, 'drive_service_account.json');
-const LOCAL_SECURITY_PIN_FILE = path.join(DATA_DIR, 'security_pin.json');
 
 try {
   if (!fs.existsSync(CWD_DATA_DIR)) fs.mkdirSync(CWD_DATA_DIR, { recursive: true });
@@ -80,7 +91,7 @@ function loadJsonFileSafe(fileName: string): any {
       return JSON.parse(fs.readFileSync(secondary, 'utf-8'));
     }
   } catch (e) {
-    console.warn(`Could not read ${fileName}:`, e);
+    // ignore
   }
   return null;
 }
@@ -90,8 +101,6 @@ try {
   const categoriesData = loadJsonFileSafe('categories.json');
   if (Array.isArray(categoriesData) && categoriesData.length > 0) {
     cachedCategories = categoriesData;
-  } else {
-    cachedCategories = [...initialCategories];
   }
 
   const cfgData = loadJsonFileSafe('telegram_config.json');
@@ -146,9 +155,163 @@ function saveLocalBackups() {
   }
 }
 
+// -------------------------------------------------------------
+// FIREBASE FIRESTORE INITIALIZATION & CLOUD PERSISTENCE
+// -------------------------------------------------------------
+let firestoreDb: Firestore | null = null;
+
+// Safe cleaner to strip undefined properties for Firestore
+function cleanForFirestore<T>(data: T): Record<string, any> {
+  const result: Record<string, any> = {};
+  if (!data || typeof data !== 'object') return result;
+  for (const [key, value] of Object.entries(data as Record<string, any>)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+try {
+  const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(firebaseConfigPath)) {
+    const fbConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
+    const fbApp = getApps().length > 0 ? getApp() : initializeApp(fbConfig);
+    firestoreDb = getFirestore(fbApp, fbConfig.firestoreDatabaseId || '(default)');
+    console.log(`🔥 Firebase Firestore initialized (DB: ${fbConfig.firestoreDatabaseId || 'default'})`);
+  }
+} catch (err) {
+  console.warn('Firebase Firestore initialization warning (using local persistence):', err);
+}
+
+// Async Cloud Sync Helpers (Non-blocking)
+async function firestoreSetDoc(collectionName: string, docId: string, data: any) {
+  if (!firestoreDb) return;
+  try {
+    const cleanData = cleanForFirestore(data);
+    await setDoc(doc(firestoreDb, collectionName, docId), cleanData);
+  } catch (err) {
+    console.warn(`Firestore save error on ${collectionName}/${docId}:`, err);
+  }
+}
+
+async function firestoreDeleteDoc(collectionName: string, docId: string) {
+  if (!firestoreDb) return;
+  try {
+    await deleteDoc(doc(firestoreDb, collectionName, docId));
+  } catch (err) {
+    console.warn(`Firestore delete error on ${collectionName}/${docId}:`, err);
+  }
+}
+
 export async function initializeFirestoreData() {
   saveLocalBackups();
-  console.log('✅ Local storage initialized successfully.');
+  if (!firestoreDb) {
+    console.log('✅ Local storage initialized successfully.');
+    return;
+  }
+
+  try {
+    console.log('🔄 Synchronizing data with Firebase Firestore Cloud...');
+
+    // 1. Sync Tasks
+    const tasksSnap = await getDocs(collection(firestoreDb, 'tasks'));
+    if (!tasksSnap.empty) {
+      const cloudTasks: Task[] = [];
+      tasksSnap.forEach(d => {
+        cloudTasks.push({ ...(d.data() as Task), id: d.id });
+      });
+      cachedTasks = cloudTasks;
+      console.log(`📥 Loaded ${cloudTasks.length} tasks from Firebase Firestore.`);
+    } else {
+      console.log(`📤 Seeding ${cachedTasks.length} tasks to Firebase Firestore...`);
+      for (const t of cachedTasks) {
+        await firestoreSetDoc('tasks', t.id, t);
+      }
+    }
+
+    // 2. Sync Notes
+    const notesSnap = await getDocs(collection(firestoreDb, 'notes'));
+    if (!notesSnap.empty) {
+      const cloudNotes: Note[] = [];
+      notesSnap.forEach(d => {
+        cloudNotes.push({ ...(d.data() as Note), id: d.id });
+      });
+      cachedNotes = cloudNotes;
+      console.log(`📥 Loaded ${cloudNotes.length} notes from Firebase Firestore.`);
+    } else {
+      console.log(`📤 Seeding ${cachedNotes.length} notes to Firebase Firestore...`);
+      for (const n of cachedNotes) {
+        await firestoreSetDoc('notes', n.id, n);
+      }
+    }
+
+    // 3. Sync Categories
+    const categoriesSnap = await getDocs(collection(firestoreDb, 'categories'));
+    if (!categoriesSnap.empty) {
+      const cloudCats: DocumentCategory[] = [];
+      categoriesSnap.forEach(d => {
+        cloudCats.push({ ...(d.data() as DocumentCategory), id: d.id });
+      });
+      cachedCategories = cloudCats;
+      console.log(`📥 Loaded ${cloudCats.length} categories from Firebase Firestore.`);
+    } else {
+      console.log(`📤 Seeding ${cachedCategories.length} categories to Firebase Firestore...`);
+      for (const c of cachedCategories) {
+        await firestoreSetDoc('categories', c.id, c);
+      }
+    }
+
+    // 4. Sync Files
+    const filesSnap = await getDocs(collection(firestoreDb, 'files'));
+    if (!filesSnap.empty) {
+      const cloudFiles: DriveFile[] = [];
+      filesSnap.forEach(d => {
+        cloudFiles.push({ ...(d.data() as DriveFile), id: d.id });
+      });
+      cachedFiles = cloudFiles;
+      console.log(`📥 Loaded ${cloudFiles.length} files from Firebase Firestore.`);
+    } else if (cachedFiles.length > 0) {
+      for (const f of cachedFiles) {
+        await firestoreSetDoc('files', f.id, f);
+      }
+    }
+
+    // 5. Sync Telegram Config
+    const tgDocSnap = await getDoc(doc(firestoreDb, 'config', 'telegram'));
+    if (tgDocSnap.exists()) {
+      cachedTelegramConfig = { ...cachedTelegramConfig, ...(tgDocSnap.data() as TelegramConfig) };
+      console.log(`📥 Loaded Telegram Config from Firebase Firestore.`);
+    } else {
+      await firestoreSetDoc('config', 'telegram', cachedTelegramConfig);
+    }
+
+    // 6. Sync Google Drive Service Account Config
+    const saDocSnap = await getDoc(doc(firestoreDb, 'config', 'drive_service_account'));
+    if (saDocSnap.exists()) {
+      cachedDriveServiceAccountConfig = { ...cachedDriveServiceAccountConfig, ...(saDocSnap.data() as DriveServiceAccountConfig) };
+      console.log(`📥 Loaded Google Drive Service Account Config from Firebase Firestore.`);
+    } else if (cachedDriveServiceAccountConfig.clientEmail) {
+      await firestoreSetDoc('config', 'drive_service_account', cachedDriveServiceAccountConfig);
+    }
+
+    // 7. Sync Security PIN Settings
+    const pinDocSnap = await getDoc(doc(firestoreDb, 'settings', 'security_pin'));
+    if (pinDocSnap.exists()) {
+      const cloudPin = pinDocSnap.data() as SecurityPinConfig;
+      cachedSecurityPinConfig = { ...cachedSecurityPinConfig, ...cloudPin };
+      if (cloudPin.pin) cachedSecurityPin = cloudPin.pin;
+      console.log(`📥 Loaded Security PIN Config from Firebase Firestore.`);
+    } else {
+      await firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
+    }
+
+    // Save final merged state to local backups
+    saveLocalBackups();
+    console.log('✅ Firebase Firestore synchronization completed successfully.');
+  } catch (err) {
+    console.warn('⚠️ Firestore initialization sync error (fallback to local state):', err);
+  }
 }
 
 // -------------------------------------------------------------
@@ -162,6 +325,9 @@ export async function saveDbCategories(categories: DocumentCategory[]): Promise<
   if (Array.isArray(categories) && categories.length > 0) {
     cachedCategories = categories;
     saveLocalBackups();
+    for (const c of categories) {
+      firestoreSetDoc('categories', c.id, c);
+    }
   }
   return cachedCategories;
 }
@@ -174,12 +340,14 @@ export async function saveDbCategory(category: DocumentCategory): Promise<Docume
     cachedCategories.push(category);
   }
   saveLocalBackups();
+  firestoreSetDoc('categories', category.id, category);
   return category;
 }
 
 export async function deleteDbCategory(id: string): Promise<boolean> {
   cachedCategories = cachedCategories.filter(c => c.id !== id);
   saveLocalBackups();
+  firestoreDeleteDoc('categories', id);
   return true;
 }
 
@@ -198,12 +366,14 @@ export async function saveDbTask(task: Task): Promise<Task> {
     cachedTasks.unshift(task);
   }
   saveLocalBackups();
+  firestoreSetDoc('tasks', task.id, task);
   return task;
 }
 
 export async function deleteDbTask(id: string): Promise<boolean> {
   cachedTasks = cachedTasks.filter(t => t.id !== id);
   saveLocalBackups();
+  firestoreDeleteDoc('tasks', id);
   return true;
 }
 
@@ -222,12 +392,14 @@ export async function saveDbNote(note: Note): Promise<Note> {
     cachedNotes.unshift(note);
   }
   saveLocalBackups();
+  firestoreSetDoc('notes', note.id, note);
   return note;
 }
 
 export async function deleteDbNote(id: string): Promise<boolean> {
   cachedNotes = cachedNotes.filter(n => n.id !== id);
   saveLocalBackups();
+  firestoreDeleteDoc('notes', id);
   return true;
 }
 
@@ -236,7 +408,6 @@ export async function deleteDbNote(id: string): Promise<boolean> {
 // -------------------------------------------------------------
 export async function getDbFiles(): Promise<DriveFile[]> {
   return cachedFiles.map(f => {
-    // If it has a legitimate Google Drive ID/view link, mark as synced
     const isRealDrive = !!(f.driveFileId && !f.driveFileId.startsWith('file-') && !f.driveFileId.startsWith('drive-id-') && f.webViewLink && f.webViewLink.includes('drive.google.com/file/d/'));
     return {
       ...f,
@@ -256,12 +427,14 @@ export async function saveDbFile(file: DriveFile): Promise<DriveFile> {
     cachedFiles.unshift(file);
   }
   saveLocalBackups();
+  firestoreSetDoc('files', file.id, file);
   return file;
 }
 
 export async function deleteDbFile(id: string): Promise<boolean> {
   cachedFiles = cachedFiles.filter(f => f.id !== id);
   saveLocalBackups();
+  firestoreDeleteDoc('files', id);
   return true;
 }
 
@@ -278,6 +451,7 @@ export async function saveDbTelegramConfig(config: Partial<TelegramConfig>): Pro
     ...config,
   };
   saveLocalBackups();
+  firestoreSetDoc('config', 'telegram', cachedTelegramConfig);
   return cachedTelegramConfig;
 }
 
@@ -296,6 +470,7 @@ export async function saveDbDriveServiceAccountConfig(
     ...config,
   };
   saveLocalBackups();
+  firestoreSetDoc('config', 'drive_service_account', cachedDriveServiceAccountConfig);
   return cachedDriveServiceAccountConfig;
 }
 
@@ -323,6 +498,7 @@ export async function saveDbSecurityPin(pin: string, hint?: string): Promise<Sec
     updatedAt: new Date().toISOString(),
   };
   saveLocalBackups();
+  firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
   return cachedSecurityPinConfig;
 }
 
@@ -336,6 +512,7 @@ export async function saveDbSecurityPinSettings(updates: Partial<SecurityPinConf
     cachedSecurityPin = updates.pin.trim();
   }
   saveLocalBackups();
+  firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
   return cachedSecurityPinConfig;
 }
 
@@ -356,6 +533,7 @@ export async function addDbNotificationLog(log: NotificationLog): Promise<Notifi
   if (cachedNotificationLogs.length > 100) {
     cachedNotificationLogs.pop();
   }
+  firestoreSetDoc('notifications', log.id || `notif-${Date.now()}`, log);
   return log;
 }
 
@@ -368,13 +546,11 @@ export interface ConversationTurn {
   timestamp: number;
 }
 
-// Memory buffer mapped by session/chat ID with auto-pruning (max 10 recent turns, 24h TTL)
 const conversationMemoryStore = new Map<string, ConversationTurn[]>();
 
 export function getConversationHistory(sessionId: string): ConversationTurn[] {
   const history = conversationMemoryStore.get(sessionId) || [];
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-  // Filter out expired turns (> 24 hours)
   const validHistory = history.filter(t => t.timestamp > oneDayAgo);
   if (validHistory.length !== history.length) {
     conversationMemoryStore.set(sessionId, validHistory);
@@ -391,7 +567,6 @@ export function appendConversationTurn(
   const now = Date.now();
   current.push({ role: 'user', content: userMessage, timestamp: now });
   current.push({ role: 'assistant', content: assistantReply, timestamp: now });
-  // Keep maximum last 10 turns (5 full user-assistant dialogues)
   if (current.length > 10) {
     current.splice(0, current.length - 10);
   }
@@ -401,4 +576,3 @@ export function appendConversationTurn(
 export function clearConversationHistory(sessionId: string): void {
   conversationMemoryStore.delete(sessionId);
 }
-

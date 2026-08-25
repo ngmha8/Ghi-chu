@@ -1,11 +1,12 @@
 {
-  "projectId": "gen-lang-client-0018946705",
-  "appId": "1:21429204129:web:b70cc9b0f2f92db9e46ce0",
-  "apiKey": "AIzaSyDdIohooWTEfVasqlr9uykJhpoMgbgp0eE",
-  "authDomain": "gen-lang-client-0018946705.firebaseapp.com",
-  "storageBucket": "gen-lang-client-0018946705.firebasestorage.app",
-  "messagingSenderId": "21429204129",
+  "projectId": "amplified-rhythm-nlsxp",
+  "appId": "1:797950767923:web:119a0ae6dc409f110fc446",
+  "apiKey": "AIzaSyBusL12yDOEKUdHd2t_2IU032T1zrCMMW4",
+  "authDomain": "amplified-rhythm-nlsxp.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-aipersonalproduc-52adedb5-77ef-46f6-8e1c-fe3ae595e462",
+  "storageBucket": "amplified-rhythm-nlsxp.firebasestorage.app",
+  "messagingSenderId": "797950767923",
   "measurementId": "",
-  "oAuthClientId": "21429204129-np0fgovgb0natsovricoaokravo6tvj4.apps.googleusercontent.com",
+  "oAuthClientId": "797950767923-2ibe3kgt6hl8uahlmn0pk1vh5u5qlmr5.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

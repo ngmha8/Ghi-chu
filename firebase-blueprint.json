@@ -75,6 +75,20 @@
         "uploadedAt": { "type": "string" }
       },
       "required": ["name", "size", "category"]
+    },
+    "DocumentCategory": {
+      "title": "DocumentCategory",
+      "description": "Custom or standard document classification categories",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "color": { "type": "string" },
+        "icon": { "type": "string" },
+        "description": { "type": "string" },
+        "isDefault": { "type": "boolean" }
+      },
+      "required": ["id", "name", "color", "icon"]
     }
   },
   "firestore": {
@@ -89,6 +103,10 @@
     "/files/{fileId}": {
       "entity": "DriveFile",
       "description": "Uploaded documents and files"
+    },
+    "/categories/{categoryId}": {
+      "entity": "DocumentCategory",
+      "description": "Document categories"
     },
     "/config/{configId}": {
       "entity": "TelegramConfig",

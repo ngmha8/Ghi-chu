@@ -10,6 +10,7 @@ import {
   subscribeTasks,
   subscribeNotes,
   subscribeFiles,
+  subscribeCategories,
   subscribeNotifications,
   subscribeTelegramConfig,
 } from './services/firebase.ts';
@@ -126,6 +127,12 @@ export default function App() {
       }
     });
 
+    const unsubCategories = subscribeCategories((liveCats) => {
+      if (liveCats && liveCats.length > 0) {
+        setCategories(liveCats);
+      }
+    });
+
     const unsubFiles = subscribeFiles((liveFiles) => {
       if (liveFiles && liveFiles.length > 0) {
         setFiles(liveFiles);
@@ -179,6 +186,7 @@ export default function App() {
     return () => {
       unsubTasks();
       unsubNotes();
+      unsubCategories();
       unsubFiles();
       unsubNotifs();
       unsubConfig();
