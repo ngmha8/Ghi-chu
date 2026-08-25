@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Task, DriveFile, Note, RecurringType } from '../types/index.js';
 import { X, CheckSquare, Paperclip } from 'lucide-react';
 import { TagAutocompleteInput } from './TagAutocompleteInput.js';
+import { VoiceInputButton } from './VoiceInputButton.tsx';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -139,23 +140,37 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
-            <label className="block text-[#E0E0E0] font-editorial-serif font-bold mb-1">Tên công việc (*)</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[#E0E0E0] font-editorial-serif font-bold">Tên công việc (*)</label>
+              <VoiceInputButton
+                size="sm"
+                onTranscript={(text) => setTitle((prev) => (prev ? `${prev} ${text}` : text))}
+                title="Đọc tên công việc bằng giọng nói"
+              />
+            </div>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Nhập tên công việc cần làm..."
+              placeholder="Nhập hoặc bấm micro đọc tên công việc..."
               className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
             />
           </div>
 
           <div>
-            <label className="block text-[#E0E0E0] font-editorial-serif font-bold mb-1">Mô tả công việc</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[#E0E0E0] font-editorial-serif font-bold">Mô tả công việc</label>
+              <VoiceInputButton
+                size="sm"
+                onTranscript={(text) => setDescription((prev) => (prev ? `${prev} ${text}` : text))}
+                title="Đọc mô tả công việc bằng giọng nói"
+              />
+            </div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Chi tiết yêu cầu, ghi chú triển khai..."
+              placeholder="Chi tiết yêu cầu, ghi chú triển khai hoặc đọc bằng giọng nói..."
               rows={3}
               className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
             />

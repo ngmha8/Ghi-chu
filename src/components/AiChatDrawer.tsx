@@ -18,8 +18,10 @@ import {
   Clock,
   Calendar,
   CloudSun,
-  Lightbulb
+  Lightbulb,
+  Mic
 } from 'lucide-react';
+import { VoiceInputButton } from './VoiceInputButton.tsx';
 
 interface AiChatDrawerProps {
   isOpen: boolean;
@@ -322,25 +324,34 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
 
       {/* Input Box */}
       <form onSubmit={handleSend} className="p-3 bg-[#151515] border-t border-[#2A2A2A] space-y-2">
-        <div className="relative flex items-center">
+        <div className="relative flex items-center gap-1.5">
           <input
             type="text"
             placeholder={
               activeMode === 'executive'
-                ? 'Hỏi hoặc ra lệnh công việc, thời tiết, ghi chú, tìm file...'
+                ? 'Hỏi hoặc ra lệnh bằng chữ hoặc giọng nói...'
                 : activeMode === 'deep_think'
-                ? 'Nhập vấn đề phức tạp để AI phân tích đa chiều & cố vấn...'
-                : 'Chia sẻ tâm tư, câu chuyện hoặc tâm trạng của bạn...'
+                ? 'Nhập vấn đề phức tạp để AI phân tích...'
+                : 'Chia sẻ tâm tư, câu chuyện của bạn...'
             }
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={isLoading}
-            className="w-full pl-3.5 pr-10 py-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] placeholder-[#666666] focus:outline-none focus:border-[#D4AF37] transition-colors"
+            className="flex-1 pl-3.5 pr-2 py-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] placeholder-[#666666] focus:outline-none focus:border-[#D4AF37] transition-colors"
           />
+
+          <VoiceInputButton
+            onTranscript={(text) => {
+              setInputText((prev) => (prev ? `${prev} ${text}` : text));
+            }}
+            size="sm"
+            title="Nhập bằng giọng nói tiếng Việt"
+          />
+
           <button
             type="submit"
             disabled={!inputText.trim() || isLoading}
-            className="absolute right-2 p-1.5 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] disabled:opacity-50 text-black transition-colors cursor-pointer shadow-sm"
+            className="p-2 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] disabled:opacity-50 text-black transition-colors cursor-pointer shadow-sm flex items-center justify-center shrink-0"
           >
             <Send className="w-4 h-4" />
           </button>

@@ -73,6 +73,7 @@ export function splitTelegramMessage(text: string, maxLen = 3900): string[] {
 
 /**
  * Send message with Markdown support, auto chunking for long content, and optional Inline Keyboard
+ * Returns message ID of first sent chunk if successful
  */
 export async function sendTelegramMessage(
   botToken: string,
@@ -81,10 +82,22 @@ export async function sendTelegramMessage(
   inlineKeyboard?: TelegramInlineKeyboard,
   replyToMessageId?: number
 ): Promise<boolean> {
-  if (!botToken || !chatId || !text) return false;
+  const result = await sendTelegramMessageWithResult(botToken, chatId, text, inlineKeyboard, replyToMessageId);
+  return result.success;
+}
+
+export async function sendTelegramMessageWithResult(
+  botToken: string,
+  chatId: string | number,
+  text: string,
+  inlineKeyboard?: TelegramInlineKeyboard,
+  replyToMessageId?: number
+): Promise<{ success: boolean; messageId?: number }> {
+  if (!botToken || !chatId || !text) return { success: false };
 
   const chunks = splitTelegramMessage(text);
   let overallSuccess = true;
+  let firstMessageId: number | undefined = undefined;
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
@@ -115,6 +128,9 @@ export async function sendTelegramMessage(
       const data: any = await res.json();
 
       if (data.ok) {
+        if (i === 0 && data.result?.message_id) {
+          firstMessageId = data.result.message_id;
+        }
         continue;
       }
 
@@ -127,7 +143,11 @@ export async function sendTelegramMessage(
         body: JSON.stringify(payload),
       });
       const fallbackData: any = await fallbackRes.json();
-      if (!fallbackData.ok) {
+      if (fallbackData.ok) {
+        if (i === 0 && fallbackData.result?.message_id) {
+          firstMessageId = fallbackData.result.message_id;
+        }
+      } else {
         console.error('sendTelegramMessage failed:', fallbackData);
         overallSuccess = false;
       }
@@ -137,7 +157,56 @@ export async function sendTelegramMessage(
     }
   }
 
-  return overallSuccess;
+  return { success: overallSuccess, messageId: firstMessageId };
+}
+
+/**
+ * Edit an existing Telegram message in-place for seamless real-time updates (e.g. from Transcribing -> Result)
+ */
+export async function editTelegramMessageText(
+  botToken: string,
+  chatId: string | number,
+  messageId: number,
+  text: string,
+  inlineKeyboard?: TelegramInlineKeyboard
+): Promise<boolean> {
+  if (!botToken || !chatId || !messageId || !text) return false;
+
+  const payload: any = {
+    chat_id: chatId,
+    message_id: messageId,
+    text: text,
+    parse_mode: 'Markdown',
+  };
+
+  if (inlineKeyboard && inlineKeyboard.length > 0) {
+    payload.reply_markup = {
+      inline_keyboard: inlineKeyboard,
+    };
+  }
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data: any = await res.json();
+    if (data.ok) return true;
+
+    // Fallback without parse_mode if formatting fails
+    delete payload.parse_mode;
+    const fallbackRes = await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const fallbackData: any = await fallbackRes.json();
+    return !!fallbackData.ok;
+  } catch (err) {
+    console.warn('editTelegramMessageText network error:', err);
+    return false;
+  }
 }
 
 /**

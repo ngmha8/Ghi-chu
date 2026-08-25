@@ -75,7 +75,7 @@ import {
   stopTelegramPollingDaemon,
   TelegramEngineContext
 } from './server/telegramBotEngine.ts';
-import { transcribeTelegramVoice } from './server/voiceTranscriber.ts';
+import { transcribeTelegramVoice, transcribeAudioBuffer } from './server/voiceTranscriber.ts';
 import { generateDailyBriefing } from './server/dailyBriefing.ts';
 import { safeGenerateContent, GEMINI_MODEL_FALLBACK_CHAIN } from './server/geminiHelper.ts';
 import { fetchLiveWeather } from './server/weatherService.ts';
@@ -1070,7 +1070,7 @@ function getTelegramEngineContext(): TelegramEngineContext {
   };
 }
 
-// Telegram Bot Webhook Handler (Seamless fallback & real-time dispatch)
+// Telegram Bot Webhook Handler (Immediate 200 OK + Async AI Processing to prevent Telegram Retry Loops)
 app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
   const telegramConfig = await getDbTelegramConfig();
 
@@ -1083,8 +1083,76 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
     }
   }
 
-  const result = await processTelegramUpdate(req.body || {}, getTelegramEngineContext());
-  res.json(result);
+  // Acknowledge Telegram API immediately to satisfy the 5-second Webhook timeout
+  res.status(200).json({ ok: true });
+
+  // Process update asynchronously in the background
+  const updateBody = req.body || {};
+  processTelegramUpdate(updateBody, getTelegramEngineContext()).catch(err => {
+    console.warn('[Telegram Webhook Async Processing Error]:', err);
+  });
+});
+
+// -------------------------------------------------------------
+// WEB APP VOICE RECOGNITION & MULTIMODAL DICTATION API
+// -------------------------------------------------------------
+app.post('/api/voice/transcribe', async (req: Request, res: Response) => {
+  try {
+    const { audioBase64, mimeType = 'audio/webm' } = req.body;
+    if (!audioBase64) {
+      return res.status(400).json({ error: 'Thiếu dữ liệu âm thanh (audioBase64).' });
+    }
+
+    const buffer = Buffer.from(audioBase64, 'base64');
+    const ai = getGeminiClient();
+    const transcribedText = await transcribeAudioBuffer(buffer, mimeType, ai);
+
+    res.json({
+      success: true,
+      text: transcribedText,
+    });
+  } catch (err: any) {
+    console.error('API voice transcribe error:', err);
+    res.status(500).json({
+      success: false,
+      error: err?.message || 'Lỗi nhận diện âm thanh',
+    });
+  }
+});
+
+app.post('/api/voice/process-ai', async (req: Request, res: Response) => {
+  try {
+    const { audioBase64, mimeType = 'audio/webm', enableSearch = true, sessionId = 'web_voice' } = req.body;
+    if (!audioBase64) {
+      return res.status(400).json({ error: 'Thiếu dữ liệu âm thanh (audioBase64).' });
+    }
+
+    const buffer = Buffer.from(audioBase64, 'base64');
+    const ai = getGeminiClient();
+    const transcribedText = await transcribeAudioBuffer(buffer, mimeType, ai);
+
+    if (!transcribedText || transcribedText.trim().length === 0) {
+      return res.json({
+        success: false,
+        error: 'Không nhận diện được giọng nói trong bản ghi âm.',
+      });
+    }
+
+    const aiResult = await processAiChat(transcribedText, enableSearch, sessionId);
+
+    res.json({
+      success: true,
+      transcript: transcribedText,
+      reply: aiResult.reply,
+      groundingSources: aiResult.groundingSources || [],
+    });
+  } catch (err: any) {
+    console.error('API voice process-ai error:', err);
+    res.status(500).json({
+      success: false,
+      error: err?.message || 'Lỗi xử lý âm thanh AI',
+    });
+  }
 });
 
 // Set Bot Quick-Command Menu (/) on Telegram API

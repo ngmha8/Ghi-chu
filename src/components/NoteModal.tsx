@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Note, Task, DriveFile } from '../types/index.js';
 import { X, FileText, Paperclip } from 'lucide-react';
 import { TagAutocompleteInput } from './TagAutocompleteInput.js';
+import { VoiceInputButton } from './VoiceInputButton.tsx';
 
 interface NoteModalProps {
   isOpen: boolean;
@@ -109,23 +110,37 @@ export const NoteModal: React.FC<NoteModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
-            <label className="block text-[#E0E0E0] font-editorial-serif font-bold mb-1">Tiêu đề ghi chú (*)</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[#E0E0E0] font-editorial-serif font-bold">Tiêu đề ghi chú (*)</label>
+              <VoiceInputButton
+                size="sm"
+                onTranscript={(text) => setTitle((prev) => (prev ? `${prev} ${text}` : text))}
+                title="Đọc tiêu đề ghi chú bằng giọng nói"
+              />
+            </div>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Nhập tiêu đề ghi chú..."
+              placeholder="Nhập hoặc đọc tiêu đề ghi chú..."
               className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
             />
           </div>
 
           <div>
-            <label className="block text-[#E0E0E0] font-editorial-serif font-bold mb-1">Nội dung (Hỗ trợ Markdown)</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[#E0E0E0] font-editorial-serif font-bold">Nội dung (Hỗ trợ Markdown)</label>
+              <VoiceInputButton
+                size="sm"
+                onTranscript={(text) => setContent((prev) => (prev ? `${prev}\n${text}` : text))}
+                title="Đọc nội dung ghi chú bằng giọng nói"
+              />
+            </div>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Nhập nội dung ghi chú ở đây..."
+              placeholder="Nhập nội dung ghi chú hoặc bấm micro đọc nội dung..."
               rows={6}
               className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37] font-mono"
             />

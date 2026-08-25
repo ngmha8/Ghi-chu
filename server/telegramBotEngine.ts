@@ -19,6 +19,8 @@ import {
 } from './firebaseDb.ts';
 import {
   sendTelegramMessage,
+  sendTelegramMessageWithResult,
+  editTelegramMessageText,
   sendTelegramChatAction,
   answerCallbackQuery,
   buildTaskReminderKeyboard,
@@ -31,6 +33,23 @@ import {
 } from './telegramHelper.ts';
 import { transcribeTelegramVoice } from './voiceTranscriber.ts';
 import { generateDailyBriefing } from './dailyBriefing.ts';
+
+// Track recent update IDs to prevent duplicate processing on Telegram webhook retries
+const processedUpdateMap = new Map<number, number>();
+
+function isDuplicateTelegramUpdate(updateId?: number): boolean {
+  if (!updateId) return false;
+  const now = Date.now();
+  // Purge entries older than 5 minutes
+  for (const [id, ts] of processedUpdateMap.entries()) {
+    if (now - ts > 300000) processedUpdateMap.delete(id);
+  }
+  if (processedUpdateMap.has(updateId)) {
+    return true;
+  }
+  processedUpdateMap.set(updateId, now);
+  return false;
+}
 
 // Helper for Vietnam Timezone (UTC+7)
 function getTimeInZone(date: Date = new Date(), timeZone: string = 'Asia/Ho_Chi_Minh') {
@@ -80,6 +99,12 @@ export async function processTelegramUpdate(
   telegramUpdate: any,
   context: TelegramEngineContext
 ): Promise<{ success: boolean; reply?: string; action?: string; chatId?: string }> {
+  // Deduplicate updates from Telegram webhook retry loops
+  if (telegramUpdate.update_id && isDuplicateTelegramUpdate(telegramUpdate.update_id)) {
+    console.log(`[Telegram Update] Skipping duplicate update_id: ${telegramUpdate.update_id}`);
+    return { success: true, reply: 'Skipped duplicate update' };
+  }
+
   const telegramConfig = await getDbTelegramConfig();
   if (!telegramConfig.botToken) {
     return { success: false, reply: 'Chưa cấu hình Telegram Bot Token.' };
@@ -289,11 +314,11 @@ export async function processTelegramUpdate(
   if (voiceObj && voiceObj.file_id && telegramConfig.botToken) {
     console.log(`🎙️ [Telegram Voice] file_id: ${voiceObj.file_id} from ${chatId}`);
     try {
-      // Send instant visual typing / recording action
+      // 1. Send instant visual recording indicator
       await sendTelegramChatAction(telegramConfig.botToken, chatId, 'record_voice');
 
-      // Immediate ack
-      await sendTelegramMessage(
+      // 2. Send immediate status ack and save message ID to edit in-place
+      const placeholderRes = await sendTelegramMessageWithResult(
         telegramConfig.botToken,
         chatId,
         '🎙️ *Đang lắng nghe và nhận diện giọng nói qua Gemini AI...*',
@@ -301,6 +326,7 @@ export async function processTelegramUpdate(
         messageId
       );
 
+      // 3. Transcribe audio with Gemini Multimodal Audio
       const transcribedText = await transcribeTelegramVoice(
         telegramConfig.botToken,
         voiceObj.file_id,
@@ -309,13 +335,20 @@ export async function processTelegramUpdate(
 
       console.log(`🎙️ Gemini Multimodal Audio Transcribed: "${transcribedText}"`);
 
-      // Trigger typing indicator while executing AI action
-      await sendTelegramChatAction(telegramConfig.botToken, chatId, 'typing');
+      if (!transcribedText || transcribedText.trim().length === 0) {
+        botReply =
+          '🎙️ *Không nhận diện được giọng nói:*\n\n' +
+          'Đoạn ghi âm có thể quá ngắn hoặc âm thanh bị nhỏ/nhiễu. Bạn hãy thử gửi lại tin nhắn thoại to và rõ hơn nhé!';
+      } else {
+        // Trigger typing indicator while executing AI action
+        await sendTelegramChatAction(telegramConfig.botToken, chatId, 'typing');
 
-      // Autonomous AI Agent execution (Function Calling: Create Task, Note, Done, Query)
-      const aiResult = await context.processAiChat(transcribedText, true, `tg_${chatId}`);
+        // Autonomous AI Agent execution (Function Calling: Create Task, Note, Done, Query)
+        const aiResult = await context.processAiChat(transcribedText, true, `tg_${chatId}`);
 
-      botReply = `🎙️ *Giọng nói nhận diện:*\n_"${transcribedText}"_\n\n${aiResult.reply}`;
+        botReply = `🎙️ *Giọng nói nhận diện:*\n_"${transcribedText}"_\n\n${aiResult.reply}`;
+      }
+
       replyKeyboard = [
         [
           { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
@@ -326,9 +359,32 @@ export async function processTelegramUpdate(
           { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }
         ]
       ];
+
+      // 4. Edit the placeholder message in-place for a clean user experience
+      if (placeholderRes.messageId) {
+        const edited = await editTelegramMessageText(
+          telegramConfig.botToken,
+          chatId,
+          placeholderRes.messageId,
+          botReply,
+          replyKeyboard
+        );
+
+        if (edited) {
+          await addDbNotificationLog({
+            id: `notif-${Date.now()}`,
+            title: `🎙️ Voice: ${botReply.slice(0, 30)}`,
+            message: botReply.slice(0, 100) + '...',
+            channel: 'telegram',
+            status: 'sent',
+            timestamp: new Date().toISOString(),
+          });
+          return { success: true, reply: botReply, chatId };
+        }
+      }
     } catch (voiceError: any) {
       console.error('Voice processing error:', voiceError);
-      botReply = `⚠️ *Không thể xử lý tin nhắn thoại:* ${voiceError?.message || 'Lỗi nhận dạng âm thanh'}`;
+      botReply = `⚠️ *Không thể xử lý tin nhắn thoại:*\n${voiceError?.message || 'Lỗi nhận dạng âm thanh'}\n\n_Gợi ý: Hãy thử nói lại một câu rõ ràng (ví dụ: "Thêm việc họp dự án lúc 3h chiều mai")_`;
     }
   }
 
