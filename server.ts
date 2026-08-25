@@ -21,6 +21,10 @@ import {
   getDbNotes,
   saveDbNote,
   deleteDbNote,
+  getDbCategories,
+  saveDbCategories,
+  saveDbCategory,
+  deleteDbCategory,
   getDbFiles,
   saveDbFile,
   deleteDbFile,
@@ -229,6 +233,50 @@ app.delete('/api/notes/:id', async (req: Request, res: Response) => {
   const noteId = req.params.id;
   await deleteDbNote(noteId);
   res.json({ success: true, id: noteId });
+});
+
+// -------------------------------------------------------------
+// 2.5 DOCUMENT CATEGORIES API ROUTES (PERSISTED ON SERVER/STORAGE)
+// -------------------------------------------------------------
+app.get('/api/categories', async (req: Request, res: Response) => {
+  const categories = await getDbCategories();
+  res.json(categories);
+});
+
+app.post('/api/categories', async (req: Request, res: Response) => {
+  if (Array.isArray(req.body)) {
+    const savedList = await saveDbCategories(req.body);
+    return res.json(savedList);
+  }
+  const newCat = {
+    id: req.body.id || `cat-${Date.now()}`,
+    name: req.body.name || 'Phân loại mới',
+    color: req.body.color || 'emerald',
+    icon: req.body.icon || 'Tag',
+    description: req.body.description || '',
+    isDefault: req.body.isDefault ?? false,
+  };
+  const saved = await saveDbCategory(newCat);
+  res.status(201).json(saved);
+});
+
+app.put('/api/categories/:id', async (req: Request, res: Response) => {
+  const catId = req.params.id;
+  const currentCats = await getDbCategories();
+  const existing = currentCats.find(c => c.id === catId);
+  const updated = {
+    ...(existing || { id: catId, color: 'emerald', icon: 'Tag', isDefault: false }),
+    ...req.body,
+    id: catId,
+  };
+  const saved = await saveDbCategory(updated);
+  res.json(saved);
+});
+
+app.delete('/api/categories/:id', async (req: Request, res: Response) => {
+  const catId = req.params.id;
+  await deleteDbCategory(catId);
+  res.json({ success: true, id: catId });
 });
 
 // -------------------------------------------------------------

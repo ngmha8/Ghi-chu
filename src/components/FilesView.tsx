@@ -62,6 +62,8 @@ import {
 import {
   getStoredCategories,
   saveStoredCategories,
+  fetchCategoriesFromServer,
+  syncCategoriesToServer,
   resolveCategory,
   CATEGORY_COLORS,
   DEFAULT_DOCUMENT_CATEGORIES
@@ -72,6 +74,8 @@ interface FilesViewProps {
   files: DriveFile[];
   tasks: Task[];
   notes: Note[];
+  categories?: DocumentCategory[];
+  onSaveCategories?: (newCategories: DocumentCategory[]) => void;
   onFileUpload: (fileData: Partial<DriveFile>) => Promise<DriveFile | null> | void;
   onFileDelete: (id: string) => void;
   onFileUpdate?: (id: string, fileData: Partial<DriveFile>) => void;
@@ -83,6 +87,8 @@ export const FilesView: React.FC<FilesViewProps> = ({
   files,
   tasks,
   notes,
+  categories: propCategories,
+  onSaveCategories: propOnSaveCategories,
   onFileUpload,
   onFileDelete,
   onFileUpdate,
@@ -92,7 +98,15 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const [search, setSearch] = useState('');
   
   // Document Classification state (Công việc, Cá nhân, Mẫu giấy tờ, Tài chính...)
-  const [categories, setCategories] = useState<DocumentCategory[]>(() => getStoredCategories());
+  const [internalCategories, setInternalCategories] = useState<DocumentCategory[]>(() => propCategories || getStoredCategories());
+  const categories = propCategories || internalCategories;
+
+  useEffect(() => {
+    if (propCategories && propCategories.length > 0) {
+      setInternalCategories(propCategories);
+    }
+  }, [propCategories]);
+
   const [selectedClassification, setSelectedClassification] = useState<string>('all');
   const [isManagingCategories, setIsManagingCategories] = useState(false);
 
@@ -181,10 +195,14 @@ export const FilesView: React.FC<FilesViewProps> = ({
       .catch(e => console.warn('Could not load SA config:', e));
   }, []);
 
-  // Save updated categories
+  // Save updated categories (syncs with prop handler or backend API)
   const handleSaveCategories = (newCategories: DocumentCategory[]) => {
-    setCategories(newCategories);
-    saveStoredCategories(newCategories);
+    setInternalCategories(newCategories);
+    if (propOnSaveCategories) {
+      propOnSaveCategories(newCategories);
+    } else {
+      syncCategoriesToServer(newCategories).catch(e => console.warn('Sync categories error:', e));
+    }
   };
 
   // Compute file counts per classification

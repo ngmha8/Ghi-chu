@@ -1,6 +1,48 @@
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage, DriveServiceAccountConfig, SecurityPinSettings } from '../types/index.js';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage, DriveServiceAccountConfig, SecurityPinSettings, DocumentCategory } from '../types/index.js';
 
 export const api = {
+  // Category Endpoints (Document Classification)
+  getCategories: async (): Promise<DocumentCategory[]> => {
+    const res = await fetch('/api/categories');
+    if (!res.ok) throw new Error('Failed to fetch categories');
+    return res.json();
+  },
+
+  saveCategories: async (categories: DocumentCategory[]): Promise<DocumentCategory[]> => {
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(categories),
+    });
+    if (!res.ok) throw new Error('Failed to save categories');
+    return res.json();
+  },
+
+  createCategory: async (category: Partial<DocumentCategory>): Promise<DocumentCategory> => {
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(category),
+    });
+    if (!res.ok) throw new Error('Failed to create category');
+    return res.json();
+  },
+
+  updateCategory: async (id: string, updates: Partial<DocumentCategory>): Promise<DocumentCategory> => {
+    const res = await fetch(`/api/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error('Failed to update category');
+    return res.json();
+  },
+
+  deleteCategory: async (id: string): Promise<{ success: boolean; id: string }> => {
+    const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete category');
+    return res.json();
+  },
   // Task Endpoints
   getTasks: async (): Promise<Task[]> => {
     const res = await fetch('/api/tasks');

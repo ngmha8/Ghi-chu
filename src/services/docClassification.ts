@@ -1,4 +1,5 @@
 import { DocumentCategory } from '../types/index.js';
+import { api } from './api.js';
 
 export const DEFAULT_DOCUMENT_CATEGORIES: DocumentCategory[] = [
   {
@@ -86,19 +87,79 @@ export function saveStoredCategories(categories: DocumentCategory[]): void {
   }
 }
 
-export function resolveCategory(classificationIdOrName?: string, categories: DocumentCategory[] = DEFAULT_DOCUMENT_CATEGORIES): DocumentCategory {
+export async function fetchCategoriesFromServer(): Promise<DocumentCategory[]> {
+  try {
+    const serverCategories = await api.getCategories();
+    if (Array.isArray(serverCategories) && serverCategories.length > 0) {
+      // Check if local storage has any custom category not yet on server
+      const localCats = getStoredCategories();
+      const serverIds = new Set(serverCategories.map(c => c.id));
+      const extraLocal = localCats.filter(l => !serverIds.has(l.id) && !l.isDefault);
+      
+      let finalList = serverCategories;
+      if (extraLocal.length > 0) {
+        finalList = [...serverCategories, ...extraLocal];
+        // Sync the merged list back to server so all other browsers receive it
+        api.saveCategories(finalList).catch(err => console.warn('Could not sync merged categories to server:', err));
+      }
+      
+      saveStoredCategories(finalList);
+      return finalList;
+    }
+  } catch (e) {
+    console.warn('Could not fetch categories from server, using local cache:', e);
+  }
+  return getStoredCategories();
+}
+
+export async function syncCategoriesToServer(categories: DocumentCategory[]): Promise<DocumentCategory[]> {
+  saveStoredCategories(categories);
+  try {
+    const saved = await api.saveCategories(categories);
+    saveStoredCategories(saved);
+    return saved;
+  } catch (e) {
+    console.warn('Could not save categories to server:', e);
+    return categories;
+  }
+}
+
+export function resolveCategory(
+  classificationIdOrName?: string,
+  categories: DocumentCategory[] = DEFAULT_DOCUMENT_CATEGORIES
+): DocumentCategory {
   if (!classificationIdOrName) {
     return categories.find(c => c.id === 'other') || DEFAULT_DOCUMENT_CATEGORIES[DEFAULT_DOCUMENT_CATEGORIES.length - 1];
   }
-  const match = categories.find(c => c.id === classificationIdOrName || c.name.toLowerCase() === classificationIdOrName.toLowerCase());
-  if (match) return match;
+
+  const trimmed = classificationIdOrName.trim();
+
+  // 1. Direct ID match
+  const matchById = categories.find(c => c.id === trimmed);
+  if (matchById) return matchById;
+
+  // 2. Case-insensitive Name match
+  const matchByName = categories.find(c => c.name.toLowerCase() === trimmed.toLowerCase());
+  if (matchByName) return matchByName;
+
+  // 3. Normalized ID match
+  const matchByNormalizedId = categories.find(c => c.id.toLowerCase() === trimmed.toLowerCase());
+  if (matchByNormalizedId) return matchByNormalizedId;
+
+  // 4. If ID is raw timestamp format (e.g. cat-1787642812780) and no custom name found in categories,
+  // check if we can format nicely or fallback gracefully
+  let displayName = trimmed;
+  if (/^cat-\d+$/i.test(trimmed)) {
+    // If it's a technical ID but unmapped, try checking if there's any newly created custom category or show clean label
+    displayName = 'Phân loại mới';
+  }
 
   return {
-    id: classificationIdOrName,
-    name: classificationIdOrName,
+    id: trimmed,
+    name: displayName,
     color: 'zinc',
     icon: 'FileText',
-    description: 'Phân loại tùy chỉnh',
+    description: 'Phân loại tài liệu',
   };
 }
 

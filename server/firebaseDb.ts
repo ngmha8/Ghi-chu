@@ -1,12 +1,13 @@
 import fs from 'fs';
 import path from 'path';
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig } from '../src/types/index.ts';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig, DocumentCategory } from '../src/types/index.ts';
 import {
   initialTasks,
   initialNotes,
   initialFiles,
   initialTelegramConfig,
-  initialNotificationLogs
+  initialNotificationLogs,
+  initialCategories
 } from './initialData.ts';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
@@ -40,6 +41,7 @@ export let cachedSecurityPinConfig: SecurityPinConfig = {
 };
 
 // In-Memory cache for high-speed access & offline resilience
+export let cachedCategories: DocumentCategory[] = [...initialCategories];
 export let cachedTasks: Task[] = [...initialTasks];
 export let cachedNotes: Note[] = [...initialNotes];
 export let cachedFiles: DriveFile[] = [...initialFiles];
@@ -57,6 +59,7 @@ const LOCAL_CONFIG_FILE = path.join(DATA_DIR, 'telegram_config.json');
 const LOCAL_TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const LOCAL_NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const LOCAL_FILES_FILE = path.join(DATA_DIR, 'files.json');
+const LOCAL_CATEGORIES_FILE = path.join(DATA_DIR, 'categories.json');
 const LOCAL_DRIVE_SA_FILE = path.join(DATA_DIR, 'drive_service_account.json');
 const LOCAL_SECURITY_PIN_FILE = path.join(DATA_DIR, 'security_pin.json');
 
@@ -84,6 +87,14 @@ function loadJsonFileSafe(fileName: string): any {
 
 // Read local backups if present
 try {
+  const categoriesData = loadJsonFileSafe('categories.json');
+  if (Array.isArray(categoriesData) && categoriesData.length > 0) {
+    // Merge defaults to ensure no standard category is missing
+    const existingIds = new Set(categoriesData.map((c: any) => c.id));
+    const missingDefaults = initialCategories.filter(d => !existingIds.has(d.id));
+    cachedCategories = [...categoriesData, ...missingDefaults];
+  }
+
   const cfgData = loadJsonFileSafe('telegram_config.json');
   if (cfgData) cachedTelegramConfig = { ...cachedTelegramConfig, ...cfgData };
 
@@ -114,6 +125,7 @@ try {
 
 function saveLocalBackups() {
   const dataMap: Record<string, string> = {
+    'categories.json': JSON.stringify(cachedCategories, null, 2),
     'telegram_config.json': JSON.stringify(cachedTelegramConfig, null, 2),
     'drive_service_account.json': JSON.stringify(cachedDriveServiceAccountConfig, null, 2),
     'tasks.json': JSON.stringify(cachedTasks, null, 2),
@@ -138,6 +150,41 @@ function saveLocalBackups() {
 export async function initializeFirestoreData() {
   saveLocalBackups();
   console.log('✅ Local storage initialized successfully.');
+}
+
+// -------------------------------------------------------------
+// CRUD METHODS (DOCUMENT CATEGORIES)
+// -------------------------------------------------------------
+export async function getDbCategories(): Promise<DocumentCategory[]> {
+  return cachedCategories;
+}
+
+export async function saveDbCategories(categories: DocumentCategory[]): Promise<DocumentCategory[]> {
+  if (Array.isArray(categories) && categories.length > 0) {
+    // Ensure all categories have valid fields
+    const existingIds = new Set(categories.map(c => c.id));
+    const missingDefaults = initialCategories.filter(d => !existingIds.has(d.id));
+    cachedCategories = [...categories, ...missingDefaults];
+    saveLocalBackups();
+  }
+  return cachedCategories;
+}
+
+export async function saveDbCategory(category: DocumentCategory): Promise<DocumentCategory> {
+  const index = cachedCategories.findIndex(c => c.id === category.id);
+  if (index >= 0) {
+    cachedCategories[index] = { ...cachedCategories[index], ...category };
+  } else {
+    cachedCategories.push(category);
+  }
+  saveLocalBackups();
+  return category;
+}
+
+export async function deleteDbCategory(id: string): Promise<boolean> {
+  cachedCategories = cachedCategories.filter(c => c.id !== id);
+  saveLocalBackups();
+  return true;
 }
 
 // -------------------------------------------------------------

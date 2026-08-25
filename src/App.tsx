@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage } from './types/index.js';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, ChatMessage, DocumentCategory } from './types/index.js';
 import { api } from './services/api.js';
+import {
+  fetchCategoriesFromServer,
+  syncCategoriesToServer,
+  getStoredCategories
+} from './services/docClassification.js';
 import {
   subscribeTasks,
   subscribeNotes,
@@ -36,6 +41,7 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [files, setFiles] = useState<DriveFile[]>([]);
+  const [categories, setCategories] = useState<DocumentCategory[]>(() => getStoredCategories());
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({
     botToken: '',
     chatId: '',
@@ -71,24 +77,29 @@ export default function App() {
     defaults.forEach(t => set.add(t));
     tasks.forEach(t => t.tags?.forEach(tag => tag && set.add(tag.trim())));
     notes.forEach(n => n.tags?.forEach(tag => tag && set.add(tag.trim())));
+    categories.forEach(c => set.add(c.name));
     return Array.from(set).filter(Boolean);
-  }, [tasks, notes]);
+  }, [tasks, notes, categories]);
 
   // Initial Fetching & Firestore Realtime Subscriptions
   useEffect(() => {
     async function loadData() {
       try {
-        const [tasksData, notesData, filesData, telegramData] = await Promise.all([
+        const [tasksData, notesData, filesData, telegramData, categoriesData] = await Promise.all([
           api.getTasks(),
           api.getNotes(),
           api.getFiles(),
           api.getTelegramConfig(),
+          fetchCategoriesFromServer(),
         ]);
         setTasks(tasksData);
         setNotes(notesData);
         setFiles(filesData);
         setTelegramConfig(telegramData.config);
         setNotificationLogs(telegramData.logs);
+        if (categoriesData && categoriesData.length > 0) {
+          setCategories(categoriesData);
+        }
       } catch (err) {
         console.error('Error fetching initial data:', err);
       }
@@ -277,6 +288,16 @@ export default function App() {
     }
   };
 
+  const handleSaveCategories = async (newCategories: DocumentCategory[]) => {
+    setCategories(newCategories);
+    try {
+      const saved = await syncCategoriesToServer(newCategories);
+      setCategories(saved);
+    } catch (err) {
+      console.error('Error syncing categories:', err);
+    }
+  };
+
   // -------------------------------------------------------------
   // TELEGRAM HANDLERS
   // -------------------------------------------------------------
@@ -440,6 +461,8 @@ export default function App() {
             files={files}
             tasks={tasks}
             notes={notes}
+            categories={categories}
+            onSaveCategories={handleSaveCategories}
             onFileUpload={handleFileUpload}
             onFileDelete={handleFileDelete}
             onFileUpdate={handleFileUpdate}

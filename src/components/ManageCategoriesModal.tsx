@@ -80,6 +80,11 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
   const [list, setList] = useState<DocumentCategory[]>(categories);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Sync internal list if props change
+  React.useEffect(() => {
+    setList(categories);
+  }, [categories]);
+
   // Form State for creating or editing
   const [nameInput, setNameInput] = useState('');
   const [colorInput, setColorInput] = useState('emerald');
