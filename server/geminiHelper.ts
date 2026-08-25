@@ -1,10 +1,11 @@
 import { GoogleGenAI } from '@google/genai';
 
 export const GEMINI_MODEL_FALLBACK_CHAIN = [
-  'gemini-3.6-flash',
+  'gemini-3.7-flash',
   'gemini-3.5-flash',
   'gemini-3.1-flash-lite',
   'gemini-2.5-flash-lite',
+  'gemini-flash-latest',
 ];
 
 export interface SafeGenerateOptions {
@@ -19,7 +20,7 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Executes a Gemini generateContent call with intelligent multi-model failover,
- * instant 429 quota exhaustion fallback, and tool-compatibility degradation.
+ * instant 429 quota exhaustion fallback, and graceful tool-compatibility degradation.
  */
 export async function safeGenerateContent(options: SafeGenerateOptions): Promise<any> {
   const {
@@ -59,7 +60,6 @@ export async function safeGenerateContent(options: SafeGenerateOptions): Promise
           errMessage.includes('overloaded');
 
         // On 429 quota exhaustion, immediately switch to the next model in the fallback chain
-        // without wasting time retrying the exhausted model.
         if (isQuotaExhausted) {
           break;
         }
@@ -71,7 +71,7 @@ export async function safeGenerateContent(options: SafeGenerateOptions): Promise
           continue;
         }
 
-        // If tool configuration error or parameter unsupported on this model, break to next model or degradation
+        // If tool configuration error or parameter unsupported on this model, break to next model
         break;
       }
     }

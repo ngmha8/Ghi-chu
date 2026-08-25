@@ -10,7 +10,7 @@ export interface DailyBriefingResult {
 }
 
 /**
- * Generates an executive AI Morning or Evening briefing
+ * Generates an executive, highly humanized, empathetic AI Morning or Evening briefing
  */
 export async function generateDailyBriefing(
   type: 'morning' | 'evening',
@@ -34,7 +34,7 @@ export async function generateDailyBriefing(
     month: '2-digit',
     day: '2-digit',
   });
-  const todayIso = vnFormatter.format(now); // e.g. "2026-08-17" in Vietnam
+  const todayIso = vnFormatter.format(now); // e.g. "2026-08-25" in Vietnam
 
   const todayTasks = tasks.filter(t => {
     if (!t.deadline) return false;
@@ -48,7 +48,9 @@ export async function generateDailyBriefing(
   const tasksSummary = tasks.map(t => `- [${t.status.toUpperCase()}] [${t.priority.toUpperCase()}] "${t.title}" (Hạn: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })})`).join('\n');
 
   if (type === 'morning') {
-    const prompt = `Bạn là Senior AI Executive Assistant của tôi. Hãy soạn một bản tin "🌅 BẢN TIN ĐIỂM HẸN BUỔI SÁNG (MORNING BRIEFING)" thật chuyên nghiệp, truyền cảm hứng và súc tích để gửi lên Telegram cá nhân.
+    const prompt = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp (Senior AI Executive Companion & Thought Partner) của tôi, kết hợp giữa năng lực phân tích xuất sắc và sự thấu cảm, ấm áp, nhân văn.
+
+Hãy soạn một bản tin "🌅 BẢN TIN ĐIỂM HẸN BUỔI SÁNG (MORNING BRIEFING)" gửi lên Telegram cá nhân.
 
 THÔNG TIN HÔM NAY:
 - Ngày: ${dateStr}
@@ -57,13 +59,13 @@ THÔNG TIN HÔM NAY:
 - Danh sách công việc hiện có trong Firestore:
 ${tasksSummary || 'Chưa có công việc nào trong hệ thống.'}
 
-YÊU CẦU ĐỊNH DẠNG (Bắt buộc dùng Markdown đẹp cho Telegram):
-1. 🌅 **TIÊU ĐỀ BUỔI SÁNG & LỜI CHÚC TRÀN ĐẦY NĂNG LƯỢNG**
-2. 🌤️ **DỰ BÁO THỜI TIẾT & NHỊP SỐNG**: Ngắn gọn (1-2 câu).
-3. 🎯 **TIÊU ĐIỂM CÔNG VIỆC QUAN TRỌNG HÔM NAY**: Liệt kê các deadline khẩn cấp cần ưu tiên giải quyết trước.
-4. 💡 **LỜI KHUYÊN HIỆU SUẤT TRONG NGÀY (PRODUCTIVITY TIP)**: 1 câu triết lý hoặc mẹo tập trung sâu.
+TIÊU CHUẨN NỘI DUNG & NHÂN TÍNH HÓA (Format Markdown cho Telegram):
+1. 🌅 **LỜI CHÀO NGÀY MỚI TRUYỀN CẢM HỨNG**: Tươi sáng, chân thành, tiếp thêm động lực tích cực.
+2. 🎯 **TIÊU ĐIỂM CÔNG VIỆC TRỌNG TÂM**: Nhấn mạnh 1-3 việc khẩn cấp nhất, gợi ý chiến lược giải quyết thông minh (chia nhỏ việc, khung giờ vàng tập trung).
+3. 🌤️ **NHỊP SỐNG & SỨC KHỎE**: Lời nhắc nhẹ nhàng về uống nước, khởi động buổi sáng hoặc giữ tâm thế thoải mái.
+4. 💡 **GÓC SUY NGẪM / PRODUCTIVITY TIP**: 1 triết lý ngắn gọn, sâu sắc về năng suất hoặc tư duy làm việc thông minh.
 
-Viết bằng tiếng Việt, dùng emoji sinh động, định dạng Markdown rõ ràng.`;
+Viết bằng tiếng Việt tinh tế, tự nhiên, truyền cảm hứng, dùng emoji sinh động và chuẩn Markdown.`;
 
     try {
       let res: any = null;
@@ -95,13 +97,15 @@ Viết bằng tiếng Việt, dùng emoji sinh động, định dạng Markdown 
       return {
         type: 'morning',
         title: `🌅 Bản tin buổi sáng (${now.toLocaleDateString('vi-VN')})`,
-        reportText: `🌅 *BẢN TIN ĐIỂM HẸN BUỔI SÁNG - ${dateStr}*\n\n🎯 *Tiêu điểm hôm nay:* Bạn có *${todayTasks.length} công việc* và *${highPriority.length} việc ưu tiên cao* đang chờ xử lý.\n\n✨ *Mẹo nhỏ:* Hãy bắt đầu ngày mới bằng việc khó nhất để tối đa hóa hiệu suất!`,
+        reportText: `🌅 *BẢN TIN ĐIỂM HẸN BUỔI SÁNG - ${dateStr}*\n\nChào bạn một ngày mới an lành và tràn đầy nhiệt huyết!\n\n🎯 *Tiêu điểm hôm nay:* Bạn có *${todayTasks.length} công việc* và *${highPriority.length} việc ưu tiên cao* đang chờ xử lý.\n\n✨ *Lời khuyên hiệu suất:* Hãy bắt đầu ngày mới bằng việc quan trọng nhất để làm chủ toàn bộ thời gian còn lại!`,
         generatedAt: now.toISOString(),
       };
     }
   } else {
     // Evening Briefing
-    const prompt = `Bạn là Senior AI Executive Assistant của tôi. Hãy soạn một bản "🌙 BÁO CÁO TỔNG KẾT NGÀY & KẾ HOẠCH NGÀY MAI (EVENING BRIEFING)" gửi lên Telegram.
+    const prompt = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp (Senior AI Executive Companion & Thought Partner) của tôi, thấu hiểu, ân cần và sâu sắc.
+
+Hãy soạn một bản "🌙 BÁO CÁO TỔNG KẾT NGÀY & KẾ HOẠCH NGÀY MAI (EVENING BRIEFING)" gửi lên Telegram.
 
 THÔNG TIN TỔNG KẾT HÔM NAY (${dateStr}):
 - Số việc đã hoàn thành: ${completedToday.length}
@@ -109,13 +113,13 @@ THÔNG TIN TỔNG KẾT HÔM NAY (${dateStr}):
 - Danh sách công việc:
 ${tasksSummary || 'Không có việc nào'}
 
-YÊU CẦU ĐỊNH DẠNG (Markdown Telegram):
-1. 🌙 **LỜI CHÀO BUỔI TỐI & TỔNG KẾT NHANH**
-2. 🏆 **THÀNH QUẢ ĐÃ ĐẠT ĐƯỢC HÔM NAY**: Khen ngợi và tóm tắt việc đã làm xong.
-3. ⏳ **VIỆC CẦN LƯU Ý CHO NGÀY MAI**: 1-2 gạch đầu dòng chuẩn bị.
-4. 🧘 **LỜI NHẮC NGHỈ NGƠI & TÁI TẠO NĂNG LƯỢNG**.
+TIÊU CHUẨN NỘI DUNG & NHÂN TÍNH HÓA (Format Markdown cho Telegram):
+1. 🌙 **LỜI CHÀO BUỔI TỐI ẤM ÁP & THẤU HIỂU**: Ghi nhận một ngày nỗ lực của người dùng.
+2. 🏆 **VINH DANH NHỮNG TIẾN TRÌNH ĐÃ ĐẠT ĐƯỢC**: Khen ngợi cụ thể các công việc đã hoàn thành hoặc nỗ lực giải quyết vấn đề.
+3. ⏳ **ĐIỂM NHÌN NGÀY MAI**: 1-2 lưu ý ngắn gọn để mai bước vào công việc một cách thảnh thơi, không âu lo.
+4. 🌿 **LỜI NHẮC NGHỈ NGƠI & TÁI TẠO NĂNG LƯỢNG**: Động viên rời xa màn hình, thư giãn tâm trí để có giấc ngủ sâu trọn vẹn.
 
-Viết ngắn gọn, chuyên nghiệp, tiếng Việt lịch thiệp, nhiều emoji ấm áp.`;
+Viết bằng tiếng Việt ấm áp, lịch thiệp, nhiều cảm xúc nhân văn, định dạng Markdown bắt mắt.`;
 
     try {
       const res = await safeGenerateContent({
@@ -136,7 +140,7 @@ Viết ngắn gọn, chuyên nghiệp, tiếng Việt lịch thiệp, nhiều em
       return {
         type: 'evening',
         title: `🌙 Báo cáo tổng kết tối (${now.toLocaleDateString('vi-VN')})`,
-        reportText: `🌙 *BÁO CÁO TỔNG KẾT BUỔI TỐI - ${dateStr}*\n\n🏆 *Thành quả:* Hôm nay bạn đã giải quyết được *${completedToday.length} công việc*!\n⏳ Còn *${pendingTasks.length} công việc* sẽ tiếp tục xử lý ngày mai.\n\n✨ Chúc bạn có một giấc ngủ thật ngon để nạp năng lượng!`,
+        reportText: `🌙 *BÁO CÁO TỔNG KẾT BUỔI TỐI - ${dateStr}*\n\n🏆 *Thành quả hôm nay:* Bạn đã hoàn thành xuất sắc *${completedToday.length} công việc*!\n⏳ Còn *${pendingTasks.length} công việc* đã được lưu trữ ngăn nắp để bạn tiếp tục vào ngày mai.\n\n🌿 *Thư giãn tâm trí:* Hãy gác lại mọi âu lo, chúc bạn có một buổi tối bình yên và một giấc ngủ thật sâu!`,
         generatedAt: now.toISOString(),
       };
     }

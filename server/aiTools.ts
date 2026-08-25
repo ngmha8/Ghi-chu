@@ -8,7 +8,8 @@ import {
   deleteDbNote,
   getDbFiles,
   saveDbFile,
-  getDbTelegramConfig
+  getDbTelegramConfig,
+  getDbCategories
 } from './firebaseDb.ts';
 import { Task, Note, DriveFile } from '../src/types/index.ts';
 
@@ -16,35 +17,35 @@ import { Task, Note, DriveFile } from '../src/types/index.ts';
 export const aiFunctionDeclarations: FunctionDeclaration[] = [
   {
     name: 'createTask',
-    description: 'Tạo mới một công việc (Task) với tiêu đề, thời hạn (deadline ISO hoặc chuỗi giờ Việt Nam), độ ưu tiên (low, medium, high), ghi chú mô tả và tags.',
+    description: 'Tạo mới một công việc (Task) với tiêu đề, thời hạn (deadline ISO hoặc chuỗi giờ Việt Nam), độ ưu tiên (low, medium, high), mô tả chi tiết và tags.',
     parameters: {
       type: Type.OBJECT,
       properties: {
         title: {
           type: Type.STRING,
-          description: 'Tiêu đề công việc cần làm, ví dụ: "Họp báo cáo quý 3", "Gửi email cho khách hàng A"',
+          description: 'Tiêu đề công việc cần làm, ví dụ: "Họp chiến lược sản phẩm quý 3", "Gửi email báo giá cho khách hàng VIP"',
         },
         deadline: {
           type: Type.STRING,
-          description: 'Thời hạn hoàn thành định dạng ISO 8601 (YYYY-MM-DDTHH:mm:ssZ hoặc YYYY-MM-DDTHH:mm) hoặc chuỗi ngày giờ tương đối (ví dụ: "chiều mai 15h", "2026-08-25T14:30:00").',
+          description: 'Thời hạn hoàn thành định dạng ISO 8601 (YYYY-MM-DDTHH:mm:ssZ) hoặc chuỗi ngày giờ Việt Nam (ví dụ: "chiều mai 15h", "20h tối nay", "thứ 6 tuần này lúc 9h sáng").',
         },
         priority: {
           type: Type.STRING,
           enum: ['low', 'medium', 'high'],
-          description: 'Mức độ ưu tiên của công việc (mặc định: medium)',
+          description: 'Mức độ ưu tiên của công việc (mặc định: medium, nếu gấp hoặc quan trọng thì chọn high)',
         },
         description: {
           type: Type.STRING,
-          description: 'Mô tả chi tiết nội dung công việc (nếu có)',
+          description: 'Mô tả chi tiết nội dung, mục tiêu hoặc hướng dẫn thực hiện công việc',
         },
         tags: {
           type: Type.ARRAY,
           items: { type: Type.STRING },
-          description: 'Các nhãn phân loại, ví dụ: ["Công việc", "Khẩn", "Dự án A"]',
+          description: 'Các nhãn phân loại, ví dụ: ["Công việc", "Khẩn", "Dự án A", "Cá nhân", "Tài chính"]',
         },
         reminderOffsetMinutes: {
           type: Type.NUMBER,
-          description: 'Số phút nhắc nhở trước deadline (mặc định: 15)',
+          description: 'Số phút nhắc nhở trước deadline qua Telegram/In-App (mặc định: 15)',
         },
       },
       required: ['title'],
@@ -62,7 +63,7 @@ export const aiFunctionDeclarations: FunctionDeclaration[] = [
         },
         taskQuery: {
           type: Type.STRING,
-          description: 'Từ khóa hoặc tên công việc cần hoàn thành nếu không có ID, ví dụ: "nộp báo cáo"',
+          description: 'Từ khóa hoặc tên công việc cần hoàn thành nếu không có ID, ví dụ: "nộp báo cáo", "họp khách hàng"',
         },
       },
     },
@@ -86,26 +87,26 @@ export const aiFunctionDeclarations: FunctionDeclaration[] = [
   },
   {
     name: 'createNote',
-    description: 'Tạo một ghi chú cá nhân mới (Note) để lưu trữ ý tưởng, tài liệu, snippet, mật khẩu nháp hoặc thông tin quan trọng.',
+    description: 'Tạo một ghi chú cá nhân mới (Note) để lưu trữ ý tưởng, tài liệu, dàn ý, giải pháp kỹ thuật, hoặc thông tin quan trọng.',
     parameters: {
       type: Type.OBJECT,
       properties: {
         title: {
           type: Type.STRING,
-          description: 'Tiêu đề ghi chú',
+          description: 'Tiêu đề ghi chú rõ ràng, súc tích',
         },
         content: {
           type: Type.STRING,
-          description: 'Nội dung chi tiết của ghi chú (hỗ trợ Markdown)',
+          description: 'Nội dung chi tiết của ghi chú (hỗ trợ Markdown, gạch đầu dòng, code block)',
         },
         tags: {
           type: Type.ARRAY,
           items: { type: Type.STRING },
-          description: 'Danh sách tags/nhãn',
+          description: 'Danh sách tags/nhãn phân loại',
         },
         isPinned: {
           type: Type.BOOLEAN,
-          description: 'Có ghim ghi chú lên đầu danh sách hay không',
+          description: 'Có ghim ghi chú quan trọng này lên đầu danh sách hay không',
         },
       },
       required: ['title', 'content'],
@@ -147,7 +148,7 @@ export const aiFunctionDeclarations: FunctionDeclaration[] = [
   },
   {
     name: 'queryFiles',
-    description: 'Tra cứu danh sách tài liệu/tệp tin (Files/Google Drive) theo nhóm phân loại (Công việc, Cá nhân, Hợp đồng, Tài chính, Dự án, Mẫu đơn), định dạng hoặc từ khóa.',
+    description: 'Tra cứu danh sách tài liệu/tệp tin (Files/Google Drive) theo nhóm phân loại, định dạng hoặc từ khóa.',
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -191,7 +192,6 @@ export const aiFunctionDeclarations: FunctionDeclaration[] = [
  * Smart relative date parser strictly bound to Vietnam Timezone (Asia/Ho_Chi_Minh / UTC+7)
  */
 export function parseRelativeDate(text: string, baseDate: Date = new Date(), timeZone: string = 'Asia/Ho_Chi_Minh'): string {
-  // Extract current date in Vietnam timezone
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
@@ -224,7 +224,7 @@ export function parseRelativeDate(text: string, baseDate: Date = new Date(), tim
     targetDay += 7;
   }
 
-  // Parse specific explicit hour (e.g., "15h", "15:30", "3h chiều", "8h sáng", "9h tối")
+  // Parse specific explicit hour (e.g., "15h", "15:30", "3h chiều", "8h sáng", "9h tối", "20:00")
   const timeWithColon = lower.match(/(\d{1,2})[:h](\d{1,2})/i);
   const hourSingle = lower.match(/(\d{1,2})\s*(h|giờ|g|pm|am)\b/i);
 
@@ -251,6 +251,8 @@ export function parseRelativeDate(text: string, baseDate: Date = new Date(), tim
     targetHour = 15;
   } else if (lower.includes('tối')) {
     targetHour = 20;
+  } else if (lower.includes('đêm')) {
+    targetHour = 22;
   }
 
   // Construct target Date in UTC+7
@@ -267,11 +269,9 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
   if (name === 'createTask') {
     let deadlineStr = args.deadline;
     
-    // If deadline is a natural language expression or missing, parse relative to Vietnam time
     if (!deadlineStr || !deadlineStr.includes('T') || isNaN(Date.parse(deadlineStr))) {
       deadlineStr = parseRelativeDate(deadlineStr || 'ngày mai 17h', new Date(), timeZone);
     } else {
-      // Ensure ISO string validity
       try {
         const parsed = new Date(deadlineStr);
         if (isNaN(parsed.getTime())) {
@@ -314,7 +314,7 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
     return {
       success: true,
       data: saved,
-      message: `✅ Đã tạo thành công công việc: "${saved.title}" (Hạn chót: ${deadlineVnStr} [UTC+7], Ưu tiên: ${saved.priority.toUpperCase()})`,
+      message: `✅ Đã lưu thành công vào Firestore:\n📌 Công việc: **${saved.title}**\n⏰ Deadline: **${deadlineVnStr} [UTC+7]**\n🎯 Độ ưu tiên: **${saved.priority.toUpperCase()}**`,
     };
   }
 
@@ -333,7 +333,7 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
     if (!target) {
       return {
         success: false,
-        message: `⚠️ Không tìm thấy công việc phù hợp để hoàn thành với từ khóa "${args.taskQuery || args.taskId}".`,
+        message: `⚠️ Tôi đã tra cứu nhưng không tìm thấy công việc phù hợp với từ khóa "${args.taskQuery || args.taskId}". Bạn hãy kiểm tra lại tên công việc nhé.`,
       };
     }
 
@@ -346,7 +346,7 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
     return {
       success: true,
       data: updated,
-      message: `🎉 Đã đánh dấu hoàn thành công việc: "${updated.title}"!`,
+      message: `🎉 Tuyệt vời! Đã hoàn thành công việc: **"${updated.title}"** (Đã đồng bộ lên Cloud Firestore).`,
     };
   }
 
@@ -372,7 +372,7 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
     await deleteDbTask(target.id);
     return {
       success: true,
-      message: `🗑️ Đã xóa công việc: "${target.title}".`,
+      message: `🗑️ Đã xóa công việc: **"${target.title}"** khỏi hệ thống.`,
     };
   }
 
@@ -393,7 +393,7 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
     return {
       success: true,
       data: saved,
-      message: `📝 Đã lưu ghi chú mới: "${saved.title}" (Tags: ${saved.tags.join(', ')})`,
+      message: `📝 Đã ghi nhận và lưu trữ ghi chú: **"${saved.title}"** (Tags: ${saved.tags.join(', ')})`,
     };
   }
 
@@ -412,14 +412,14 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
     if (!target) {
       return {
         success: false,
-        message: `⚠️ Không tìm thấy ghi chú nào phù hợp để xóa với từ khóa "${args.noteQuery || args.noteId}".`,
+        message: `⚠️ Không tìm thấy ghi chú nào phù hợp với từ khóa "${args.noteQuery || args.noteId}".`,
       };
     }
 
     await deleteDbNote(target.id);
     return {
       success: true,
-      message: `🗑️ Đã xóa ghi chú: "${target.title}".`,
+      message: `🗑️ Đã xóa vĩnh viễn ghi chú: **"${target.title}"**.`,
     };
   }
 
@@ -445,7 +445,7 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       return {
         success: true,
         data: [],
-        message: '📝 Không tìm thấy ghi chú nào phù hợp với yêu cầu.',
+        message: '📝 Tôi đã tìm kiếm trong kho ghi chú nhưng chưa thấy nội dung phù hợp với yêu cầu của bạn.',
       };
     }
 
@@ -453,15 +453,15 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       .slice(0, 8)
       .map((n, idx) => {
         const pinBadge = n.isPinned ? '📌 ' : '';
-        const snippet = n.content.length > 100 ? `${n.content.slice(0, 100)}...` : n.content;
-        return `${idx + 1}. ${pinBadge}**${n.title}**\n   • Tags: [${(n.tags || []).join(', ')}]\n   • Nội dung: _${snippet}_`;
+        const snippet = n.content.length > 120 ? `${n.content.slice(0, 120)}...` : n.content;
+        return `${idx + 1}. ${pinBadge}**${n.title}**\n   • Tags: \`${(n.tags || []).join(', ')}\`\n   • Trích đoạn: _${snippet}_`;
       })
       .join('\n\n');
 
     return {
       success: true,
       data: filtered,
-      message: `📝 **Danh sách ghi chú (${filtered.length}):**\n\n${listText}`,
+      message: `📝 **Ghi chú tìm thấy trong cơ sở dữ liệu (${filtered.length}):**\n\n${listText}`,
     };
   }
 
@@ -496,15 +496,15 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       return {
         success: true,
         data: [],
-        message: '📂 Không tìm thấy tài liệu nào phù hợp trong kho lưu trữ.',
+        message: '📂 Hiện tại chưa tìm thấy tài liệu phù hợp trong kho lưu trữ.',
       };
     }
 
     const listText = filtered
       .slice(0, 10)
       .map((f, idx) => {
-        const driveBadge = f.isSyncedToDrive ? '☁️ [Drive]' : '💾 [Cục bộ]';
-        const linkStr = f.webViewLink ? ` | [Mở Drive](${f.webViewLink})` : '';
+        const driveBadge = f.isSyncedToDrive ? '☁️ [Drive Sync]' : '💾 [Vault Cục Bộ]';
+        const linkStr = f.webViewLink ? ` | [Mở xem](${f.webViewLink})` : '';
         return `${idx + 1}. **${f.name}**\n   • Nhóm: \`${f.classification || 'Chưa phân loại'}\` | Định dạng: \`${f.category}\` ${driveBadge}${linkStr}`;
       })
       .join('\n');
@@ -526,7 +526,7 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       month: '2-digit',
       day: '2-digit',
     });
-    const todayStr = formatter.format(now); // e.g. "2026-08-23" in Vietnam
+    const todayStr = formatter.format(now); // e.g. "2026-08-25" in Vietnam
 
     const tomorrow = new Date(now.getTime() + 24 * 3600 * 1000);
     const tomorrowStr = formatter.format(tomorrow);
@@ -591,7 +591,7 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
     };
   }
 
-  // Handle search or external query tools gracefully
+  // Gracefully handle search or other tool queries
   if (['google_search', 'googleSearch', 'web_search', 'search', 'webSearch'].includes(name)) {
     return {
       success: true,

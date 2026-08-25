@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../types/index.js';
+import { ChatMessage } from '../types/index.ts';
 import {
   Sparkles,
   Send,
@@ -11,7 +11,14 @@ import {
   Trash2,
   Copy,
   Check,
-  Database
+  Database,
+  BrainCircuit,
+  HeartHandshake,
+  Zap,
+  Clock,
+  Calendar,
+  CloudSun,
+  Lightbulb
 } from 'lucide-react';
 
 interface AiChatDrawerProps {
@@ -23,6 +30,8 @@ interface AiChatDrawerProps {
   initialPrompt?: string;
 }
 
+type AiChatMode = 'executive' | 'deep_think' | 'empathy';
+
 export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
   isOpen,
   onClose,
@@ -33,6 +42,7 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [enableSearch, setEnableSearch] = useState(true);
+  const [activeMode, setActiveMode] = useState<AiChatMode>('executive');
   const [isCopied, setIsCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -58,7 +68,13 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
     if (e) e.preventDefault();
     if (!inputText.trim() || isLoading) return;
 
-    const query = inputText;
+    let query = inputText.trim();
+    if (activeMode === 'deep_think') {
+      query = `[Chế độ Cố vấn Chiến lược & Phân tích Sâu]: ${query}`;
+    } else if (activeMode === 'empathy') {
+      query = `[Chế độ Lắng nghe & Đồng hành Tâm sự]: ${query}`;
+    }
+
     setInputText('');
     setIsLoading(true);
 
@@ -80,30 +96,30 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[500px] bg-[#0F0F0F] border-l border-[#2A2A2A] shadow-2xl flex flex-col transition-all duration-300">
+    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[540px] bg-[#0F0F0F] border-l border-[#2A2A2A] shadow-2xl flex flex-col transition-all duration-300">
       
       {/* Drawer Header */}
       <div className="p-4 bg-[#151515] border-b border-[#2A2A2A] flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-sm bg-[#1A1A1A] border border-[#D4AF37]/40 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+          <div className="w-9 h-9 rounded-sm bg-[#1A1A1A] border border-[#D4AF37]/50 flex items-center justify-center shadow-inner">
+            <Sparkles className="w-4.5 h-4.5 text-[#D4AF37]" />
           </div>
           <div>
-            <h2 className="text-sm font-editorial-serif font-bold text-white flex items-center gap-1.5">
-              <span>Senior AI Assistant & Agent</span>
-              <span className="text-[9px] px-1.5 py-0.2 rounded-sm bg-[#0C0C0C] text-[#D4AF37] border border-[#D4AF37]/30 uppercase font-mono tracking-wider">
+            <h2 className="text-sm font-editorial-serif font-bold text-white flex items-center gap-2">
+              <span>Senior AI Executive Companion</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0C0C0C] text-[#D4AF37] border border-[#D4AF37]/40 font-mono tracking-wider">
                 Gemini 3.7
               </span>
             </h2>
-            <p className="text-[10px] text-[#888888] italic">Function Calling + Firestore Real-Time + Web Search</p>
+            <p className="text-[10px] text-[#888888] italic">Đồng hành nhân văn • Phân tích sắc sảo • Trực tiếp Firestore</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={onClearMessages}
             className="p-1.5 rounded-sm text-[#888888] hover:text-[#E0E0E0] hover:bg-[#1A1A1A] transition-colors cursor-pointer"
-            title="Xóa lịch sử chat"
+            title="Xóa lịch sử trò chuyện"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -116,50 +132,111 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
         </div>
       </div>
 
-      {/* RAG & Search Toggle Bar */}
-      <div className="px-4 py-2 bg-[#0C0C0C] border-b border-[#2A2A2A] flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1.5 text-[#AAAAAA]">
+      {/* Persona Mode Switcher */}
+      <div className="px-3 py-2 bg-[#121212] border-b border-[#222222] flex items-center gap-1.5 overflow-x-auto text-[11px]">
+        <button
+          onClick={() => setActiveMode('executive')}
+          className={`px-2.5 py-1 rounded-sm flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            activeMode === 'executive'
+              ? 'bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/50 font-medium'
+              : 'text-[#888888] hover:text-[#CCCCCC] bg-[#1A1A1A] border border-transparent'
+          }`}
+        >
+          <Zap className="w-3 h-3" />
+          <span>⚡ Đa Năng & Hành Động</span>
+        </button>
+
+        <button
+          onClick={() => setActiveMode('deep_think')}
+          className={`px-2.5 py-1 rounded-sm flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            activeMode === 'deep_think'
+              ? 'bg-blue-500/15 text-blue-400 border border-blue-500/50 font-medium'
+              : 'text-[#888888] hover:text-[#CCCCCC] bg-[#1A1A1A] border border-transparent'
+          }`}
+        >
+          <BrainCircuit className="w-3 h-3" />
+          <span>🧠 Tư Duy & Cố Vấn Sâu</span>
+        </button>
+
+        <button
+          onClick={() => setActiveMode('empathy')}
+          className={`px-2.5 py-1 rounded-sm flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            activeMode === 'empathy'
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/50 font-medium'
+              : 'text-[#888888] hover:text-[#CCCCCC] bg-[#1A1A1A] border border-transparent'
+          }`}
+        >
+          <HeartHandshake className="w-3 h-3" />
+          <span>🌿 Lắng Nghe & Tâm Sự</span>
+        </button>
+      </div>
+
+      {/* RAG & Search Status Bar */}
+      <div className="px-4 py-1.5 bg-[#0C0C0C] border-b border-[#2A2A2A] flex items-center justify-between text-[11px]">
+        <div className="flex items-center gap-1.5 text-[#888888]">
           <Database className="w-3.5 h-3.5 text-[#D4AF37]" />
-          <span>Dữ liệu nội bộ: Tasks, Notes & Drive</span>
+          <span>Firestore Cloud Database Active</span>
         </div>
 
-        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-[#E0E0E0]">
+        <label className="flex items-center gap-1.5 cursor-pointer text-[#E0E0E0]">
           <input
             type="checkbox"
             checked={enableSearch}
             onChange={(e) => setEnableSearch(e.target.checked)}
-            className="w-3.5 h-3.5 accent-[#D4AF37] rounded-sm"
+            className="w-3.5 h-3.5 accent-[#D4AF37] rounded-sm cursor-pointer"
           />
           <Globe className={`w-3.5 h-3.5 ${enableSearch ? 'text-[#D4AF37]' : 'text-[#666666]'}`} />
-          <span>Web Search</span>
+          <span>Web Search Grounding</span>
         </label>
       </div>
 
       {/* Chat Messages Body */}
       <div className="flex-1 p-4 overflow-y-auto space-y-4">
         {messages.length === 0 ? (
-          <div className="py-8 space-y-4 text-center">
-            <Sparkles className="w-10 h-10 text-[#D4AF37] mx-auto" />
-            <h3 className="text-sm font-editorial-serif font-bold text-white">Tôi có thể giúp gì cho công việc của bạn?</h3>
-            <p className="text-xs text-[#888888] italic max-w-xs mx-auto leading-relaxed">
-              AI chỉ kích hoạt khi bạn đặt câu hỏi. Hãy chọn các câu hỏi gợi ý bên dưới hoặc nhập nội dung riêng:
-            </p>
+          <div className="py-6 space-y-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-[#181818] border border-[#D4AF37]/30 flex items-center justify-center mx-auto text-[#D4AF37]">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-editorial-serif font-bold text-white">Tôi có thể đồng hành gì cùng bạn hôm nay?</h3>
+              <p className="text-xs text-[#888888] italic max-w-xs mx-auto leading-relaxed">
+                Hỏi bất kỳ điều gì từ công việc, kỹ thuật lập trình, giải quyết vấn đề đến chia sẻ tâm tư cuộc sống:
+              </p>
+            </div>
 
-            <div className="space-y-2 text-left pt-2">
+            {/* Quick Prompt Cards */}
+            <div className="grid grid-cols-1 gap-2 text-left pt-2">
               {[
-                'Hôm nay tôi có những công việc nào cần hoàn thành gấp?',
-                'Deadline của tệp Báo cáo Tài chính Quý 3 là khi nào?',
-                'Tóm tắt giúp tôi tất cả ghi chú về kiến trúc AI và RAG.',
-                'Tìm kiếm tin tức công nghệ mới nhất hôm nay trên Google Search.'
-              ].map((promptText, i) => (
+                {
+                  icon: <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                  title: 'Hôm nay tôi có những công việc nào gấp cần ưu tiên giải quyết?',
+                },
+                {
+                  icon: <Lightbulb className="w-3.5 h-3.5 text-blue-400" />,
+                  title: 'Phân tích giúp tôi chiến lược quản lý thời gian hiệu quả theo Ma trận Eisenhower.',
+                },
+                {
+                  icon: <CloudSun className="w-3.5 h-3.5 text-amber-400" />,
+                  title: 'Dự báo thời tiết hôm nay và cho tôi vài lời khuyên sức khỏe.',
+                },
+                {
+                  icon: <HeartHandshake className="w-3.5 h-3.5 text-emerald-400" />,
+                  title: 'Dạo này tôi thấy khá căng thẳng vì khối lượng công việc, bạn có lời khuyên gì không?',
+                },
+                {
+                  icon: <Calendar className="w-3.5 h-3.5 text-purple-400" />,
+                  title: 'Tra cứu lịch âm hôm nay, xem ngày và giờ hoàng đạo xuất hành.',
+                },
+              ].map((item, i) => (
                 <button
                   key={i}
                   onClick={() => {
-                    setInputText(promptText);
+                    setInputText(item.title);
                   }}
-                  className="w-full p-2.5 rounded-sm bg-[#151515] hover:bg-[#1A1A1A] border border-[#2A2A2A] text-xs text-[#E0E0E0] text-left transition-colors hover:border-[#D4AF37]/50 font-editorial-serif italic cursor-pointer"
+                  className="w-full p-2.5 rounded-sm bg-[#151515] hover:bg-[#1A1A1A] border border-[#262626] text-xs text-[#E0E0E0] text-left transition-all hover:border-[#D4AF37]/50 flex items-start gap-2.5 group cursor-pointer"
                 >
-                  💡 "{promptText}"
+                  <span className="shrink-0 mt-0.5">{item.icon}</span>
+                  <span className="leading-relaxed font-editorial-serif italic group-hover:text-white transition-colors">{item.title}</span>
                 </button>
               ))}
             </div>
@@ -171,16 +248,16 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
               className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               {msg.role === 'assistant' && (
-                <div className="w-7 h-7 rounded-sm bg-[#1A1A1A] border border-[#2A2A2A] text-[#D4AF37] flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-7 h-7 rounded-sm bg-[#1A1A1A] border border-[#2A2A2A] text-[#D4AF37] flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                   <Bot className="w-4 h-4" />
                 </div>
               )}
 
-              <div className={`max-w-[85%] space-y-2`}>
+              <div className={`max-w-[88%] space-y-2`}>
                 <div
                   className={`p-3.5 rounded-sm text-xs leading-relaxed whitespace-pre-wrap ${
                     msg.role === 'user'
-                      ? 'bg-[#D4AF37] text-black font-semibold'
+                      ? 'bg-[#D4AF37] text-black font-semibold shadow-md'
                       : 'bg-[#151515] border border-[#2A2A2A] text-[#E0E0E0]'
                   }`}
                 >
@@ -189,9 +266,9 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
 
                 {/* Grounding Sources */}
                 {msg.groundingSources && msg.groundingSources.length > 0 && (
-                  <div className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] text-[10px] space-y-1">
+                  <div className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] text-[10px] space-y-1.5">
                     <span className="font-bold text-[#D4AF37] flex items-center gap-1 uppercase tracking-wider">
-                      <Globe className="w-3 h-3" /> Google Search:
+                      <Globe className="w-3 h-3" /> Nguồn tra cứu Google Search:
                     </span>
                     <div className="space-y-1">
                       {msg.groundingSources.map((src, idx) => (
@@ -200,7 +277,7 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
                           href={src.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="block text-[#888888] hover:text-[#D4AF37] truncate flex items-center gap-1 transition-colors"
+                          className="text-[#888888] hover:text-[#D4AF37] truncate flex items-center gap-1 transition-colors"
                         >
                           <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                           <span className="truncate">{src.title || src.url}</span>
@@ -215,17 +292,17 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
                   {msg.role === 'assistant' && (
                     <button
                       onClick={() => handleCopy(msg.content, msg.id)}
-                      className="hover:text-[#E0E0E0] flex items-center gap-0.5 cursor-pointer"
+                      className="hover:text-[#E0E0E0] flex items-center gap-0.5 cursor-pointer transition-colors"
                     >
                       {isCopied === msg.id ? <Check className="w-3 h-3 text-[#D4AF37]" /> : <Copy className="w-3 h-3" />}
-                      <span>{isCopied === msg.id ? 'Đã chép' : 'Sao chép'}</span>
+                      <span>{isCopied === msg.id ? 'Đã sao chép' : 'Sao chép'}</span>
                     </button>
                   )}
                 </div>
               </div>
 
               {msg.role === 'user' && (
-                <div className="w-7 h-7 rounded-sm bg-[#1A1A1A] border border-[#2A2A2A] text-[#E0E0E0] flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-7 h-7 rounded-sm bg-[#1A1A1A] border border-[#2A2A2A] text-[#E0E0E0] flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                   <User className="w-4 h-4" />
                 </div>
               )}
@@ -234,9 +311,9 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
         )}
 
         {isLoading && (
-          <div className="flex items-center gap-2 p-3 rounded-sm bg-[#151515] border border-[#2A2A2A] text-xs text-[#D4AF37] font-bold animate-pulse">
+          <div className="flex items-center gap-2.5 p-3 rounded-sm bg-[#151515] border border-[#2A2A2A] text-xs text-[#D4AF37] font-semibold animate-pulse">
             <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-            <span>AI Assistant đang tra cứu RAG & tạo phản hồi...</span>
+            <span>AI Assistant đang xử lý ngữ cảnh & tạo phản hồi thông minh...</span>
           </div>
         )}
 
@@ -248,16 +325,22 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
         <div className="relative flex items-center">
           <input
             type="text"
-            placeholder="Hỏi AI về công việc, deadline, ghi chú hoặc internet..."
+            placeholder={
+              activeMode === 'executive'
+                ? 'Hỏi hoặc ra lệnh công việc, thời tiết, ghi chú, tìm file...'
+                : activeMode === 'deep_think'
+                ? 'Nhập vấn đề phức tạp để AI phân tích đa chiều & cố vấn...'
+                : 'Chia sẻ tâm tư, câu chuyện hoặc tâm trạng của bạn...'
+            }
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={isLoading}
-            className="w-full pl-3 pr-10 py-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] placeholder-[#666666] focus:outline-none focus:border-[#D4AF37]"
+            className="w-full pl-3.5 pr-10 py-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] placeholder-[#666666] focus:outline-none focus:border-[#D4AF37] transition-colors"
           />
           <button
             type="submit"
             disabled={!inputText.trim() || isLoading}
-            className="absolute right-2 p-1.5 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] disabled:opacity-50 text-black transition-colors cursor-pointer"
+            className="absolute right-2 p-1.5 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] disabled:opacity-50 text-black transition-colors cursor-pointer shadow-sm"
           >
             <Send className="w-4 h-4" />
           </button>
