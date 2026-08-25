@@ -197,6 +197,21 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Save updated categories (syncs with prop handler or backend API)
   const handleSaveCategories = (newCategories: DocumentCategory[]) => {
+    // If any categories were removed, migrate any affected files to 'other'
+    const remainingIds = new Set(newCategories.map(c => c.id));
+    const removedCats = categories.filter(c => !remainingIds.has(c.id));
+    if (removedCats.length > 0 && onFileUpdate) {
+      files.forEach(f => {
+        const isMatched = removedCats.some(rc => f.classification === rc.id || f.classification?.toLowerCase() === rc.name.toLowerCase());
+        if (isMatched) {
+          onFileUpdate(f.id, { classification: 'other' });
+        }
+      });
+      if (previewFile && removedCats.some(rc => previewFile.classification === rc.id || previewFile.classification?.toLowerCase() === rc.name.toLowerCase())) {
+        setPreviewFile({ ...previewFile, classification: 'other' });
+      }
+    }
+
     setInternalCategories(newCategories);
     if (propOnSaveCategories) {
       propOnSaveCategories(newCategories);

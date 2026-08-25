@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig, DocumentCategory } from '../src/types/index.ts';
+import type { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig, DocumentCategory } from '../src/types/index.ts';
 import {
   initialTasks,
   initialNotes,
@@ -89,10 +89,9 @@ function loadJsonFileSafe(fileName: string): any {
 try {
   const categoriesData = loadJsonFileSafe('categories.json');
   if (Array.isArray(categoriesData) && categoriesData.length > 0) {
-    // Merge defaults to ensure no standard category is missing
-    const existingIds = new Set(categoriesData.map((c: any) => c.id));
-    const missingDefaults = initialCategories.filter(d => !existingIds.has(d.id));
-    cachedCategories = [...categoriesData, ...missingDefaults];
+    cachedCategories = categoriesData;
+  } else {
+    cachedCategories = [...initialCategories];
   }
 
   const cfgData = loadJsonFileSafe('telegram_config.json');
@@ -161,10 +160,7 @@ export async function getDbCategories(): Promise<DocumentCategory[]> {
 
 export async function saveDbCategories(categories: DocumentCategory[]): Promise<DocumentCategory[]> {
   if (Array.isArray(categories) && categories.length > 0) {
-    // Ensure all categories have valid fields
-    const existingIds = new Set(categories.map(c => c.id));
-    const missingDefaults = initialCategories.filter(d => !existingIds.has(d.id));
-    cachedCategories = [...categories, ...missingDefaults];
+    cachedCategories = categories;
     saveLocalBackups();
   }
   return cachedCategories;

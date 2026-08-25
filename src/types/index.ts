@@ -140,3 +140,4 @@ export interface SecurityPinSettings {
   hint: string;
   updatedAt?: string;
 }
+

@@ -32,14 +32,6 @@
     "isDefault": true
   },
   {
-    "id": "legal",
-    "name": "Hợp đồng",
-    "color": "rose",
-    "icon": "Scale",
-    "description": "Hợp đồng lao động, hợp đồng kinh tế, văn bản pháp lý",
-    "isDefault": true
-  },
-  {
     "id": "projects",
     "name": "Dự án",
     "color": "purple",

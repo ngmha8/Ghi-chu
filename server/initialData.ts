@@ -1,4 +1,4 @@
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, UserProfile, DocumentCategory } from '../src/types/index.js';
+import type { Task, Note, DriveFile, TelegramConfig, NotificationLog, UserProfile, DocumentCategory } from '../src/types/index.ts';
 
 export const initialCategories: DocumentCategory[] = [
   {

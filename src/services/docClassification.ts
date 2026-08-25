@@ -68,10 +68,7 @@ export function getStoredCategories(): DocumentCategory[] {
     if (!raw) return DEFAULT_DOCUMENT_CATEGORIES;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      // Ensure defaults exist
-      const existingIds = new Set(parsed.map((c: any) => c.id));
-      const missingDefaults = DEFAULT_DOCUMENT_CATEGORIES.filter(d => !existingIds.has(d.id));
-      return [...parsed, ...missingDefaults];
+      return parsed;
     }
     return DEFAULT_DOCUMENT_CATEGORIES;
   } catch (e) {
@@ -91,20 +88,8 @@ export async function fetchCategoriesFromServer(): Promise<DocumentCategory[]> {
   try {
     const serverCategories = await api.getCategories();
     if (Array.isArray(serverCategories) && serverCategories.length > 0) {
-      // Check if local storage has any custom category not yet on server
-      const localCats = getStoredCategories();
-      const serverIds = new Set(serverCategories.map(c => c.id));
-      const extraLocal = localCats.filter(l => !serverIds.has(l.id) && !l.isDefault);
-      
-      let finalList = serverCategories;
-      if (extraLocal.length > 0) {
-        finalList = [...serverCategories, ...extraLocal];
-        // Sync the merged list back to server so all other browsers receive it
-        api.saveCategories(finalList).catch(err => console.warn('Could not sync merged categories to server:', err));
-      }
-      
-      saveStoredCategories(finalList);
-      return finalList;
+      saveStoredCategories(serverCategories);
+      return serverCategories;
     }
   } catch (e) {
     console.warn('Could not fetch categories from server, using local cache:', e);
