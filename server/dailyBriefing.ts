@@ -10,46 +10,7 @@ export interface DailyBriefingResult {
 }
 
 /**
- * Formats a Date object to localized Vietnam date string (YYYY-MM-DD)
- */
-function getVnDateIso(d: Date | string): string {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  return formatter.format(new Date(d));
-}
-
-/**
- * Formats a deadline to a full, unambiguous Vietnamese timestamp:
- * e.g. "16:00 Thứ Sáu, 28/08/2026"
- */
-function formatFullDeadline(dateStr: string): string {
-  if (!dateStr) return 'Không có hạn chót';
-  const d = new Date(dateStr);
-  const time = d.toLocaleTimeString('vi-VN', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const weekday = d.toLocaleDateString('vi-VN', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    weekday: 'long',
-  });
-  const date = d.toLocaleDateString('vi-VN', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-  return `${time} ${weekday}, ${date}`;
-}
-
-/**
- * Generates an executive, concise, factually precise Morning or Evening briefing
+ * Generates an executive, highly humanized, empathetic AI Morning or Evening briefing
  */
 export async function generateDailyBriefing(
   type: 'morning' | 'evening',
@@ -66,106 +27,45 @@ export async function generateDailyBriefing(
     timeZone: 'Asia/Ho_Chi_Minh',
   });
   
-  const todayIso = getVnDateIso(now);
-  
-  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const tomorrowIso = getVnDateIso(tomorrow);
-  const tomorrowWeekday = tomorrow.toLocaleDateString('vi-VN', {
-    weekday: 'long',
+  // Format today's date in Vietnam timezone (YYYY-MM-DD)
+  const vnFormatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
-  });
-  const tomorrowDateStr = tomorrow.toLocaleDateString('vi-VN', {
-    day: '2-digit',
+    year: 'numeric',
     month: '2-digit',
-    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
   });
+  const todayIso = vnFormatter.format(now); // e.g. "2026-08-25" in Vietnam
 
-  // Categorize tasks accurately by dates
   const todayTasks = tasks.filter(t => {
-    if (!t.deadline || t.status === 'completed' || t.status === 'canceled') return false;
-    return getVnDateIso(t.deadline) === todayIso;
+    if (!t.deadline) return false;
+    const taskVnDate = vnFormatter.format(new Date(t.deadline));
+    return taskVnDate === todayIso;
   });
+  const completedToday = tasks.filter(t => t.status === 'completed');
+  const pendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
+  const highPriority = pendingTasks.filter(t => t.priority === 'high');
 
-  const tomorrowTasks = tasks.filter(t => {
-    if (!t.deadline || t.status === 'completed' || t.status === 'canceled') return false;
-    return getVnDateIso(t.deadline) === tomorrowIso;
-  });
-
-  const upcomingTasks = tasks.filter(t => {
-    if (!t.deadline || t.status === 'completed' || t.status === 'canceled') return false;
-    const taskIso = getVnDateIso(t.deadline);
-    return taskIso > tomorrowIso;
-  });
-
-  const overdueTasks = tasks.filter(t => {
-    if (!t.deadline || t.status === 'completed' || t.status === 'canceled') return false;
-    const taskIso = getVnDateIso(t.deadline);
-    return taskIso < todayIso;
-  });
-
-  const completedToday = tasks.filter(t => {
-    if (t.status !== 'completed') return false;
-    if (!t.updatedAt) return true;
-    return getVnDateIso(t.updatedAt) === todayIso;
-  });
-
-  const allPendingTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
-  const highPriority = allPendingTasks.filter(t => t.priority === 'high');
-
-  // Build categorized context strings with unambiguous full deadlines
-  const todayTasksText = todayTasks.length > 0
-    ? todayTasks.map(t => `- [${t.priority.toUpperCase()}] "${t.title}" | Hạn chót chính xác: ${formatFullDeadline(t.deadline)}`).join('\n')
-    : 'Không có công việc nào đến hạn hôm nay.';
-
-  const tomorrowTasksText = tomorrowTasks.length > 0
-    ? tomorrowTasks.map(t => `- [${t.priority.toUpperCase()}] "${t.title}" | Hạn chót chính xác: ${formatFullDeadline(t.deadline)}`).join('\n')
-    : 'Chưa có công việc nào có hạn chót vào ngày mai.';
-
-  const upcomingTasksText = upcomingTasks.length > 0
-    ? upcomingTasks.map(t => `- [${t.priority.toUpperCase()}] "${t.title}" | Hạn chót chính xác: ${formatFullDeadline(t.deadline)}`).join('\n')
-    : 'Không có công việc sắp tới trong tuần.';
-
-  const overdueTasksText = overdueTasks.length > 0
-    ? overdueTasks.map(t => `- [QUÁ HẠN] [${t.priority.toUpperCase()}] "${t.title}" | Hạn chót gốc: ${formatFullDeadline(t.deadline)}`).join('\n')
-    : 'Không có công việc quá hạn.';
-
-  const completedTodayText = completedToday.length > 0
-    ? completedToday.map(t => `- ✅ "${t.title}"`).join('\n')
-    : 'Hôm nay chưa có việc nào được đánh dấu hoàn thành.';
+  const tasksSummary = tasks.map(t => `- [${t.status.toUpperCase()}] [${t.priority.toUpperCase()}] "${t.title}" (Hạn: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })})`).join('\n');
 
   if (type === 'morning') {
-    const prompt = `Bạn là Trợ Lý Điều Hành Cấp Cao (Executive Assistant / Chief of Staff) chuyên nghiệp, đáng tin cậy và chuẩn xác tuyệt đối.
+    const prompt = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp (Senior AI Executive Companion & Thought Partner) của tôi, kết hợp giữa năng lực phân tích xuất sắc và sự thấu cảm, ấm áp, nhân văn.
 
-Hãy soạn một bản "🌅 BẢN TIN ĐIỂM HẸN BUỔI SÁNG (MORNING BRIEFING)" gửi lên Telegram cá nhân.
+Hãy soạn một bản tin "🌅 BẢN TIN ĐIỂM HẸN BUỔI SÁNG (MORNING BRIEFING)" gửi lên Telegram cá nhân.
 
-THÔNG TIN THỰC TẾ TRONG HỆ THỐNG:
-- Thời gian: ${dateStr}
-- Việc cần làm hôm nay: ${todayTasks.length} việc
-- Việc ưu tiên cao (HIGH): ${highPriority.length} việc
-- Việc quá hạn cần xử lý: ${overdueTasks.length} việc
+THÔNG TIN HÔM NAY:
+- Ngày: ${dateStr}
+- Tổng số việc cần làm hôm nay: ${todayTasks.length}
+- Việc ưu tiên cao: ${highPriority.length}
+- Danh sách công việc hiện có trong Firestore:
+${tasksSummary || 'Chưa có công việc nào trong hệ thống.'}
 
-CHI TIẾT CÔNG VIỆC:
-=== VIỆC ĐẾN HẠN HÔM NAY ===
-${todayTasksText}
+TIÊU CHUẨN NỘI DUNG & NHÂN TÍNH HÓA (Format Markdown cho Telegram):
+1. 🌅 **LỜI CHÀO NGÀY MỚI TRUYỀN CẢM HỨNG**: Tươi sáng, chân thành, tiếp thêm động lực tích cực.
+2. 🎯 **TIÊU ĐIỂM CÔNG VIỆC TRỌNG TÂM**: Nhấn mạnh 1-3 việc khẩn cấp nhất, gợi ý chiến lược giải quyết thông minh (chia nhỏ việc, khung giờ vàng tập trung).
+3. 🌤️ **NHỊP SỐNG & SỨC KHỎE**: Lời nhắc nhẹ nhàng về uống nước, khởi động buổi sáng hoặc giữ tâm thế thoải mái.
+4. 💡 **GÓC SUY NGẪM / PRODUCTIVITY TIP**: 1 triết lý ngắn gọn, sâu sắc về năng suất hoặc tư duy làm việc thông minh.
 
-=== VIỆC QUÁ HẠN (NẾU CÓ) ===
-${overdueTasksText}
-
-=== VIỆC QUAN TRỌNG SẮP TỚI TRONG TUẦN (LƯU Ý DEADLINE THỰC TẾ) ===
-${upcomingTasksText}
-
-NGUYÊN TẮC SOẠN THẢO (BẮT BUỘC TUÂN THỦ):
-1. **Văn phong Trợ lý Điều hành Thực thụ (Executive Tone)**:
-   - Ngắn gọn, gãy gọn, điềm đạm, tôn trọng và chuyên nghiệp.
-   - Tuyệt đối KHÔNG viết văn hoa, sáo rỗng, triết lý dài dòng hay dùng từ ngữ phóng đại.
-2. **CHÍNH XÁC TUYỆT ĐỐI VỀ THỜI GIAN & HẠN CHÓT (DEADLINE PRECISION)**:
-   - Khi nhắc đến bất kỳ công việc nào, PHẢI nêu rõ hạn chót chính xác (giờ, thứ, ngày/tháng).
-   - Nếu gợi ý người dùng chuẩn bị trước cho một việc của những ngày sau, PHẢI ghi rõ: "Hạn chót chính thức: [Giờ Thứ, Ngày/Tháng]". Tuyệt đối không dùng cách diễn đạt gây hiểu lầm là việc đó hết hạn hôm nay.
-3. **Cấu trúc bản tin rõ ràng, dễ đọc trên di động**:
-   - 🌅 **Chào buổi sáng**: 1 câu ngắn gọn, lịch sự.
-   - 🎯 **Trọng tâm hôm nay**: Liệt kê 1-3 việc cấp thiết nhất hôm nay kèm giờ cụ thể.
-   - 📅 **Lưu ý tiến độ tuần**: Nhắc ngắn gọn các việc lớn sắp tới (ghi rõ ngày hạn chót thực tế).
-   - 💡 **Gợi ý hành động**: 1 lời khuyên thực tế, ngắn gọn để tối ưu hóa thời gian hôm nay.`;
+Viết bằng tiếng Việt tinh tế, tự nhiên, truyền cảm hứng, dùng emoji sinh động và chuẩn Markdown.`;
 
     try {
       let res: any = null;
@@ -184,7 +84,7 @@ NGUYÊN TẮC SOẠN THẢO (BẮT BUỘC TUÂN THỦ):
         });
       }
 
-      const reportText = res?.text || `🌅 *BẢN TIN BUỔI SÁNG - ${dateStr}*\n\nChào Anh/Chị! Chúc Anh/Chị một ngày làm việc hiệu quả.\n\n🎯 *Trọng tâm hôm nay:*\n${todayTasksText}\n\n📅 *Việc sắp tới trong tuần:*\n${upcomingTasksText}`;
+      const reportText = res?.text || `🌅 *BẢN TIN ĐIỂM HẸN BUỔI SÁNG*\n\nChào ngày mới ${dateStr}!\n\n📋 *Hôm nay bạn có ${todayTasks.length} công việc cần xử lý.*\nChúc bạn một ngày làm việc hiệu quả và tràn đầy năng lượng!`;
 
       return {
         type: 'morning',
@@ -197,47 +97,29 @@ NGUYÊN TẮC SOẠN THẢO (BẮT BUỘC TUÂN THỦ):
       return {
         type: 'morning',
         title: `🌅 Bản tin buổi sáng (${now.toLocaleDateString('vi-VN')})`,
-        reportText: `🌅 *BẢN TIN BUỔI SÁNG - ${dateStr}*\n\nChào Anh/Chị! Hôm nay hệ thống ghi nhận:\n• *${todayTasks.length} việc* cần hoàn thành trong ngày.\n• *${highPriority.length} việc* ưu tiên cao.\n\n🎯 *Việc hôm nay:*\n${todayTasksText}`,
+        reportText: `🌅 *BẢN TIN ĐIỂM HẸN BUỔI SÁNG - ${dateStr}*\n\nChào bạn một ngày mới an lành và tràn đầy nhiệt huyết!\n\n🎯 *Tiêu điểm hôm nay:* Bạn có *${todayTasks.length} công việc* và *${highPriority.length} việc ưu tiên cao* đang chờ xử lý.\n\n✨ *Lời khuyên hiệu suất:* Hãy bắt đầu ngày mới bằng việc quan trọng nhất để làm chủ toàn bộ thời gian còn lại!`,
         generatedAt: now.toISOString(),
       };
     }
   } else {
     // Evening Briefing
-    const prompt = `Bạn là Trợ Lý Điều Hành Cấp Cao (Executive Assistant / Chief of Staff) chuyên nghiệp, điềm đạm và chính xác tuyệt đối.
+    const prompt = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp (Senior AI Executive Companion & Thought Partner) của tôi, thấu hiểu, ân cần và sâu sắc.
 
-Hãy soạn một bản "🌙 BÁO CÁO TỔNG KẾT NGÀY & ĐIỂM NHÌN NGÀY MAI (EVENING BRIEFING)" gửi lên Telegram.
+Hãy soạn một bản "🌙 BÁO CÁO TỔNG KẾT NGÀY & KẾ HOẠCH NGÀY MAI (EVENING BRIEFING)" gửi lên Telegram.
 
-THÔNG TIN THỰC TẾ HÔM NAY (${dateStr}):
-- Ngày mai là: ${tomorrowWeekday}, ngày ${tomorrowDateStr}
-- Số việc đã hoàn thành hôm nay: ${completedToday.length}
-- Số việc tồn đọng chưa xong: ${allPendingTasks.length}
+THÔNG TIN TỔNG KẾT HÔM NAY (${dateStr}):
+- Số việc đã hoàn thành: ${completedToday.length}
+- Số việc còn tồn đọng: ${pendingTasks.length}
+- Danh sách công việc:
+${tasksSummary || 'Không có việc nào'}
 
-CHI TIẾT CÔNG VIỆC:
-=== VIỆC ĐÃ HOÀN THÀNH HÔM NAY ===
-${completedTodayText}
+TIÊU CHUẨN NỘI DUNG & NHÂN TÍNH HÓA (Format Markdown cho Telegram):
+1. 🌙 **LỜI CHÀO BUỔI TỐI ẤM ÁP & THẤU HIỂU**: Ghi nhận một ngày nỗ lực của người dùng.
+2. 🏆 **VINH DANH NHỮNG TIẾN TRÌNH ĐÃ ĐẠT ĐƯỢC**: Khen ngợi cụ thể các công việc đã hoàn thành hoặc nỗ lực giải quyết vấn đề.
+3. ⏳ **ĐIỂM NHÌN NGÀY MAI**: 1-2 lưu ý ngắn gọn để mai bước vào công việc một cách thảnh thơi, không âu lo.
+4. 🌿 **LỜI NHẮC NGHỈ NGƠI & TÁI TẠO NĂNG LƯỢNG**: Động viên rời xa màn hình, thư giãn tâm trí để có giấc ngủ sâu trọn vẹn.
 
-=== VIỆC ĐẾN HẠN VÀO NGÀY MAI (${tomorrowWeekday}, ${tomorrowDateStr}) ===
-${tomorrowTasksText}
-
-=== VIỆC SẮP TỚI CẦN LƯU Ý TRONG TUẦN (LƯU Ý DEADLINE CHÍNH THỨC) ===
-${upcomingTasksText}
-
-=== VIỆC ĐANG QUÁ HẠN (NẾU CÓ) ===
-${overdueTasksText}
-
-NGUYÊN TẮC SOẠN THẢO (BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT):
-1. **Văn phong Chuẩn mực, Tinh gọn (Executive Tone)**:
-   - Ngắn gọn, súc tích, chuyên nghiệp, thể hiện sự chu đáo của người trợ lý.
-   - Tuyệt đối TRÁNH các câu văn hoa sáo rỗng như "Một ngày dài lại khép lại, hoàng hôn đã nhường chỗ...", "bảng kết quả chưa xuất hiện chiếc tích xanh...", "trút bỏ bận bề ngoài cánh cửa...".
-2. **CHỐNG GÂY HIỂU LẦM VỀ HẠN CHÓT (CRITICAL DEADLINE ACCURACY)**:
-   - Trong mục "ĐIỂM NHÌN NGÀY MAI (${tomorrowWeekday}, ${tomorrowDateStr})":
-     + Nếu công việc CÓ HẠN VÀO NGÀY MAI: Ghi rõ "*Hạn chót: [Giờ] ngày mai*".
-     + Nếu công việc CÓ HẠN VÀO CÁC NGÀY SAU (ví dụ: ngày 28/08) nhưng muốn gợi ý làm sớm: BẮT BUỘC phải ghi rõ ràng: "*Gợi ý chuẩn bị trước (Hạn chót chính thức: 16:00 Thứ Sáu, 28/08)*". Tuyệt đối KHÔNG được ghi tắt như "Hạn chót: 16:00" dưới tiêu đề ngày mai, vì sẽ làm người dùng hiểu lầm là hết hạn vào ngày mai!
-3. **Cấu trúc báo cáo**:
-   - 🌙 **Tổng kết hôm nay**: Số việc hoàn thành / ghi nhận nhanh gọn.
-   - ⏳ **Điểm nhìn ngày mai (${tomorrowWeekday}, ${tomorrowDateStr})**: Danh sách việc cần xử lý ngày mai, kèm deadline chính xác tuyệt đối.
-   - 📅 **Lưu ý tuần**: 1-2 nhiệm vụ quan trọng sắp tới (ghi rõ ngày giờ hạn chót).
-   - 🌿 **Lời chúc buổi tối**: 1 câu ngắn gọn, chúc nghỉ ngơi và tái tạo năng lượng.`;
+Viết bằng tiếng Việt ấm áp, lịch thiệp, nhiều cảm xúc nhân văn, định dạng Markdown bắt mắt.`;
 
     try {
       const res = await safeGenerateContent({
@@ -245,7 +127,7 @@ NGUYÊN TẮC SOẠN THẢO (BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT):
         contents: prompt,
       });
 
-      const reportText = res?.text || `🌙 *BÁO CÁO TỔNG KẾT BUỔI TỐI - ${dateStr}*\n\n• Hoàn thành hôm nay: *${completedToday.length} việc*\n• Việc còn tồn: *${allPendingTasks.length} việc*\n\n⏳ *Kế hoạch ngày mai (${tomorrowWeekday}, ${tomorrowDateStr}):*\n${tomorrowTasksText}\n\nChúc Anh/Chị có một buổi tối nghỉ ngơi trọn vẹn!`;
+      const reportText = res?.text || `🌙 *BÁO CÁO TỔNG KẾT BUỔI TỐI*\n\n${dateStr}\n\n🏆 Bạn đã hoàn thành ${completedToday.length} công việc hôm nay!\nChúc bạn có một buổi tối thư giãn và ngon giấc!`;
 
       return {
         type: 'evening',
@@ -258,10 +140,9 @@ NGUYÊN TẮC SOẠN THẢO (BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT):
       return {
         type: 'evening',
         title: `🌙 Báo cáo tổng kết tối (${now.toLocaleDateString('vi-VN')})`,
-        reportText: `🌙 *BÁO CÁO TỔNG KẾT BUỔI TỐI - ${dateStr}*\n\n• Hoàn thành hôm nay: *${completedToday.length} việc*\n• Việc đang thực hiện: *${allPendingTasks.length} việc*\n\n⏳ *Kế hoạch ngày mai (${tomorrowWeekday}, ${tomorrowDateStr}):*\n${tomorrowTasksText}\n\nChúc Anh/Chị buổi tối an lành!`,
+        reportText: `🌙 *BÁO CÁO TỔNG KẾT BUỔI TỐI - ${dateStr}*\n\n🏆 *Thành quả hôm nay:* Bạn đã hoàn thành xuất sắc *${completedToday.length} công việc*!\n⏳ Còn *${pendingTasks.length} công việc* đã được lưu trữ ngăn nắp để bạn tiếp tục vào ngày mai.\n\n🌿 *Thư giãn tâm trí:* Hãy gác lại mọi âu lo, chúc bạn có một buổi tối bình yên và một giấc ngủ thật sâu!`,
         generatedAt: now.toISOString(),
       };
     }
   }
 }
-
