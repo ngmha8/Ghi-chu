@@ -12,7 +12,7 @@ import {
   initialNotificationLogs,
   initialUserProfile
 } from './server/initialData.ts';
-import { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig, AiMemoryFact, AiLearningInsight, AiLearningStats } from './src/types/index.ts';
+import { Task, Note, DriveFile, TelegramConfig, NotificationLog, DriveServiceAccountConfig, AiMemoryFact, AiLearningInsight, AiLearningStats, AiPersonaConfig } from './src/types/index.ts';
 import {
   initializeFirestoreData,
   getDbTasks,
@@ -50,6 +50,8 @@ import {
   saveDbAiInsight,
   deleteDbAiInsight,
   getDbAiLearningStats,
+  getDbAiPersonaConfig,
+  saveDbAiPersonaConfig,
   cachedTasks,
   cachedNotes,
   cachedFiles,
@@ -57,7 +59,8 @@ import {
   cachedNotificationLogs,
   cachedDriveServiceAccountConfig,
   cachedAiMemories,
-  cachedAiInsights
+  cachedAiInsights,
+  cachedAiPersonaConfig
 } from './server/firebaseDb.ts';
 import {
   testServiceAccountFolderAccess,
@@ -1495,9 +1498,53 @@ async function processAiChat(
   try {
     const ai = getGeminiClient();
 
-    // RAG Context Retrieval from internal Firestore data
-    const tasksContext = tasks.map(t => `- [ID: ${t.id}] [${t.priority.toUpperCase()}] "${t.title}" | Hạn: ${t.deadline} | Trạng thái: ${t.status} | Tags: ${(t.tags || []).join(',')}`).join('\n');
-    const notesContext = notes.map(n => `- [ID: ${n.id}] Ghi chú: "${n.title}" | Tags: ${(n.tags || []).join(',')} | Nội dung: ${n.content.slice(0, 200)}...`).join('\n');
+    // RAG Context Retrieval from internal Firestore data with Strict Temporal Grounding
+    const nowRef = new Date();
+    const vnDateNow = new Date(nowRef.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+    const weekdayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const currentVnDateStr = `${vnDateNow.getFullYear()}-${String(vnDateNow.getMonth() + 1).padStart(2, '0')}-${String(vnDateNow.getDate()).padStart(2, '0')}`;
+
+    const tasksContext = tasks.map(t => {
+      if (!t.deadline) {
+        return `- [ID: ${t.id}] [${t.status.toUpperCase()}] [ƯU TIÊN: ${t.priority.toUpperCase()}] "${t.title}" | Deadline: Không đặt hạn | Tags: ${(t.tags || []).join(', ')}`;
+      }
+      const tDate = new Date(t.deadline);
+      const tVn = new Date(tDate.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+      const tIso = `${tVn.getFullYear()}-${String(tVn.getMonth() + 1).padStart(2, '0')}-${String(tVn.getDate()).padStart(2, '0')}`;
+      const tWeekday = weekdayNames[tVn.getDay()];
+      const tTime = `${String(tVn.getHours()).padStart(2, '0')}:${String(tVn.getMinutes()).padStart(2, '0')}`;
+      const tFormatted = `${tTime} ${tWeekday}, ngày ${String(tVn.getDate()).padStart(2, '0')}/${String(tVn.getMonth() + 1).padStart(2, '0')}/${tVn.getFullYear()}`;
+
+      const diffMs = tDate.getTime() - nowRef.getTime();
+      const diffHours = Math.round(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+      let timingLabel = '';
+      if (t.status === 'completed') {
+        timingLabel = 'ĐÃ HOÀN THÀNH ✅';
+      } else if (tIso === currentVnDateStr) {
+        timingLabel = diffHours >= 0
+          ? `HẾT HẠN HÔM NAY (${tTime} hôm nay - còn ${diffHours}h)`
+          : `ĐÃ QUÁ HẠN HÔM NAY (${tTime} hôm nay - quá hạn ${Math.abs(diffHours)}h)`;
+      } else {
+        const tomorrow = new Date(nowRef);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowVn = new Date(tomorrow.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+        const tomorrowIso = `${tomorrowVn.getFullYear()}-${String(tomorrowVn.getMonth() + 1).padStart(2, '0')}-${String(tomorrowVn.getDate()).padStart(2, '0')}`;
+
+        if (tIso === tomorrowIso) {
+          timingLabel = `HẾT HẠN NGÀY MAI (${tWeekday} ${String(tVn.getDate()).padStart(2, '0')}/${String(tVn.getMonth() + 1).padStart(2, '0')} lúc ${tTime})`;
+        } else if (diffMs < 0) {
+          timingLabel = `ĐÃ QUÁ HẠN ${Math.abs(diffDays)} NGÀY (Hạn cũ: ${tFormatted})`;
+        } else {
+          timingLabel = `HẠN CÒN ${diffDays} NGÀY NỮA (Hạn chính thức: ${tFormatted})`;
+        }
+      }
+
+      return `- [ID: ${t.id}] [${t.status.toUpperCase()}] [ƯU TIÊN: ${t.priority.toUpperCase()}] "${t.title}" | ⏰ ${timingLabel} (Hạn chính thức: ${tFormatted}) | Tags: ${(t.tags || []).join(', ')}`;
+    }).join('\n');
+
+    const notesContext = notes.map(n => `- [ID: ${n.id}] Ghi chú: "${n.title}" | Tags: ${(n.tags || []).join(', ')} | Nội dung: ${n.content.slice(0, 300)}...`).join('\n');
     const filesContext = currentFiles.map(f => `- File: ${f.name} [Phân loại: ${f.classification || 'Chưa phân loại'}] [Định dạng: ${f.category}] | Link: ${f.webViewLink || 'Lưu cục bộ'}`).join('\n');
 
     // Retrieve active conversation history for this session (multi-turn memory)
@@ -1510,7 +1557,7 @@ async function processAiChat(
     // Autonomous Continuous Learning & Memory Synthesis
     const learnedMemoryContext = await synthesizeLearnedPromptContext();
 
-    const systemInstruction = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp & Bạn Đồng Hành Trí Tuệ Tự Học (Senior AI Executive Companion & Autonomous Cognitive Partner).
+    const systemInstruction = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp & Bạn Đồng Hành Trí Tuệ Tự Học (Senior AI Executive Companion & Thought Partner).
 Bạn sở hữu năng lực phân tích vượt trội của một chuyên gia công nghệ và quản trị hơn 20 năm kinh nghiệm, đồng thời mang trái tim thấu cảm, tinh tế, ấm áp và giàu lòng trắc ẩn (High IQ + High EQ).
 
 HỆ THỐNG DỮ LIỆU ĐANG KẾT NỐI (FIRESTORE CLOUD PERSISTENCE):
@@ -1528,18 +1575,28 @@ ${filesContext || 'Chưa có tệp tin nào.'}
 
 ${historySnippet ? `=== LỊCH SỬ HỘI THOẠI GẦN ĐÂY ===\n${historySnippet}\n` : ''}
 
-NGUYÊN TẮC PHẢN HỒI & TỰ HỌC THÍCH ỨNG (ADAPTIVE EXCELLENCE):
-1. **Trí tuệ Cảm xúc & Sự Thấu Hiểu (Empathy & Warmth)**:
-   - Luôn lắng nghe chân thành, nhận diện cảm xúc người dùng (căng thẳng, mệt mỏi, hào hứng, lo lắng) để chia sẻ, động viên một cách tự nhiên, không rập khuôn hay máy móc.
+NGUYÊN TẮC BẤT DI BẤT DỊCH VỀ PHẢN HỒI & CHUẨN XÁC THỜI GIAN:
+1. **Tuyệt Đối Chính Xác Về Mốc Thời Gian & Không Dùng Từ Gây Hiểu Lầm Về Deadline**:
+   - Khi tư vấn hoặc lập kế hoạch, BẮT BUỘC phải phân biệt rạch ròi giữa 2 khái niệm:
+     a) **Hạn chót chính thức (Official Deadline)** của công việc (Ví dụ: "Hạn nộp chính thức: 16:00 Thứ Sáu, 28/08 - còn 2 ngày nữa").
+     b) **Khung giờ làm việc đề xuất (Suggested Working Window)** (Ví dụ: "Gợi ý tiến độ: Dành 1-2 tiếng buổi sáng ngày mai để chuẩn bị hồ sơ trước hạn chót").
+   - CẤM TUYỆT ĐỐI cách viết rút gọn gây hiểu lầm như: "Tiêu điểm sáng (Trước 16:00): Tập trung giải quyết hồ sơ ABC" khi hồ sơ đó thực tế đến 28/08 mới hết hạn!
+   - Khi nhắc đến bất kỳ nhiệm vụ nào, luôn nêu rõ ngày, thứ và khoảng thời gian còn lại một cách chính xác.
+
+2. **Trí Tuệ Cảm Xúc & Tinh Thần Đồng Hành Chân Thành (Executive Empathy & Warmth)**:
+   - Luôn lắng nghe chân thành, nhận diện cảm xúc người dùng để chia sẻ, động viên một cách tự nhiên, giảm bớt áp lực, tạo cảm giác an tâm và chủ động.
    - Xưng hô lịch thiệp, tôn trọng, thân thiện và ấm áp ("Tôi" - "Bạn" hoặc xưng hô tự nhiên theo văn cảnh và thói quen đã học).
-2. **Cố Vấn Toàn Năng & Tư Duy Sâu Sắc (Strategic & Deep Reasoning)**:
+
+3. **Cố Vấn Toàn Năng & Tư Duy Sâu Sắc (Strategic & Actionable Reasoning)**:
    - Sẵn sàng và xuất sắc trả lời MỌI loại câu hỏi: Lập trình & Kỹ thuật chuyên sâu, Quản lý công việc & thời gian, Tư duy logic, Sáng tạo nội dung, Tâm lý & Cân bằng cuộc sống, Kiến thức tổng quát, Chiến lược kinh doanh...
    - Phân tích đa chiều, đưa ra giải pháp thực tế có thể hành động ngay (Actionable Insights).
-3. **Thực thi Hành động & Tự Học Tự Động (Autonomous Function Calling & Memory)**:
+
+4. **Thực Thi Hành Động & Tự Học Tự Động (Autonomous Function Calling & Memory)**:
    - Khi người dùng muốn tạo việc, nhắc việc, hoàn thành, xóa, ghi chú, tìm tài liệu: hãy gọi ngay các Tool tương ứng (\`createTask\`, \`completeTask\`, \`deleteTask\`, \`createNote\`, \`queryNotes\`, \`queryTasks\`, \`queryFiles\`).
    - Khi người dùng muốn AI ghi nhớ thông tin/sở thích/quy tắc/thói quen hoặc chia sẻ thông tin quan trọng, hãy gọi ngay tool \`rememberUserFact\` hoặc \`forgetUserFact\`.
    - Căn cứ vào giờ Việt Nam (UTC+7) để tính toán chính xác deadline khi thêm công việc.
-4. **Trình bày Chuẩn mực & Thu hút**:
+
+5. **Trình Bày Chuẩn Mực & Thu Hút**:
    - Sử dụng định dạng Markdown đẹp mắt, cấu trúc rõ ràng (tiêu đề, gạch đầu dòng, highlight ý chính), kết hợp emoji tinh tế.`;
 
     let response: any = null;
@@ -1776,6 +1833,51 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   res.json(result);
 });
 
+// High-speed SSE Streaming Chat Endpoint
+app.post('/api/chat/stream', async (req: Request, res: Response) => {
+  const { message, enableSearch, sessionId = 'web_user_session', history = [] } = req.body;
+
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Message text is required.' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  const sendSse = (event: string, payload: any) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+  };
+
+  try {
+    const result = await processAiChat(message, enableSearch, sessionId, history);
+    const reply = result.reply || '';
+
+    // Stream tokens in rapid human-reading bursts (30-60 chars per chunk)
+    // to provide an immediate responsive typing sensation
+    const chunkSize = 24;
+    for (let i = 0; i < reply.length; i += chunkSize) {
+      const piece = reply.slice(i, i + chunkSize);
+      sendSse('chunk', { text: piece });
+      // Micro-pause for realistic executive assistant flow
+      await new Promise(r => setTimeout(r, 15));
+    }
+
+    sendSse('done', {
+      reply: result.reply,
+      groundingSources: result.groundingSources,
+      retrievedContext: result.retrievedContext,
+    });
+  } catch (err: any) {
+    console.error('[Chat Streaming Error]:', err);
+    sendSse('error', { error: err?.message || 'Lỗi xử lý phản hồi AI' });
+  } finally {
+    res.end();
+  }
+});
+
 app.post('/api/chat/clear', (req: Request, res: Response) => {
   const { sessionId = 'web_user_session' } = req.body;
   clearConversationHistory(sessionId);
@@ -1783,7 +1885,28 @@ app.post('/api/chat/clear', (req: Request, res: Response) => {
 });
 
 // -------------------------------------------------------------
-// 7.1. AI AUTONOMOUS SELF-LEARNING & LONG-TERM MEMORY ENDPOINTS
+// 7.1. AI PERSONA & PERSONALIZED HONORIFICS ENDPOINTS
+// -------------------------------------------------------------
+app.get('/api/ai/persona', async (req: Request, res: Response) => {
+  try {
+    const config = await getDbAiPersonaConfig();
+    res.json(config);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/ai/persona', async (req: Request, res: Response) => {
+  try {
+    const updated = await saveDbAiPersonaConfig(req.body);
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 7.2. AI AUTONOMOUS SELF-LEARNING & LONG-TERM MEMORY ENDPOINTS
 // -------------------------------------------------------------
 app.get('/api/ai/learning/stats', async (req: Request, res: Response) => {
   try {

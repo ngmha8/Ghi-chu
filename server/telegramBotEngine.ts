@@ -212,8 +212,11 @@ export async function processTelegramUpdate(
       if (todayTasks.length === 0) {
         msg = '🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*';
       } else {
-        msg = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
-          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}`).join('\n\n');
+        msg = `📅 *Danh sách công việc đến hạn HÔM NAY (${todayTasks.length}):*\n\n` +
+          todayTasks.map((t, idx) => {
+            const timeStr = new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' });
+            return `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Hạn chót: *${timeStr} hôm nay*`;
+          }).join('\n\n');
       }
       await sendTelegramMessage(telegramConfig.botToken, chatId, msg, buildTaskListKeyboard(currentTasks));
       return { success: true, action: 'today', chatId };
@@ -223,8 +226,22 @@ export async function processTelegramUpdate(
       await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
       const currentTasks = await getDbTasks();
       const pending = currentTasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
-      const msg = `📋 *Danh sách công việc chưa hoàn thành (${pending.length}):*\n\n` +
-        pending.map((t, idx) => `${idx + 1}. *${t.title}* (${t.priority.toUpperCase()})\n   ⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')}`).join('\n\n');
+      const weekdayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+      const now = new Date();
+
+      const msg = `📋 *Danh sách công việc đang chờ xử lý (${pending.length}):*\n\n` +
+        pending.map((t, idx) => {
+          if (!t.deadline) return `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Không đặt hạn`;
+          const d = new Date(t.deadline);
+          const vnDate = new Date(d.toLocaleString('en-US', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh' }));
+          const weekday = weekdayNames[vnDate.getDay()];
+          const timeStr = `${String(vnDate.getHours()).padStart(2, '0')}:${String(vnDate.getMinutes()).padStart(2, '0')}`;
+          const dateStr = `${String(vnDate.getDate()).padStart(2, '0')}/${String(vnDate.getMonth() + 1).padStart(2, '0')}/${vnDate.getFullYear()}`;
+          const diffDays = Math.round((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const distanceStr = diffDays === 0 ? '(Hôm nay)' : diffDays === 1 ? '(Ngày mai)' : diffDays > 1 ? `(Còn ${diffDays} ngày)` : `(Quá hạn ${Math.abs(diffDays)} ngày)`;
+
+          return `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Hạn chót: *${timeStr} ${weekday}, ${dateStr}* ${distanceStr}`;
+        }).join('\n\n');
       await sendTelegramMessage(telegramConfig.botToken, chatId, msg, buildTaskListKeyboard(currentTasks));
       return { success: true, action: 'tasks', chatId };
     }
@@ -585,14 +602,31 @@ export async function processTelegramUpdate(
         if (todayTasks.length === 0) {
           botReply = `🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*`;
         } else {
-          botReply = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
-            todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}\n   📌 Trạng thái: ${t.status}`).join('\n\n');
+          botReply = `📅 *Danh sách công việc đến hạn HÔM NAY (${todayTasks.length}):*\n\n` +
+            todayTasks.map((t, idx) => {
+              const timeStr = new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' });
+              return `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Hạn chót: *${timeStr} hôm nay*\n   📌 Trạng thái: ${t.status}`;
+            }).join('\n\n');
         }
         replyKeyboard = buildTaskListKeyboard(tasks);
       } else if (cleanInput.match(/^\/tasks\b/i)) {
         const pending = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
-        botReply = `📋 *Danh sách công việc chưa hoàn thành (${pending.length}):*\n\n` +
-          pending.map((t, idx) => `${idx + 1}. *${t.title}* (${t.priority.toUpperCase()})\n   ⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')}`).join('\n\n');
+        const weekdayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+        const now = new Date();
+
+        botReply = `📋 *Danh sách công việc đang chờ xử lý (${pending.length}):*\n\n` +
+          pending.map((t, idx) => {
+            if (!t.deadline) return `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Không đặt hạn`;
+            const d = new Date(t.deadline);
+            const vnDate = new Date(d.toLocaleString('en-US', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh' }));
+            const weekday = weekdayNames[vnDate.getDay()];
+            const timeStr = `${String(vnDate.getHours()).padStart(2, '0')}:${String(vnDate.getMinutes()).padStart(2, '0')}`;
+            const dateStr = `${String(vnDate.getDate()).padStart(2, '0')}/${String(vnDate.getMonth() + 1).padStart(2, '0')}/${vnDate.getFullYear()}`;
+            const diffDays = Math.round((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            const distanceStr = diffDays === 0 ? '(Hôm nay)' : diffDays === 1 ? '(Ngày mai)' : diffDays > 1 ? `(Còn ${diffDays} ngày)` : `(Quá hạn ${Math.abs(diffDays)} ngày)`;
+
+            return `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Hạn chót: *${timeStr} ${weekday}, ${dateStr}* ${distanceStr}`;
+          }).join('\n\n');
         replyKeyboard = buildTaskListKeyboard(tasks);
       } else if (cleanInput.match(/^\/notes\b/i)) {
         botReply = `📝 *Ghi chú cá nhân (${notes.length}):*\n\n` +
@@ -603,6 +637,12 @@ export async function processTelegramUpdate(
         botReply = briefing.reportText;
         replyKeyboard = [
           [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
+        ];
+      } else if (cleanInput.match(/^\/noon\b/i)) {
+        const briefing = await generateDailyBriefing('noon', context.gemini, tasks, notes);
+        botReply = briefing.reportText;
+        replyKeyboard = [
+          [{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }, { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }]
         ];
       } else if (cleanInput.match(/^\/evening\b/i)) {
         const briefing = await generateDailyBriefing('evening', context.gemini, tasks, notes);

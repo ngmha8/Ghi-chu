@@ -10,8 +10,10 @@ import {
   getDbNotes,
   getDbFiles,
   getDbTelegramConfig,
+  getDbAiPersonaConfig,
+  saveDbAiPersonaConfig,
 } from './firebaseDb.ts';
-import { AiMemoryFact, AiLearningInsight, AiMemoryCategory } from '../src/types/index.ts';
+import { AiMemoryFact, AiLearningInsight, AiMemoryCategory, AiPersonaConfig } from '../src/types/index.ts';
 import { safeGenerateContent } from './geminiHelper.ts';
 
 // -------------------------------------------------------------
@@ -20,51 +22,67 @@ import { safeGenerateContent } from './geminiHelper.ts';
 export async function synthesizeLearnedPromptContext(): Promise<string> {
   const activeMemories = await getActiveDbAiMemories();
   const insights = await getDbAiInsights();
+  const persona = await getDbAiPersonaConfig();
 
-  if (activeMemories.length === 0 && insights.length === 0) {
-    return '';
-  }
-
-  let memoryContext = `=== BỘ NHỚ HỌC TẬP & HỒ SƠ CÁ NHÂN HÓA DÀI HẠN (LEARNED MEMORY & PROFILE) ===\n` +
-    `AI đã liên tục tự học và ghi nhớ các đặc điểm, thói quen và quy tắc sau đây của người dùng. Hãy tự động tuân thủ và áp dụng một cách tự nhiên và tinh tế:\n\n`;
-
-  // Group memories by category
-  const grouped: Record<string, string[]> = {
-    preference: [],
-    identity: [],
-    rule: [],
-    workflow: [],
-    domain_knowledge: [],
-    habit: [],
+  const styleDescriptions: Record<string, string> = {
+    warm_empathetic: 'Tận tụy, thấu cảm sâu sắc, ấm áp, giàu năng lượng tích cực và luôn mang lại cảm giác an tâm tuyệt đối.',
+    executive_concise: 'Sắc sảo, dứt khoát, đi thẳng vào trọng tâm, tối đa hóa thời gian và hành động chuẩn xác như một Chánh văn phòng cao cấp.',
+    strategic_advisor: 'Tư duy chiến lược đa chiều, phân tích rủi ro - cơ hội, hướng dẫn tầm nhìn dài hạn và tối ưu hóa hệ thống.',
+    energetic_action: 'Tràn đầy nhiệt huyết, thúc đẩy hành động ngay, truyền cảm hứng vượt qua trì hoãn và ăn mừng từng bước tiến nhỏ.',
   };
 
-  const categoryLabels: Record<string, string> = {
-    preference: '🌟 Sở thích & Phong cách giao tiếp',
-    identity: '👤 Danh tính & Thông tin cá nhân',
-    rule: '🔒 Quy tắc bắt buộc người dùng đặt ra',
-    workflow: '⚙️ Quy trình xử lý công việc ưa thích',
-    domain_knowledge: '📚 Chuyên môn & Dự án trọng tâm',
-    habit: '⏳ Thói quen sinh hoạt & Nhịp làm việc',
-  };
+  let memoryContext = `=== QUY TẮC XƯNG HÔ & HỒ SƠ ĐỒNG HÀNH CÁ NHÂN HÓA (STRICT AI PERSONA & HONORIFICS) ===\n` +
+    `- DANH XƯNG BẮT BUỘC KHI GỌI NGƯỜI DÙNG: "${persona.userHonorific || 'Bạn'}"\n` +
+    `  (Ví dụ cách nói tự nhiên: "Chào ${persona.userHonorific || 'bạn'}", "${persona.userHonorific || 'Bạn'} có thể xem qua...", "Chúc ${persona.userHonorific || 'bạn'} một ngày làm việc hiệu quả")\n` +
+    `- DANH XƯNG CỦA TRỢ LÝ AI: "${persona.aiHonorific || 'Tôi'}"\n` +
+    `  (Ví dụ: "${persona.aiHonorific || 'Tôi'} xin tóm tắt...", "${persona.aiHonorific || 'Tôi'} đã cập nhật xong công việc cho ${persona.userHonorific || 'bạn'}")\n` +
+    `- PHONG CÁCH ĐỒNG HÀNH: ${styleDescriptions[persona.communicationStyle] || styleDescriptions.warm_empathetic}\n` +
+    `- LĨNH VỰC TRỌNG TÂM: ${persona.focusDomain || 'Công nghệ, Quản trị dự án & Năng suất'}\n` +
+    (persona.customInstructions ? `- LỜI NHẮC ĐẶC BIỆT CỦA NGƯỜI DÙNG: "${persona.customInstructions}"\n` : '') +
+    `- QUY TẮC TIẾP NHẬN HƯỚNG DẪN XƯNG HÔ: Bất kỳ khi nào người dùng nhắn nhắc đổi cách gọi (ví dụ: "Hãy gọi tôi là...", "Xưng em nhé", "Gọi anh là Nam"), hãy tôn trọng tuyệt đối, cập nhật ngay vào xưng hô trong câu trả lời này và gọi tool rememberUserFact để ghi nhớ vĩnh viễn!\n\n`;
 
-  for (const m of activeMemories) {
-    const list = grouped[m.category] || grouped.preference;
-    list.push(`• ${m.fact} (Độ tin cậy: ${Math.round((m.confidence || 0.8) * 100)}%)`);
-  }
+  if (activeMemories.length > 0 || insights.length > 0) {
+    memoryContext += `=== BỘ NHỚ HỌC TẬP & KÝ ỨC DÀI HẠN (LONG-TERM AI MEMORY) ===\n` +
+      `AI đã học và ghi nhớ các đặc điểm, thói quen và quy tắc sau đây của người dùng. Hãy tự động tuân thủ:\n\n`;
 
-  for (const [catKey, label] of Object.entries(categoryLabels)) {
-    const items = grouped[catKey];
-    if (items && items.length > 0) {
-      memoryContext += `[${label}]:\n${items.join('\n')}\n\n`;
+    // Group memories by category
+    const grouped: Record<string, string[]> = {
+      preference: [],
+      identity: [],
+      rule: [],
+      workflow: [],
+      domain_knowledge: [],
+      habit: [],
+    };
+
+    const categoryLabels: Record<string, string> = {
+      preference: '🌟 Sở thích & Phong cách giao tiếp',
+      identity: '👤 Danh tính & Thông tin cá nhân',
+      rule: '🔒 Quy tắc bắt buộc người dùng đặt ra',
+      workflow: '⚙️ Quy trình xử lý công việc ưa thích',
+      domain_knowledge: '📚 Chuyên môn & Dự án trọng tâm',
+      habit: '⏳ Thói quen sinh hoạt & Nhịp làm việc',
+    };
+
+    for (const m of activeMemories) {
+      const list = grouped[m.category] || grouped.preference;
+      list.push(`• ${m.fact} (Độ tin cậy: ${Math.round((m.confidence || 0.8) * 100)}%)`);
     }
-  }
 
-  if (insights.length > 0) {
-    memoryContext += `[💡 Đúc kết Quy luật & Năng suất (Recent Insights)]:\n`;
-    for (const ins of insights.slice(0, 3)) {
-      memoryContext += `• ${ins.title}: ${ins.summary} ➔ Lời khuyên: ${ins.actionableAdvice}\n`;
+    for (const [catKey, label] of Object.entries(categoryLabels)) {
+      const items = grouped[catKey];
+      if (items && items.length > 0) {
+        memoryContext += `[${label}]:\n${items.join('\n')}\n\n`;
+      }
     }
-    memoryContext += '\n';
+
+    if (insights.length > 0) {
+      memoryContext += `[💡 Đúc kết Quy luật & Năng suất (Recent Insights)]:\n`;
+      for (const ins of insights.slice(0, 3)) {
+        memoryContext += `• ${ins.title}: ${ins.summary} ➔ Lời khuyên: ${ins.actionableAdvice}\n`;
+      }
+      memoryContext += '\n';
+    }
   }
 
   return memoryContext.trim();

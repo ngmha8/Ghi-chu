@@ -14,6 +14,8 @@ import {
   getActiveDbAiMemories,
   saveDbAiMemory,
   deleteDbAiMemory,
+  getDbAiPersonaConfig,
+  saveDbAiPersonaConfig,
 } from './firebaseDb.ts';
 import { Task, Note, DriveFile, AiMemoryFact } from '../src/types/index.ts';
 
@@ -680,6 +682,27 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
+    }
+
+    // Auto-update Persona honorifics if the memory dictates how to call user/AI
+    const factLower = factText.toLowerCase();
+    const personaUpdates: any = {};
+    if (factLower.includes('gọi người dùng là') || factLower.includes('gọi tôi là') || factLower.includes('xưng là')) {
+      const match = factText.match(/(?:gọi (?:người dùng|tôi) là|gọi là)\s*["']?([^"'\n,.]+)["']?/i);
+      if (match && match[1]) {
+        personaUpdates.userHonorific = match[1].trim();
+      }
+    }
+    if (factLower.includes('trợ lý xưng là') || factLower.includes('ai xưng là') || factLower.includes('xưng em') || factLower.includes('xưng tôi')) {
+      const matchAi = factText.match(/(?:trợ lý xưng là|ai xưng là|xưng là)\s*["']?([^"'\n,.]+)["']?/i);
+      if (matchAi && matchAi[1]) {
+        personaUpdates.aiHonorific = matchAi[1].trim();
+      } else if (factLower.includes('xưng em')) {
+        personaUpdates.aiHonorific = 'Em';
+      }
+    }
+    if (Object.keys(personaUpdates).length > 0) {
+      await saveDbAiPersonaConfig(personaUpdates);
     }
 
     const categoryLabels: Record<string, string> = {

@@ -21,7 +21,8 @@ import type {
   DocumentCategory,
   AiMemoryFact,
   AiLearningInsight,
-  AiLearningStats
+  AiLearningStats,
+  AiPersonaConfig
 } from '../src/types/index.ts';
 import {
   initialTasks,
@@ -31,7 +32,8 @@ import {
   initialNotificationLogs,
   initialCategories,
   initialAiMemories,
-  initialAiInsights
+  initialAiInsights,
+  initialAiPersonaConfig
 } from './initialData.ts';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
@@ -75,6 +77,7 @@ export let cachedDriveServiceAccountConfig: DriveServiceAccountConfig = { ...ini
 export let cachedSecurityPin: string = defaultSecurityPin;
 export let cachedAiMemories: AiMemoryFact[] = [...initialAiMemories];
 export let cachedAiInsights: AiLearningInsight[] = [...initialAiInsights];
+export let cachedAiPersonaConfig: AiPersonaConfig = { ...initialAiPersonaConfig };
 
 // Local JSON file backup path
 const CWD_DATA_DIR = path.join(process.cwd(), 'data');
@@ -131,6 +134,11 @@ try {
   const insData = loadJsonFileSafe('ai_insights.json');
   if (Array.isArray(insData) && insData.length > 0) cachedAiInsights = insData;
 
+  const personaData = loadJsonFileSafe('ai_persona.json');
+  if (personaData && typeof personaData === 'object') {
+    cachedAiPersonaConfig = { ...cachedAiPersonaConfig, ...personaData };
+  }
+
   const pinData = loadJsonFileSafe('security_pin.json');
   if (pinData) {
     if (pinData.pin) cachedSecurityPin = pinData.pin.toString();
@@ -154,6 +162,7 @@ function saveLocalBackups() {
     'files.json': JSON.stringify(cachedFiles, null, 2),
     'ai_memories.json': JSON.stringify(cachedAiMemories, null, 2),
     'ai_insights.json': JSON.stringify(cachedAiInsights, null, 2),
+    'ai_persona.json': JSON.stringify(cachedAiPersonaConfig, null, 2),
     'security_pin.json': JSON.stringify(cachedSecurityPinConfig, null, 2),
   };
 
@@ -720,5 +729,20 @@ export async function getDbAiLearningStats(): Promise<AiLearningStats> {
     learningScore: calculatedScore,
     lastReflectedAt: latestInsight ? latestInsight.generatedAt : undefined,
   };
+}
+
+export async function getDbAiPersonaConfig(): Promise<AiPersonaConfig> {
+  return cachedAiPersonaConfig;
+}
+
+export async function saveDbAiPersonaConfig(config: Partial<AiPersonaConfig>): Promise<AiPersonaConfig> {
+  cachedAiPersonaConfig = {
+    ...cachedAiPersonaConfig,
+    ...config,
+    updatedAt: new Date().toISOString(),
+  };
+  saveLocalBackups();
+  firestoreSetDoc('ai_persona', 'config', cachedAiPersonaConfig);
+  return cachedAiPersonaConfig;
 }
 

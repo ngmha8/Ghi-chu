@@ -175,3 +175,17 @@ export interface AiLearningStats {
   lastReflectedAt?: string;
 }
 
+export type AiCommunicationStyle = 'warm_empathetic' | 'executive_concise' | 'strategic_advisor' | 'energetic_action';
+
+export interface AiPersonaConfig {
+  userHonorific: string; // e.g. "Anh Nam", "Chị Hà", "Bạn", "Tôi", "Alex", "Sếp"
+  aiHonorific: string; // e.g. "Em", "Tôi", "Trợ lý", "Tiểu Mai", "Jarvis"
+  communicationStyle: AiCommunicationStyle;
+  focusDomain: string; // e.g. "Công nghệ, Quản trị dự án & Năng suất", "Y tế & An toàn", "Kinh doanh & Tài chính"
+  speechRate: number; // 0.8 to 1.5, default 1.05
+  speechPitch: number; // 0.8 to 1.3, default 1.0
+  autoSpeakResponse: boolean;
+  customInstructions?: string; // e.g. "Luôn ghi chú các việc gấp lên trước, tóm tắt ý chính"
+  updatedAt?: string;
+}
+

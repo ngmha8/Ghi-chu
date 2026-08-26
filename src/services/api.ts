@@ -10,7 +10,8 @@ import {
   DocumentCategory,
   AiMemoryFact,
   AiLearningInsight,
-  AiLearningStats
+  AiLearningStats,
+  AiPersonaConfig
 } from '../types/index.js';
 
 export const api = {
@@ -470,6 +471,23 @@ export const api = {
   triggerAiSelfReflection: async (): Promise<{ success: boolean; insights: AiLearningInsight[]; message: string }> => {
     const res = await fetch('/api/ai/learning/reflect', { method: 'POST' });
     if (!res.ok) throw new Error('Lỗi khi kích hoạt phiên tự học và suy ngẫm');
+    return res.json();
+  },
+
+  // AI Persona & Honorifics
+  getAiPersonaConfig: async (): Promise<AiPersonaConfig> => {
+    const res = await fetch('/api/ai/persona');
+    if (!res.ok) throw new Error('Không thể tải cấu hình AI Persona');
+    return res.json();
+  },
+
+  saveAiPersonaConfig: async (config: Partial<AiPersonaConfig>): Promise<AiPersonaConfig> => {
+    const res = await fetch('/api/ai/persona', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    if (!res.ok) throw new Error('Không thể lưu cấu hình AI Persona');
     return res.json();
   },
 };

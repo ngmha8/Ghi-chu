@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../types/index.ts';
+import { ChatMessage, AiPersonaConfig, AiCommunicationStyle } from '../types/index.ts';
 import {
   Sparkles,
   Send,
@@ -19,9 +19,15 @@ import {
   Calendar,
   CloudSun,
   Lightbulb,
-  Mic
+  Mic,
+  Settings2,
+  Volume2,
+  VolumeX,
+  UserCheck,
+  Save
 } from 'lucide-react';
 import { VoiceInputButton } from './VoiceInputButton.tsx';
+import { api } from '../services/api.ts';
 
 interface AiChatDrawerProps {
   isOpen: boolean;
@@ -48,23 +54,83 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
   const [isCopied, setIsCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Quick Persona Modal state
+  const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
+  const [personaConfig, setPersonaConfig] = useState<AiPersonaConfig | null>(null);
+  const [isSavingPersona, setIsSavingPersona] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      scrollToBottom();
+      loadPersona();
     }
-  }, [messages, isOpen]);
+  }, [isOpen]);
 
-  useEffect(() => {
-    if (initialPrompt) {
-      setInputText(initialPrompt);
+  const loadPersona = async () => {
+    try {
+      const p = await api.getAiPersonaConfig();
+      setPersonaConfig(p);
+    } catch (e) {
+      console.warn('Could not load persona in drawer:', e);
     }
-  }, [initialPrompt]);
+  };
+
+  const handleSaveQuickPersona = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!personaConfig) return;
+    setIsSavingPersona(true);
+    try {
+      const updated = await api.saveAiPersonaConfig(personaConfig);
+      setPersonaConfig(updated);
+      setIsPersonaModalOpen(false);
+    } catch (err: any) {
+      alert(`Lỗi khi lưu thiết lập: ${err?.message}`);
+    } finally {
+      setIsSavingPersona(false);
+    }
+  };
+
+  // Instant Audio Readout (Web Speech API TTS)
+  const handleSpeakText = (text: string, msgId: string) => {
+    if (!('speechSynthesis' in window)) {
+      alert('Trình duyệt của bạn không hỗ trợ tính năng phát âm thanh.');
+      return;
+    }
+
+    if (speakingMessageId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    
+    // Clean markdown before speaking
+    const cleanText = text
+      .replace(/[*#_`~>[\]]/g, '')
+      .replace(/https?:\/\/\S+/g, '')
+      .slice(0, 1500);
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'vi-VN';
+    utterance.rate = personaConfig?.speechRate || 1.05;
+    utterance.pitch = 1.0;
+
+    // Pick Vietnamese voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const vnVoice = voices.find(v => v.lang.includes('vi') || v.name.toLowerCase().includes('vietnam') || v.name.toLowerCase().includes('vietnamese'));
+    if (vnVoice) {
+      utterance.voice = vnVoice;
+    }
+
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+
+    setSpeakingMessageId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -113,11 +179,20 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
                 Gemini 3.7
               </span>
             </h2>
-            <p className="text-[10px] text-[#888888] italic">Đồng hành nhân văn • Phân tích sắc sảo • Trực tiếp Firestore</p>
+            <p className="text-[10px] text-[#888888] italic">
+              {personaConfig?.userHonorific ? `Gọi bạn: ${personaConfig.userHonorific}` : 'Đồng hành nhân văn'} • {personaConfig?.aiHonorific ? `AI: ${personaConfig.aiHonorific}` : 'Phân tích sắc sảo'} • Trực tiếp Firestore
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setIsPersonaModalOpen(true)}
+            className="p-1.5 rounded-sm text-[#888888] hover:text-[#D4AF37] hover:bg-[#1A1A1A] transition-colors cursor-pointer"
+            title="Tùy chỉnh xưng hô & phong cách AI"
+          >
+            <Settings2 className="w-4 h-4" />
+          </button>
           <button
             onClick={onClearMessages}
             className="p-1.5 rounded-sm text-[#888888] hover:text-[#E0E0E0] hover:bg-[#1A1A1A] transition-colors cursor-pointer"
@@ -133,6 +208,96 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Quick Persona Customization Modal */}
+      {isPersonaModalOpen && personaConfig && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-[#151515] border border-[#D4AF37]/40 rounded-lg p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#262626] pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-[#D4AF37]" />
+                Tùy Chỉnh Xưng Hô & Phong Cách AI
+              </h3>
+              <button onClick={() => setIsPersonaModalOpen(false)} className="text-[#888888] hover:text-white">✕</button>
+            </div>
+
+            <form onSubmit={handleSaveQuickPersona} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-[#CCCCCC] font-semibold mb-1">
+                  Cách AI gọi bạn (User Honorific):
+                </label>
+                <input
+                  type="text"
+                  value={personaConfig.userHonorific || ''}
+                  onChange={(e) => setPersonaConfig({ ...personaConfig, userHonorific: e.target.value })}
+                  placeholder="Ví dụ: Anh Nam, Sếp, Bạn, Em..."
+                  className="w-full px-3 py-2 bg-[#0C0C0C] border border-[#333333] rounded-sm text-[#E0E0E0] focus:border-[#D4AF37] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#CCCCCC] font-semibold mb-1">
+                  Cách AI tự xưng (AI Honorific):
+                </label>
+                <input
+                  type="text"
+                  value={personaConfig.aiHonorific || ''}
+                  onChange={(e) => setPersonaConfig({ ...personaConfig, aiHonorific: e.target.value })}
+                  placeholder="Ví dụ: Em, Tôi, Trợ lý..."
+                  className="w-full px-3 py-2 bg-[#0C0C0C] border border-[#333333] rounded-sm text-[#E0E0E0] focus:border-[#D4AF37] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#CCCCCC] font-semibold mb-1">
+                  Phong cách đồng hành:
+                </label>
+                <select
+                  value={personaConfig.communicationStyle || 'warm_empathetic'}
+                  onChange={(e) => setPersonaConfig({ ...personaConfig, communicationStyle: e.target.value as AiCommunicationStyle })}
+                  className="w-full px-3 py-2 bg-[#0C0C0C] border border-[#333333] rounded-sm text-[#E0E0E0] focus:border-[#D4AF37] focus:outline-none"
+                >
+                  <option value="warm_empathetic">🌿 Tận tụy & Thấu cảm ấm áp</option>
+                  <option value="executive_concise">⚡ Chánh văn phòng súc tích & Hành động</option>
+                  <option value="strategic_advisor">🧠 Cố vấn chiến lược & Phân tích sâu</option>
+                  <option value="energetic_action">🔥 Tràn đầy năng lượng & Thúc đẩy bứt phá</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[#CCCCCC] font-semibold mb-1">
+                  Lời nhắc quy tắc đặc biệt:
+                </label>
+                <input
+                  type="text"
+                  value={personaConfig.customInstructions || ''}
+                  onChange={(e) => setPersonaConfig({ ...personaConfig, customInstructions: e.target.value })}
+                  placeholder="Ví dụ: Ưu tiên tóm tắt hành động trước 16h00..."
+                  className="w-full px-3 py-2 bg-[#0C0C0C] border border-[#333333] rounded-sm text-[#E0E0E0] focus:border-[#D4AF37] focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#262626]">
+                <button
+                  type="button"
+                  onClick={() => setIsPersonaModalOpen(false)}
+                  className="px-3 py-1.5 rounded-sm bg-[#222222] text-[#888888] hover:text-white"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPersona}
+                  className="px-4 py-1.5 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {isSavingPersona ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Persona Mode Switcher */}
       <div className="px-3 py-2 bg-[#121212] border-b border-[#222222] flex items-center gap-1.5 overflow-x-auto text-[11px]">
@@ -296,13 +461,28 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
                 <div className="flex items-center justify-between text-[9px] font-mono text-[#666666] px-1">
                   <span>{new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
                   {msg.role === 'assistant' && (
-                    <button
-                      onClick={() => handleCopy(msg.content, msg.id)}
-                      className="hover:text-[#E0E0E0] flex items-center gap-0.5 cursor-pointer transition-colors"
-                    >
-                      {isCopied === msg.id ? <Check className="w-3 h-3 text-[#D4AF37]" /> : <Copy className="w-3 h-3" />}
-                      <span>{isCopied === msg.id ? 'Đã sao chép' : 'Sao chép'}</span>
-                    </button>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        onClick={() => handleSpeakText(msg.content, msg.id)}
+                        className="hover:text-[#D4AF37] flex items-center gap-1 cursor-pointer transition-colors"
+                        title={speakingMessageId === msg.id ? 'Dừng đọc' : 'Nghe giọng đọc tiếng Việt'}
+                      >
+                        {speakingMessageId === msg.id ? (
+                          <VolumeX className="w-3.5 h-3.5 text-[#D4AF37] animate-pulse" />
+                        ) : (
+                          <Volume2 className="w-3.5 h-3.5" />
+                        )}
+                        <span>{speakingMessageId === msg.id ? 'Dừng' : 'Đọc'}</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleCopy(msg.content, msg.id)}
+                        className="hover:text-[#E0E0E0] flex items-center gap-0.5 cursor-pointer transition-colors"
+                      >
+                        {isCopied === msg.id ? <Check className="w-3 h-3 text-[#D4AF37]" /> : <Copy className="w-3 h-3" />}
+                        <span>{isCopied === msg.id ? 'Đã sao chép' : 'Sao chép'}</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

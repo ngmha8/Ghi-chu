@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Brain,
   Sparkles,
@@ -18,9 +18,13 @@ import {
   ArrowRight,
   Bot,
   UserCheck,
-  Sliders
+  Sliders,
+  Settings2,
+  Save,
+  MessageSquare,
+  Volume2
 } from 'lucide-react';
-import { AiMemoryFact, AiLearningInsight, AiLearningStats, AiMemoryCategory } from '../types/index.ts';
+import { AiMemoryFact, AiLearningInsight, AiLearningStats, AiMemoryCategory, AiPersonaConfig, AiCommunicationStyle } from '../types/index.ts';
 import { api } from '../services/api.ts';
 
 interface AiLearningViewProps {
@@ -40,6 +44,33 @@ const CATEGORY_LABELS: Record<AiMemoryCategory, { label: string; color: string; 
   habit: { label: 'Thói quen sinh hoạt', color: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20', icon: Compass },
 };
 
+const COMMUNICATION_STYLES: { id: AiCommunicationStyle; label: string; desc: string; icon: string }[] = [
+  {
+    id: 'warm_empathetic',
+    label: '🌿 Tận tụy & Thấu cảm ấm áp',
+    desc: 'Ân cần, chu đáo, tôn trọng cảm xúc và luôn mang lại cảm giác an tâm tuyệt đối.',
+    icon: '🌿',
+  },
+  {
+    id: 'executive_concise',
+    label: '⚡ Chánh văn phòng súc tích & Hành động',
+    desc: 'Đi thẳng vào trọng tâm, tối đa hóa thời gian, súc tích và chính xác từng chi tiết.',
+    icon: '⚡',
+  },
+  {
+    id: 'strategic_advisor',
+    label: '🧠 Cố vấn chiến lược & Phân tích sâu',
+    desc: 'Tư duy đa chiều, phân tích rủi ro - cơ hội và định hướng dài hạn.',
+    icon: '🧠',
+  },
+  {
+    id: 'energetic_action',
+    label: '🔥 Tràn đầy năng lượng & Thúc đẩy bứt phá',
+    desc: 'Truyền cảm hứng, khuyến khích hành động ngay và xóa tan trì hoãn.',
+    icon: '🔥',
+  },
+];
+
 export const AiLearningView: React.FC<AiLearningViewProps> = ({
   memories,
   insights,
@@ -51,12 +82,46 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
   const [isReflecting, setIsReflecting] = useState(false);
   const [reflectMessage, setReflectMessage] = useState<string | null>(null);
 
+  // Persona State
+  const [personaConfig, setPersonaConfig] = useState<AiPersonaConfig | null>(null);
+  const [isSavingPersona, setIsSavingPersona] = useState(false);
+  const [personaSaveSuccess, setPersonaSaveSuccess] = useState(false);
+
   // Modal / Form state for adding new memory fact
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newFact, setNewFact] = useState('');
   const [newCategory, setNewCategory] = useState<AiMemoryCategory>('preference');
   const [newConfidence, setNewConfidence] = useState(0.95);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    loadPersona();
+  }, []);
+
+  const loadPersona = async () => {
+    try {
+      const data = await api.getAiPersonaConfig();
+      setPersonaConfig(data);
+    } catch (err) {
+      console.warn('Could not load AI Persona config:', err);
+    }
+  };
+
+  const handleSavePersona = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!personaConfig) return;
+    setIsSavingPersona(true);
+    try {
+      const updated = await api.saveAiPersonaConfig(personaConfig);
+      setPersonaConfig(updated);
+      setPersonaSaveSuccess(true);
+      setTimeout(() => setPersonaSaveSuccess(false), 3000);
+    } catch (err: any) {
+      alert(`Lỗi khi lưu cấu hình: ${err?.message || 'Không xác định'}`);
+    } finally {
+      setIsSavingPersona(false);
+    }
+  };
 
   const filteredMemories = selectedCategory === 'all'
     ? memories
@@ -211,6 +276,154 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* AI Persona & Honorifics Customizer Card */}
+      {personaConfig && (
+        <form
+          onSubmit={handleSavePersona}
+          className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6 md:p-7 space-y-6 shadow-xl relative overflow-hidden"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <Settings2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  Thiết Lập Xưng Hô & Phong Cách Đồng Hành AI
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 font-medium">
+                    Strict Persona
+                  </span>
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Chỉ định danh xưng để AI thấu hiểu và giao tiếp chuẩn xác, ấm áp như một cộng sự đắc lực
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSavingPersona}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {isSavingPersona ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+            </button>
+          </div>
+
+          {personaSaveSuccess && (
+            <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Đã lưu thành công cấu hình Xưng hô & Tính cách AI lên hệ thống Firestore!</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* User Honorific */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-zinc-300">
+                👤 Danh xưng AI gọi bạn (User Honorific):
+              </label>
+              <input
+                type="text"
+                value={personaConfig.userHonorific || ''}
+                onChange={(e) => setPersonaConfig({ ...personaConfig, userHonorific: e.target.value })}
+                placeholder="Ví dụ: Anh Nam, Chị Mai, Sếp, Bạn..."
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+              />
+              <p className="text-[11px] text-zinc-500 italic">
+                AI sẽ luôn gọi bạn bằng danh xưng này (VD: &ldquo;Chào Anh Nam&rdquo;, &ldquo;Em đã cập nhật xong việc cho Anh...&rdquo;)
+              </p>
+            </div>
+
+            {/* AI Honorific */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-zinc-300">
+                🤖 Danh xưng AI tự gọi mình (AI Honorific):
+              </label>
+              <input
+                type="text"
+                value={personaConfig.aiHonorific || ''}
+                onChange={(e) => setPersonaConfig({ ...personaConfig, aiHonorific: e.target.value })}
+                placeholder="Ví dụ: Em, Tôi, Trợ lý, Cố vấn..."
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+              />
+              <p className="text-[11px] text-zinc-500 italic">
+                Cách AI tự xưng trong câu trả lời (VD: &ldquo;Em xin tóm tắt...&rdquo;, &ldquo;Tôi sẽ hỗ trợ bạn ngay&rdquo;)
+              </p>
+            </div>
+          </div>
+
+          {/* Communication Style Selector */}
+          <div className="space-y-2.5">
+            <label className="block text-xs font-semibold text-zinc-300">
+              🎭 Phong cách giao tiếp & đồng hành chủ đạo:
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {COMMUNICATION_STYLES.map((style) => {
+                const isSelected = personaConfig.communicationStyle === style.id;
+                return (
+                  <button
+                    type="button"
+                    key={style.id}
+                    onClick={() => setPersonaConfig({ ...personaConfig, communicationStyle: style.id })}
+                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-amber-500/10 border-amber-500 text-white shadow-md shadow-amber-500/5'
+                        : 'bg-zinc-800/60 border-zinc-700/70 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>{style.icon}</span>
+                        <span>{style.label.replace(/^[^\s]+\s/, '')}</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">
+                        {style.desc}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <div className="mt-2.5 flex items-center gap-1 text-[10px] text-amber-400 font-semibold">
+                        <CheckCircle2 className="w-3 h-3" /> Đang áp dụng
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2 border-t border-zinc-800/60">
+            {/* Focus Domain */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-zinc-300">
+                📚 Lĩnh vực & Chuyên môn trọng tâm:
+              </label>
+              <input
+                type="text"
+                value={personaConfig.focusDomain || ''}
+                onChange={(e) => setPersonaConfig({ ...personaConfig, focusDomain: e.target.value })}
+                placeholder="Ví dụ: Công nghệ thông tin, Quản trị doanh nghiệp, Y tế & Bức xạ..."
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+              />
+            </div>
+
+            {/* Custom Directives */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-zinc-300">
+                🔒 Lời nhắc quy tắc đặc biệt (Custom Instructions):
+              </label>
+              <input
+                type="text"
+                value={personaConfig.customInstructions || ''}
+                onChange={(e) => setPersonaConfig({ ...personaConfig, customInstructions: e.target.value })}
+                placeholder="Ví dụ: Luôn tóm tắt hành động trước 16h00, ưu tiên phân tích sâu nguyên nhân gốc rễ..."
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+              />
+            </div>
+          </div>
+        </form>
+      )}
 
       {/* Autonomous Cognitive Insights Section */}
       {insights.length > 0 && (

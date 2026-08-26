@@ -167,3 +167,15 @@ export const initialAiInsights: AiLearningInsight[] = [
   }
 ];
 
+export const initialAiPersonaConfig: import('../src/types/index.ts').AiPersonaConfig = {
+  userHonorific: 'Bạn',
+  aiHonorific: 'Tôi',
+  communicationStyle: 'warm_empathetic',
+  focusDomain: 'Phát triển ứng dụng Web, Trí tuệ nhân tạo, Tự động hóa & Năng suất',
+  speechRate: 1.05,
+  speechPitch: 1.0,
+  autoSpeakResponse: false,
+  customInstructions: 'Luôn lắng nghe, thấu cảm, phản hồi nhanh chóng, phân chia các ý chính mạch lạc và hành động dứt khoát.',
+  updatedAt: new Date().toISOString(),
+};
+
