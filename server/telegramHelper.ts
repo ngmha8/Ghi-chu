@@ -9,6 +9,92 @@ export interface TelegramInlineButton {
 export type TelegramInlineKeyboard = TelegramInlineButton[][];
 
 /**
+ * Cleanly escapes raw characters for Telegram HTML
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Converts standard Markdown to Telegram HTML format safely
+ */
+export function convertMarkdownToTelegramHtml(markdown: string): string {
+  if (!markdown) return '';
+
+  // Extract code blocks to avoid escaping/modifying their contents
+  const codeBlocks: string[] = [];
+  let processed = markdown.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_match, lang, code) => {
+    const escapedCode = escapeHtml(code.trim());
+    const placeholder = `___TELEGRAM_CODE_BLOCK_${codeBlocks.length}___`;
+    if (lang) {
+      codeBlocks.push(`<pre><code class="language-${lang}">${escapedCode}</code></pre>`);
+    } else {
+      codeBlocks.push(`<pre><code>${escapedCode}</code></pre>`);
+    }
+    return placeholder;
+  });
+
+  // Extract inline code
+  const inlineCodes: string[] = [];
+  processed = processed.replace(/`([^`\n]+)`/g, (_match, code) => {
+    const escapedCode = escapeHtml(code);
+    const placeholder = `___TELEGRAM_INLINE_CODE_${inlineCodes.length}___`;
+    inlineCodes.push(`<code>${escapedCode}</code>`);
+    return placeholder;
+  });
+
+  // Escape HTML in the remaining text
+  processed = escapeHtml(processed);
+
+  // Convert bold: **text** or __text__
+  processed = processed.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  processed = processed.replace(/__(.+?)__/g, '<u>$1</u>');
+
+  // Convert markdown links: [text](url) -> <a href="url">text</a>
+  processed = processed.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2">$1</a>');
+
+  // Convert headers (# Header -> <b>Header</b>)
+  processed = processed.replace(/^#{1,6}\s+(.+)$/gm, '<b>$1</b>');
+
+  // Convert standalone *text* to <b>text</b> if bounded by non-word chars or line boundaries
+  processed = processed.replace(/(?<=^|[\s(])\*([^*\n]+)\*(?=[\s).,:;!?]|$)/g, '<b>$1</b>');
+
+  // Convert standalone _text_ to <i>text</i> if bounded by non-word chars or line boundaries
+  processed = processed.replace(/(?<=^|[\s(])_([^_\n]+)_(?=[\s).,:;!?]|$)/g, '<i>$1</i>');
+
+  // Convert strikethrough: ~~text~~
+  processed = processed.replace(/~~(.+?)~~/g, '<s>$1</s>');
+
+  // Restore inline codes
+  inlineCodes.forEach((codeHtml, idx) => {
+    processed = processed.replace(`___TELEGRAM_INLINE_CODE_${idx}___`, codeHtml);
+  });
+
+  // Restore code blocks
+  codeBlocks.forEach((blockHtml, idx) => {
+    processed = processed.replace(`___TELEGRAM_CODE_BLOCK_${idx}___`, blockHtml);
+  });
+
+  return processed;
+}
+
+/**
+ * Strips all HTML tags to guarantee a 100% fail-safe plain text message
+ */
+export function stripHtmlToPlainText(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+/**
  * Send a chat action (typing, upload_document, record_voice) to provide instant visual feedback to user
  */
 export async function sendTelegramChatAction(
@@ -34,9 +120,9 @@ export async function sendTelegramChatAction(
 }
 
 /**
- * Split long message text (> 4000 chars) into safe logical chunks for Telegram API limit (4096 chars)
+ * Split long message text (> 3800 chars) into safe logical chunks for Telegram API limit (4096 chars)
  */
-export function splitTelegramMessage(text: string, maxLen = 3900): string[] {
+export function splitTelegramMessage(text: string, maxLen = 3800): string[] {
   if (!text || text.length <= maxLen) return [text];
 
   const chunks: string[] = [];
@@ -72,7 +158,7 @@ export function splitTelegramMessage(text: string, maxLen = 3900): string[] {
 }
 
 /**
- * Send message with Markdown support, auto chunking for long content, and optional Inline Keyboard
+ * Send message with safe HTML/Markdown support, auto chunking for long content, and optional Inline Keyboard
  * Returns message ID of first sent chunk if successful
  */
 export async function sendTelegramMessage(
@@ -100,13 +186,14 @@ export async function sendTelegramMessageWithResult(
   let firstMessageId: number | undefined = undefined;
 
   for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
+    const rawChunk = chunks[i];
+    const htmlChunk = convertMarkdownToTelegramHtml(rawChunk);
     const isLastChunk = i === chunks.length - 1;
 
     const payload: any = {
       chat_id: chatId,
-      text: chunk,
-      parse_mode: 'Markdown',
+      text: htmlChunk,
+      parse_mode: 'HTML',
     };
 
     if (isLastChunk && inlineKeyboard && inlineKeyboard.length > 0) {
@@ -134,9 +221,10 @@ export async function sendTelegramMessageWithResult(
         continue;
       }
 
-      // If markdown error (e.g. Can't find end of entities), fallback without parse_mode
-      console.warn('Telegram Markdown error, attempting plain-text fallback:', data.description);
+      // If Telegram entity parsing fails, silently fall back to clean plain text
       delete payload.parse_mode;
+      payload.text = stripHtmlToPlainText(rawChunk);
+
       const fallbackRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,11 +236,11 @@ export async function sendTelegramMessageWithResult(
           firstMessageId = fallbackData.result.message_id;
         }
       } else {
-        console.error('sendTelegramMessage failed:', fallbackData);
+        console.error('[Telegram Send Error]:', fallbackData);
         overallSuccess = false;
       }
     } catch (err) {
-      console.warn('sendTelegramMessage network error:', err);
+      console.warn('[Telegram Network Error]:', err);
       overallSuccess = false;
     }
   }
@@ -161,7 +249,7 @@ export async function sendTelegramMessageWithResult(
 }
 
 /**
- * Edit an existing Telegram message in-place for seamless real-time updates (e.g. from Transcribing -> Result)
+ * Edit an existing Telegram message in-place for seamless real-time updates
  */
 export async function editTelegramMessageText(
   botToken: string,
@@ -172,11 +260,13 @@ export async function editTelegramMessageText(
 ): Promise<boolean> {
   if (!botToken || !chatId || !messageId || !text) return false;
 
+  const htmlText = convertMarkdownToTelegramHtml(text);
+
   const payload: any = {
     chat_id: chatId,
     message_id: messageId,
-    text: text,
-    parse_mode: 'Markdown',
+    text: htmlText,
+    parse_mode: 'HTML',
   };
 
   if (inlineKeyboard && inlineKeyboard.length > 0) {
@@ -196,6 +286,7 @@ export async function editTelegramMessageText(
 
     // Fallback without parse_mode if formatting fails
     delete payload.parse_mode;
+    payload.text = stripHtmlToPlainText(text);
     const fallbackRes = await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

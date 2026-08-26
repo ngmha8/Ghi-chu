@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Task, Note, DriveFile, NotificationLog } from '../types/index.js';
 import {
   CheckCircle2,
@@ -10,7 +10,8 @@ import {
   Sparkles,
   Calendar,
   ChevronRight,
-  CheckSquare
+  CheckSquare,
+  Mic
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -19,11 +20,14 @@ interface DashboardViewProps {
   files: DriveFile[];
   notificationLogs: NotificationLog[];
   onTaskStatusChange: (taskId: string, newStatus: Task['status']) => void;
-  setActiveTab: (tab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'architecture') => void;
+  setActiveTab: (tab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'ai-learning' | 'settings' | 'architecture') => void;
   openAiChatWithPrompt: (prompt: string) => void;
+  onOpenVoiceFocus?: () => void;
   openNewTaskModal: () => void;
   openNewNoteModal: () => void;
 }
+
+type QuickFilter = 'all' | 'today' | 'overdue' | 'high';
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   tasks,
@@ -33,9 +37,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onTaskStatusChange,
   setActiveTab,
   openAiChatWithPrompt,
+  onOpenVoiceFocus = () => {},
   openNewTaskModal,
   openNewNoteModal,
 }) => {
+  const [taskQuickFilter, setTaskQuickFilter] = useState<QuickFilter>('all');
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
 
@@ -51,9 +57,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     day: 'numeric'
   }).format(now);
 
+  const filteredPriorityTasks = tasks.filter(task => {
+    if (task.status === 'completed' || task.status === 'canceled') return false;
+    if (taskQuickFilter === 'today') return task.deadline.startsWith(todayStr);
+    if (taskQuickFilter === 'overdue') return new Date(task.deadline) < now;
+    if (taskQuickFilter === 'high') return task.priority === 'high';
+    return true;
+  });
+
   return (
     <div className="space-y-8 pb-12">
-      {/* Editorial Header Header */}
+      {/* Editorial Header */}
       <div className="border-b border-[#2A2A2A] pb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
@@ -70,7 +84,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          {/* Voice Mode Button */}
+          <button
+            onClick={onOpenVoiceFocus}
+            className="px-4 py-2.5 rounded-sm bg-[#151515] hover:bg-[#202020] text-[#D4AF37] border border-[#D4AF37]/50 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+            title="Kích hoạt chế độ đàm thoại giọng nói 2 chiều Focus Mode"
+          >
+            <Mic className="w-4 h-4 text-[#D4AF37] animate-pulse" />
+            <span>Thoại 2 Chiều</span>
+          </button>
+
           <button
             onClick={() => openAiChatWithPrompt('Tóm tắt tình hình công việc và các deadline quan trọng trong tuần này.')}
             className="px-4 py-2.5 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-colors cursor-pointer shadow-sm"
@@ -78,6 +102,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <Sparkles className="w-4 h-4 text-black stroke-[2.5]" />
             <span>Tóm Tắt AI</span>
           </button>
+
           <button
             onClick={openNewTaskModal}
             className="px-4 py-2.5 rounded-sm bg-[#151515] hover:bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] font-semibold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
@@ -129,7 +154,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-3xl font-editorial-serif font-bold text-white">{notes.length}</span>
             <span className="text-xs text-[#A0A0A0]">{files.length} tệp ({totalFileSizeMb} MB)</span>
           </div>
-          <p className="text-[11px] text-[#777777] mt-3 border-t border-[#2A2A2A] pt-2">OAuth2 Synchronized</p>
+          <p className="text-[11px] text-[#777777] mt-3 border-t border-[#2A2A2A] pt-2">Vector Search Active</p>
         </div>
 
         {/* Card 4: Telegram Alerts */}
@@ -150,29 +175,60 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Main Content Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Left 2 Cols: Priority Tasks & Timeline */}
+        {/* Left 2 Cols: Priority Tasks & Quick Filters */}
         <div className="lg:col-span-2 space-y-6">
           <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
+            
+            {/* Header and Quick Filter Tabs */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#2A2A2A] pb-3">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-[#D4AF37]" />
                 <h2 className="text-lg font-editorial-serif font-bold text-white">Công việc ưu tiên & Deadline</h2>
               </div>
-              <button
-                onClick={() => setActiveTab('tasks')}
-                className="text-xs uppercase tracking-wider font-semibold text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <span>Tất cả ({tasks.length})</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              
+              {/* Quick Filter Selector */}
+              <div className="flex items-center bg-[#0C0C0C] p-0.5 rounded-sm border border-[#2A2A2A]">
+                <button
+                  onClick={() => setTaskQuickFilter('all')}
+                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm cursor-pointer transition-all ${
+                    taskQuickFilter === 'all' ? 'bg-[#D4AF37] text-black' : 'text-[#888888] hover:text-white'
+                  }`}
+                >
+                  Tất cả
+                </button>
+                <button
+                  onClick={() => setTaskQuickFilter('today')}
+                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm cursor-pointer transition-all ${
+                    taskQuickFilter === 'today' ? 'bg-[#D4AF37] text-black' : 'text-[#888888] hover:text-white'
+                  }`}
+                >
+                  Hôm nay
+                </button>
+                <button
+                  onClick={() => setTaskQuickFilter('overdue')}
+                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm cursor-pointer transition-all ${
+                    taskQuickFilter === 'overdue' ? 'bg-rose-600 text-white' : 'text-[#888888] hover:text-white'
+                  }`}
+                >
+                  Quá hạn
+                </button>
+                <button
+                  onClick={() => setTaskQuickFilter('high')}
+                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm cursor-pointer transition-all ${
+                    taskQuickFilter === 'high' ? 'bg-[#D4AF37] text-black' : 'text-[#888888] hover:text-white'
+                  }`}
+                >
+                  Ưu tiên cao
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3">
-              {tasks.filter(t => t.status !== 'completed').length === 0 ? (
+              {filteredPriorityTasks.length === 0 ? (
                 <div className="p-8 text-center bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
                   <CheckCircle2 className="w-8 h-8 text-[#555555] mx-auto" />
-                  <p className="text-sm font-editorial-serif text-[#E0E0E0]">Chưa có công việc nào cần xử lý</p>
-                  <p className="text-xs text-[#777777]">Bấm "Tạo Task" để thêm nhiệm vụ hoặc yêu cầu AI tạo tự động qua Chat / Telegram.</p>
+                  <p className="text-sm font-editorial-serif text-[#E0E0E0]">Không có công việc nào trong mục này</p>
+                  <p className="text-xs text-[#777777]">Bấm "Tạo Task" để thêm nhiệm vụ mới.</p>
                   <button
                     onClick={openNewTaskModal}
                     className="mt-2 px-3 py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer inline-flex items-center gap-1.5"
@@ -182,63 +238,64 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </button>
                 </div>
               ) : (
-                tasks.filter(t => t.status !== 'completed').slice(0, 5).map(task => {
-                const isOverdue = new Date(task.deadline) < now;
-                const isUrgent = task.priority === 'high';
+                filteredPriorityTasks.slice(0, 6).map(task => {
+                  const isOverdue = new Date(task.deadline) < now;
+                  const isUrgent = task.priority === 'high';
 
-                return (
-                  <div
-                    key={task.id}
-                    className={`p-4 rounded-sm border transition-all flex items-start justify-between gap-4 ${
-                      isOverdue
-                        ? 'bg-rose-950/20 border-rose-900/50'
-                        : isUrgent
-                        ? 'bg-[#1A1A1A] border-[#D4AF37]/40'
-                        : 'bg-[#151515] border-[#2A2A2A] hover:border-[#333333]'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <button
-                        onClick={() => onTaskStatusChange(task.id, 'completed')}
-                        className="mt-0.5 text-[#666666] hover:text-[#D4AF37] transition-colors shrink-0 cursor-pointer"
-                        title="Đánh dấu hoàn thành"
-                      >
-                        <CheckCircle2 className="w-5 h-5" />
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-sm ${
-                            task.priority === 'high' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-                            task.priority === 'medium' ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30' :
-                            'bg-[#2A2A2A] text-[#AAAAAA]'
-                          }`}>
-                            {task.priority.toUpperCase()}
-                          </span>
-                          {task.recurring.type !== 'none' && (
-                            <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-sky-300 border border-sky-500/30">
-                              Lặp lại: {task.recurring.type}
+                  return (
+                    <div
+                      key={task.id}
+                      className={`p-4 rounded-sm border transition-all flex items-start justify-between gap-4 ${
+                        isOverdue
+                          ? 'bg-rose-950/20 border-rose-900/50'
+                          : isUrgent
+                          ? 'bg-[#1A1A1A] border-[#D4AF37]/40'
+                          : 'bg-[#151515] border-[#2A2A2A] hover:border-[#333333]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <button
+                          onClick={() => onTaskStatusChange(task.id, 'completed')}
+                          className="mt-0.5 text-[#666666] hover:text-[#D4AF37] transition-colors shrink-0 cursor-pointer"
+                          title="Đánh dấu hoàn thành (0ms Optimistic)"
+                        >
+                          <CheckCircle2 className="w-5 h-5" />
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-sm ${
+                              task.priority === 'high' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                              task.priority === 'medium' ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30' :
+                              'bg-[#2A2A2A] text-[#AAAAAA]'
+                            }`}>
+                              {task.priority.toUpperCase()}
                             </span>
-                          )}
-                          <span className="text-xs text-[#888888] italic">
-                            Due: {new Date(task.deadline).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}
-                          </span>
+                            {task.recurring.type !== 'none' && (
+                              <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-sky-300 border border-sky-500/30">
+                                Lặp: {task.recurring.type}
+                              </span>
+                            )}
+                            <span className={`text-xs ${isOverdue ? 'text-rose-400 font-semibold' : 'text-[#888888] italic'}`}>
+                              Due: {new Date(task.deadline).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}
+                            </span>
+                          </div>
+                          <h3 className="text-sm font-editorial-serif font-bold text-white mt-1.5 truncate">{task.title}</h3>
+                          <p className="text-xs text-[#888888] mt-0.5 line-clamp-1 leading-relaxed">{task.description}</p>
                         </div>
-                        <h3 className="text-sm font-editorial-serif font-bold text-white mt-1.5 truncate">{task.title}</h3>
-                        <p className="text-xs text-[#888888] mt-0.5 line-clamp-1 leading-relaxed">{task.description}</p>
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-2">
+                        <button
+                          onClick={() => openAiChatWithPrompt(`Cho tôi gợi ý thực hiện công việc: "${task.title}". Nội dung: ${task.description}`)}
+                          className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 hover:bg-[#D4AF37] hover:text-black transition-colors cursor-pointer"
+                        >
+                          Gợi ý AI
+                        </button>
                       </div>
                     </div>
-
-                    <div className="shrink-0 flex items-center gap-2">
-                      <button
-                        onClick={() => openAiChatWithPrompt(`Cho tôi gợi ý thực hiện công việc: "${task.title}". Nội dung: ${task.description}`)}
-                        className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 hover:bg-[#D4AF37] hover:text-black transition-colors cursor-pointer"
-                      >
-                        Gợi ý AI
-                      </button>
-                    </div>
-                  </div>
-                );
-              }))}
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -250,7 +307,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#D4AF37]" />
-                <h3 className="text-sm font-editorial-serif font-bold text-white">Ghi chú ghim</h3>
+                <h3 className="text-sm font-editorial-serif font-bold text-white">Ghi chú gần đây</h3>
               </div>
               <button
                 onClick={openNewNoteModal}

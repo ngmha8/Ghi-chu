@@ -11,7 +11,12 @@ import {
   Edit2,
   Paperclip,
   Repeat,
-  Sparkles
+  Sparkles,
+  Filter,
+  X,
+  RotateCcw,
+  SlidersHorizontal,
+  ChevronDown
 } from 'lucide-react';
 
 interface TasksViewProps {
@@ -26,6 +31,8 @@ interface TasksViewProps {
   editTask: (task: Task) => void;
 }
 
+type DateRangePreset = 'all' | 'today' | 'next7' | 'month' | 'overdue' | 'custom';
+
 export const TasksView: React.FC<TasksViewProps> = ({
   tasks,
   notes,
@@ -37,10 +44,26 @@ export const TasksView: React.FC<TasksViewProps> = ({
 }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
+  const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('all');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
   const [search, setSearch] = useState<string>('');
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar'>('list');
+  const [draggedOverCol, setDraggedOverCol] = useState<string | null>(null);
 
-  // Collect all unique available tags
+  // Collect all unique available tags with usage counts
+  const tagCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    tasks.forEach(t => {
+      t.tags?.forEach(tag => {
+        const clean = tag.trim();
+        if (clean) map.set(clean, (map.get(clean) || 0) + 1);
+      });
+    });
+    return map;
+  }, [tasks]);
+
   const availableTags = useMemo(() => {
     const set = new Set<string>();
     const defaults = ['Công việc', 'Báo cáo', 'Tài chính', 'Họp', 'Quan trọng', 'Khẩn cấp', 'Dự án', 'Cá nhân'];
@@ -50,30 +73,104 @@ export const TasksView: React.FC<TasksViewProps> = ({
     return Array.from(set).filter(Boolean);
   }, [tasks, notes]);
 
-  const filteredTasks = tasks.filter(task => {
-    if (filterStatus !== 'all' && task.status !== filterStatus) return false;
-    if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      // Handle #tag query
-      const tagQueries = q.match(/#([\w\p{L}]+)/gu)?.map(t => t.slice(1).toLowerCase()) || [];
-      const nonTagQ = q.replace(/#([\w\p{L}]+)/gu, '').trim();
+  // Multi-dimensional filtering logic
+  const filteredTasks = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-      const matchTitle = !nonTagQ || task.title.toLowerCase().includes(nonTagQ);
-      const matchDesc = !nonTagQ || task.description.toLowerCase().includes(nonTagQ);
-      const matchText = matchTitle || matchDesc;
+    const sevenDaysEnd = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-      const matchAllTags = tagQueries.length === 0 || tagQueries.every(tq => 
-        task.tags.some(t => t.toLowerCase().includes(tq))
-      );
+    return tasks.filter(task => {
+      // 1. Status filter
+      if (filterStatus !== 'all' && task.status !== filterStatus) return false;
 
-      // Simple fallback if no explicit #
-      const matchAnyTag = task.tags.some(t => t.toLowerCase().includes(q));
+      // 2. Priority filter
+      if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
 
-      return (matchText && matchAllTags) || matchAnyTag;
+      // 3. Tag filter
+      if (selectedTag !== 'all') {
+        const hasTag = task.tags?.some(t => t.toLowerCase() === selectedTag.toLowerCase());
+        if (!hasTag) return false;
+      }
+
+      // 4. Date Range Filter
+      const taskDeadline = task.deadline ? new Date(task.deadline) : null;
+      if (taskDeadline && !isNaN(taskDeadline.getTime())) {
+        if (dateRangePreset === 'today') {
+          if (taskDeadline < todayStart || taskDeadline > todayEnd) return false;
+        } else if (dateRangePreset === 'next7') {
+          if (taskDeadline < todayStart || taskDeadline > sevenDaysEnd) return false;
+        } else if (dateRangePreset === 'month') {
+          if (taskDeadline < todayStart || taskDeadline > monthEnd) return false;
+        } else if (dateRangePreset === 'overdue') {
+          if (taskDeadline >= now || task.status === 'completed' || task.status === 'canceled') return false;
+        } else if (dateRangePreset === 'custom') {
+          if (customStartDate && taskDeadline < new Date(customStartDate)) return false;
+          if (customEndDate && taskDeadline > new Date(customEndDate + 'T23:59:59')) return false;
+        }
+      }
+
+      // 5. Search Text Filter (with #tag query support)
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const tagQueries = q.match(/#([\w\p{L}]+)/gu)?.map(t => t.slice(1).toLowerCase()) || [];
+        const nonTagQ = q.replace(/#([\w\p{L}]+)/gu, '').trim();
+
+        const matchTitle = !nonTagQ || task.title.toLowerCase().includes(nonTagQ);
+        const matchDesc = !nonTagQ || task.description.toLowerCase().includes(nonTagQ);
+        const matchText = matchTitle || matchDesc;
+
+        const matchAllTags = tagQueries.length === 0 || tagQueries.every(tq => 
+          task.tags.some(t => t.toLowerCase().includes(tq))
+        );
+
+        const matchAnyTag = task.tags.some(t => t.toLowerCase().includes(q));
+
+        return (matchText && matchAllTags) || matchAnyTag;
+      }
+
+      return true;
+    });
+  }, [tasks, filterStatus, filterPriority, selectedTag, dateRangePreset, customStartDate, customEndDate, search]);
+
+  const hasActiveFilters = filterStatus !== 'all' || filterPriority !== 'all' || selectedTag !== 'all' || dateRangePreset !== 'all' || search.trim() !== '';
+
+  const handleResetFilters = () => {
+    setFilterStatus('all');
+    setFilterPriority('all');
+    setSelectedTag('all');
+    setDateRangePreset('all');
+    setCustomStartDate('');
+    setCustomEndDate('');
+    setSearch('');
+  };
+
+  // Kanban Drag and Drop Handlers
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    e.dataTransfer.setData('text/plain', taskId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, colStatus: string) => {
+    e.preventDefault();
+    if (draggedOverCol !== colStatus) {
+      setDraggedOverCol(colStatus);
     }
-    return true;
-  });
+  };
+
+  const handleDragLeave = () => {
+    setDraggedOverCol(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, colStatus: 'todo' | 'in_progress' | 'completed' | 'canceled') => {
+    e.preventDefault();
+    setDraggedOverCol(null);
+    const taskId = e.dataTransfer.getData('text/plain');
+    if (taskId) {
+      onTaskUpdate(taskId, { status: colStatus });
+    }
+  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -85,7 +182,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
           </div>
           <div>
             <h1 className="text-xl font-editorial-serif font-bold text-white">Quản lý công việc (Task Management)</h1>
-            <p className="text-xs text-[#888888] italic">Theo dõi deadline, cài đặt lặp lại & nhắc nhở Telegram tự động</p>
+            <p className="text-xs text-[#888888] italic">Optimistic 0ms UI • Lọc đa chiều • Kéo thả Kanban • Tự động nhắc Telegram</p>
           </div>
         </div>
 
@@ -128,42 +225,135 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#151515] p-3 rounded-sm border border-[#2A2A2A]">
-        <div className="flex-1">
-          <TagSearchInput
-            placeholder="Lọc công việc theo từ khóa hoặc gõ # để chọn tag..."
-            value={search}
-            onChange={setSearch}
-            availableTags={availableTags}
-          />
+      {/* Multi-Dimensional Filter Bar */}
+      <div className="bg-[#151515] p-4 rounded-sm border border-[#2A2A2A] space-y-3.5">
+        
+        {/* Row 1: Search and Select dropdowns */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="flex-1">
+            <TagSearchInput
+              placeholder="Lọc công việc theo từ khóa hoặc gõ # để chọn tag..."
+              value={search}
+              onChange={setSearch}
+              availableTags={availableTags}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Status Filter */}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37] cursor-pointer"
+            >
+              <option value="all">Tất cả Trạng thái</option>
+              <option value="todo">Đang chờ (Todo)</option>
+              <option value="in_progress">Đang làm (In Progress)</option>
+              <option value="completed">Đã xong (Completed)</option>
+              <option value="canceled">Đã hủy (Canceled)</option>
+            </select>
+
+            {/* Priority Filter */}
+            <select
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value)}
+              className="px-3 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37] cursor-pointer"
+            >
+              <option value="all">Tất cả Độ ưu tiên</option>
+              <option value="high">🔴 Ưu tiên Cao (High)</option>
+              <option value="medium">🟡 Ưu tiên Trung bình (Medium)</option>
+              <option value="low">🟢 Ưu tiên Thấp (Low)</option>
+            </select>
+
+            {/* Date Range Preset Selector */}
+            <select
+              value={dateRangePreset}
+              onChange={(e) => setDateRangePreset(e.target.value as DateRangePreset)}
+              className="px-3 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37] cursor-pointer"
+            >
+              <option value="all">📅 Tất cả ngày</option>
+              <option value="today">Hôm nay</option>
+              <option value="next7">7 ngày tới</option>
+              <option value="month">Tháng này</option>
+              <option value="overdue">⚠️ Quá hạn</option>
+              <option value="custom">Tùy chỉnh khoảng ngày...</option>
+            </select>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto">
-          {/* Status Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
-          >
-            <option value="all">Tất cả Trạng thái</option>
-            <option value="todo">Đang chờ (Todo)</option>
-            <option value="in_progress">Đang làm (In Progress)</option>
-            <option value="completed">Đã xong (Completed)</option>
-            <option value="canceled">Đã hủy (Canceled)</option>
-          </select>
+        {/* Row 2: Custom Date Range Pickers (if custom selected) */}
+        {dateRangePreset === 'custom' && (
+          <div className="flex items-center gap-3 bg-[#0C0C0C] p-3 rounded-sm border border-[#2A2A2A] text-xs">
+            <span className="text-[#888888] font-bold">Từ ngày:</span>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="px-2 py-1 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
+            />
+            <span className="text-[#888888] font-bold">Đến ngày:</span>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="px-2 py-1 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
+            />
+          </div>
+        )}
 
-          {/* Priority Filter */}
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            className="px-3 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
+        {/* Row 3: Tag Chips Quick-Filter */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-[#222222]">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#777777] shrink-0">Tags:</span>
+          
+          <button
+            onClick={() => setSelectedTag('all')}
+            className={`px-2.5 py-1 text-[11px] rounded-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              selectedTag === 'all'
+                ? 'bg-[#D4AF37] text-black font-bold'
+                : 'bg-[#0C0C0C] text-[#888888] hover:text-white border border-[#2A2A2A]'
+            }`}
           >
-            <option value="all">Tất cả Độ ưu tiên</option>
-            <option value="high">Ưu tiên Cao (High)</option>
-            <option value="medium">Ưu tiên Trung bình (Medium)</option>
-            <option value="low">Ưu tiên Thấp (Low)</option>
-          </select>
+            Tất cả ({tasks.length})
+          </button>
+
+          {Array.from(tagCounts.entries()).map(([tag, count]) => (
+            <button
+              key={tag}
+              onClick={() => setSelectedTag(selectedTag === tag ? 'all' : tag)}
+              className={`px-2.5 py-1 text-[11px] rounded-sm whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer border ${
+                selectedTag === tag
+                  ? 'bg-[#D4AF37] text-black font-bold border-[#D4AF37]'
+                  : 'bg-[#0C0C0C] text-[#AAAAAA] hover:text-white border-[#2A2A2A] hover:border-[#444444]'
+              }`}
+            >
+              <span>#{tag}</span>
+              <span className={`text-[9px] px-1 rounded-full ${selectedTag === tag ? 'bg-black/30 text-black' : 'bg-[#1A1A1A] text-[#777777]'}`}>
+                {count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Active Filter Summary Bar */}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#222222] text-xs">
+          <div className="flex items-center gap-2 text-[#888888]">
+            <span>Hiển thị <strong className="text-[#D4AF37]">{filteredTasks.length}</strong> / {tasks.length} công việc</span>
+            {hasActiveFilters && (
+              <span className="text-[10px] bg-[#D4AF37]/10 text-[#D4AF37] px-2 py-0.5 rounded-sm border border-[#D4AF37]/20">
+                Bộ lọc đang kích hoạt
+              </span>
+            )}
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              onClick={handleResetFilters}
+              className="text-[11px] text-[#AAAAAA] hover:text-rose-400 flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Xóa tất cả bộ lọc</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -174,7 +364,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
             <div className="p-12 text-center rounded-sm bg-[#151515] border border-[#2A2A2A]">
               <Clock className="w-8 h-8 text-[#666666] mx-auto mb-3" />
               <p className="text-[#E0E0E0] font-editorial-serif text-sm">Không tìm thấy công việc phù hợp.</p>
-              <p className="text-xs text-[#777777] mt-1">Hãy tạo công việc mới hoặc điều chỉnh bộ lọc.</p>
+              <p className="text-xs text-[#777777] mt-1">Hãy tạo công việc mới hoặc điều chỉnh bộ lọc đa chiều phía trên.</p>
             </div>
           ) : (
             filteredTasks.map(task => {
@@ -282,7 +472,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
       )}
 
-      {/* 2. KANBAN BOARD VIEW MODE */}
+      {/* 2. KANBAN BOARD VIEW MODE (with 0ms Drag & Drop) */}
       {viewMode === 'kanban' && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {(['todo', 'in_progress', 'completed', 'canceled'] as const).map(colStatus => {
@@ -294,8 +484,18 @@ export const TasksView: React.FC<TasksViewProps> = ({
               canceled: 'Đã hủy (Canceled)'
             };
 
+            const isColDraggedOver = draggedOverCol === colStatus;
+
             return (
-              <div key={colStatus} className="p-4 rounded-sm bg-[#151515] border border-[#2A2A2A] space-y-3">
+              <div
+                key={colStatus}
+                onDragOver={(e) => handleDragOver(e, colStatus)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, colStatus)}
+                className={`p-4 rounded-sm bg-[#151515] border transition-all space-y-3 ${
+                  isColDraggedOver ? 'border-[#D4AF37] bg-[#1A1810]' : 'border-[#2A2A2A]'
+                }`}
+              >
                 <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
                   <h3 className="text-xs font-editorial-serif font-bold text-white uppercase tracking-wider">
                     {colTitleMap[colStatus]}
@@ -309,7 +509,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   {colTasks.map(task => (
                     <div
                       key={task.id}
-                      className="p-3 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] space-y-2 hover:border-[#D4AF37]/50 transition-all"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, task.id)}
+                      className="p-3 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] space-y-2 hover:border-[#D4AF37]/50 transition-all cursor-grab active:cursor-grabbing"
                     >
                       <div className="flex items-center justify-between">
                         <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm ${
@@ -343,6 +545,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       </div>
                     </div>
                   ))}
+                  {colTasks.length === 0 && (
+                    <div className="h-28 border border-dashed border-[#2A2A2A] rounded-sm flex items-center justify-center text-[#555555] text-xs">
+                      Kéo thả task vào đây
+                    </div>
+                  )}
                 </div>
               </div>
             );

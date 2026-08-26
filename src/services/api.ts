@@ -490,4 +490,29 @@ export const api = {
     if (!res.ok) throw new Error('Không thể lưu cấu hình AI Persona');
     return res.json();
   },
+
+  // Semantic Vector Search API
+  searchSemantic: async (query: string, options?: { topK?: number; threshold?: number; type?: 'all' | 'notes' | 'files' }) => {
+    const res = await fetch('/api/ai/semantic-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, ...options }),
+    });
+    if (!res.ok) throw new Error('Không thể thực hiện tìm kiếm ngữ nghĩa');
+    return res.json();
+  },
+
+  // Proactive Task Risk Check API
+  runProactiveCheck: async () => {
+    const res = await fetch('/api/ai/proactive-check', { method: 'POST' });
+    if (!res.ok) throw new Error('Không thể thực hiện rà soát nguy cơ trễ hạn');
+    return res.json();
+  },
+
+  // Sync Vectors API
+  syncVectors: async () => {
+    const res = await fetch('/api/ai/vector-sync', { method: 'POST' });
+    if (!res.ok) throw new Error('Không thể đồng bộ Vector Embeddings');
+    return res.json();
+  },
 };

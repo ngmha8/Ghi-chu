@@ -152,7 +152,20 @@ try {
   console.warn('Could not read local backup files:', e);
 }
 
+function syncAllIndices() {
+  cacheIndex.rebuildTaskIndices(cachedTasks);
+  cacheIndex.rebuildNoteIndices(cachedNotes);
+  cacheIndex.rebuildFileIndices(cachedFiles);
+  cacheIndex.rebuildCategoryIndices(cachedCategories);
+  cacheIndex.rebuildAiMemoryIndices(cachedAiMemories);
+  cacheIndex.rebuildAiInsightIndices(cachedAiInsights);
+}
+
+// Initial index build
+syncAllIndices();
+
 function saveLocalBackups() {
+  syncAllIndices();
   const dataMap: Record<string, string> = {
     'categories.json': JSON.stringify(cachedCategories, null, 2),
     'telegram_config.json': JSON.stringify(cachedTelegramConfig, null, 2),
@@ -179,9 +192,29 @@ function saveLocalBackups() {
   }
 }
 
-// -------------------------------------------------------------
-// FIREBASE FIRESTORE INITIALIZATION & CLOUD PERSISTENCE
-// -------------------------------------------------------------
+import { cacheIndex } from './cacheManager.ts';
+export { cacheIndex };
+
+// Re-export indexed query helpers
+export function queryDbTasks(filter?: { status?: string; priority?: string; tag?: string; search?: string }): Task[] {
+  return cacheIndex.queryTasks(filter);
+}
+
+export function queryDbNotes(filter?: { isPinned?: boolean; tag?: string; search?: string }): Note[] {
+  return cacheIndex.queryNotes(filter);
+}
+
+export function getDbTaskById(id: string): Task | undefined {
+  return cacheIndex.taskMap.get(id);
+}
+
+export function getDbNoteById(id: string): Note | undefined {
+  return cacheIndex.noteMap.get(id);
+}
+
+export function getDbFileById(id: string): DriveFile | undefined {
+  return cacheIndex.fileMap.get(id);
+}
 let firestoreDb: Firestore | null = null;
 
 // Safe cleaner to strip undefined properties for Firestore
@@ -420,6 +453,7 @@ export async function saveDbTask(task: Task): Promise<Task> {
   } else {
     cachedTasks.unshift(task);
   }
+  cacheIndex.indexTask(task);
   saveLocalBackups();
   firestoreSetDoc('tasks', task.id, task);
   return task;
@@ -427,6 +461,7 @@ export async function saveDbTask(task: Task): Promise<Task> {
 
 export async function deleteDbTask(id: string): Promise<boolean> {
   cachedTasks = cachedTasks.filter(t => t.id !== id);
+  cacheIndex.unindexTask(id);
   saveLocalBackups();
   firestoreDeleteDoc('tasks', id);
   return true;
@@ -446,6 +481,7 @@ export async function saveDbNote(note: Note): Promise<Note> {
   } else {
     cachedNotes.unshift(note);
   }
+  cacheIndex.indexNote(note);
   saveLocalBackups();
   firestoreSetDoc('notes', note.id, note);
   return note;
@@ -453,6 +489,7 @@ export async function saveDbNote(note: Note): Promise<Note> {
 
 export async function deleteDbNote(id: string): Promise<boolean> {
   cachedNotes = cachedNotes.filter(n => n.id !== id);
+  cacheIndex.unindexNote(id);
   saveLocalBackups();
   firestoreDeleteDoc('notes', id);
   return true;
@@ -481,6 +518,7 @@ export async function saveDbFile(file: DriveFile): Promise<DriveFile> {
   } else {
     cachedFiles.unshift(file);
   }
+  cacheIndex.indexFile(file);
   saveLocalBackups();
   firestoreSetDoc('files', file.id, file);
   return file;
@@ -488,6 +526,7 @@ export async function saveDbFile(file: DriveFile): Promise<DriveFile> {
 
 export async function deleteDbFile(id: string): Promise<boolean> {
   cachedFiles = cachedFiles.filter(f => f.id !== id);
+  cacheIndex.unindexFile(id);
   saveLocalBackups();
   firestoreDeleteDoc('files', id);
   return true;

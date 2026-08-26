@@ -30,6 +30,7 @@ import { AiChatDrawer } from './components/AiChatDrawer.tsx';
 import { TaskModal } from './components/TaskModal.tsx';
 import { NoteModal } from './components/NoteModal.tsx';
 import { PinLockScreen } from './components/PinLockScreen.tsx';
+import { VoiceFocusModeModal } from './components/VoiceFocusModeModal.tsx';
 import {
   isSessionUnlocked,
   lockSession,
@@ -62,6 +63,7 @@ export default function App() {
 
   // AI Assistant Chat Drawer State
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
+  const [isVoiceFocusOpen, setIsVoiceFocusOpen] = useState(false);
   const [aiPromptToTrigger, setAiPromptToTrigger] = useState<string>('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -246,62 +248,132 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // TASK HANDLERS
+  // TASK HANDLERS (Optimistic UI - 0ms Updates & Rollback)
   // -------------------------------------------------------------
   const handleTaskCreate = async (taskData: Partial<Task>) => {
+    const tempId = `temp-task-${Date.now()}`;
+    const optimisticTask: Task = {
+      id: tempId,
+      title: taskData.title || 'Công việc mới',
+      description: taskData.description || '',
+      priority: taskData.priority || 'medium',
+      status: taskData.status || 'todo',
+      deadline: taskData.deadline || new Date().toISOString(),
+      tags: taskData.tags || [],
+      attachedFileIds: taskData.attachedFileIds || [],
+      recurring: taskData.recurring || { type: 'none' },
+      reminderOffsetMinutes: taskData.reminderOffsetMinutes ?? 15,
+      isNotified: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 0ms Optimistic UI insertion
+    setTasks(prev => [optimisticTask, ...prev]);
+
     try {
       const created = await api.createTask(taskData);
-      setTasks(prev => [created, ...prev]);
+      // Replace temporary task with actual server entity
+      setTasks(prev => prev.map(t => (t.id === tempId ? created : t)));
     } catch (err) {
-      console.error('Error creating task:', err);
+      console.error('Error creating task, rolling back:', err);
+      setTasks(prev => prev.filter(t => t.id !== tempId));
     }
   };
 
   const handleTaskUpdate = async (id: string, updates: Partial<Task>) => {
+    // 0ms Optimistic UI update
+    let previousTask: Task | undefined;
+    setTasks(prev => {
+      previousTask = prev.find(t => t.id === id);
+      return prev.map(t => (t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t));
+    });
+
     try {
       const updated = await api.updateTask(id, updates);
       setTasks(prev => prev.map(t => (t.id === id ? updated : t)));
     } catch (err) {
-      console.error('Error updating task:', err);
+      console.error('Error updating task, rolling back:', err);
+      if (previousTask) {
+        setTasks(prev => prev.map(t => (t.id === id ? previousTask! : t)));
+      }
     }
   };
 
   const handleTaskDelete = async (id: string) => {
+    let previousTasks = tasks;
+    // 0ms Optimistic UI deletion
+    setTasks(prev => {
+      previousTasks = prev;
+      return prev.filter(t => t.id !== id);
+    });
+
     try {
       await api.deleteTask(id);
-      setTasks(prev => prev.filter(t => t.id !== id));
     } catch (err) {
-      console.error('Error deleting task:', err);
+      console.error('Error deleting task, rolling back:', err);
+      setTasks(previousTasks);
     }
   };
 
   // -------------------------------------------------------------
-  // NOTE HANDLERS
+  // NOTE HANDLERS (Optimistic UI - 0ms Updates & Rollback)
   // -------------------------------------------------------------
   const handleNoteCreate = async (noteData: Partial<Note>) => {
+    const tempId = `temp-note-${Date.now()}`;
+    const optimisticNote: Note = {
+      id: tempId,
+      title: noteData.title || 'Ghi chú mới',
+      content: noteData.content || '',
+      tags: noteData.tags || [],
+      linkedTaskIds: noteData.linkedTaskIds || [],
+      attachedFileIds: noteData.attachedFileIds || [],
+      isPinned: noteData.isPinned ?? false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setNotes(prev => [optimisticNote, ...prev]);
+
     try {
       const created = await api.createNote(noteData);
-      setNotes(prev => [created, ...prev]);
+      setNotes(prev => prev.map(n => (n.id === tempId ? created : n)));
     } catch (err) {
-      console.error('Error creating note:', err);
+      console.error('Error creating note, rolling back:', err);
+      setNotes(prev => prev.filter(n => n.id !== tempId));
     }
   };
 
   const handleNoteUpdate = async (id: string, updates: Partial<Note>) => {
+    let previousNote: Note | undefined;
+    setNotes(prev => {
+      previousNote = prev.find(n => n.id === id);
+      return prev.map(n => (n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n));
+    });
+
     try {
       const updated = await api.updateNote(id, updates);
       setNotes(prev => prev.map(n => (n.id === id ? updated : n)));
     } catch (err) {
-      console.error('Error updating note:', err);
+      console.error('Error updating note, rolling back:', err);
+      if (previousNote) {
+        setNotes(prev => prev.map(n => (n.id === id ? previousNote! : n)));
+      }
     }
   };
 
   const handleNoteDelete = async (id: string) => {
+    let previousNotes = notes;
+    setNotes(prev => {
+      previousNotes = prev;
+      return prev.filter(n => n.id !== id);
+    });
+
     try {
       await api.deleteNote(id);
-      setNotes(prev => prev.filter(n => n.id !== id));
     } catch (err) {
-      console.error('Error deleting note:', err);
+      console.error('Error deleting note, rolling back:', err);
+      setNotes(previousNotes);
     }
   };
 
@@ -441,6 +513,7 @@ export default function App() {
         openNewNoteModal={() => setIsNoteModalOpen(true)}
         isAiDrawerOpen={isAiDrawerOpen}
         setIsAiDrawerOpen={setIsAiDrawerOpen}
+        onOpenVoiceFocus={() => setIsVoiceFocusOpen(true)}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         unreadNotifsCount={notificationLogs.length}
@@ -473,6 +546,7 @@ export default function App() {
             onTaskStatusChange={(taskId, newStatus) => handleTaskUpdate(taskId, { status: newStatus })}
             setActiveTab={setActiveTab}
             openAiChatWithPrompt={openAiChatWithPrompt}
+            onOpenVoiceFocus={() => setIsVoiceFocusOpen(true)}
             openNewTaskModal={() => { setEditingTask(null); setIsTaskModalOpen(true); }}
             openNewNoteModal={() => setIsNoteModalOpen(true)}
           />
@@ -592,6 +666,15 @@ export default function App() {
         tasks={tasks}
         files={files}
         existingNotes={notes}
+      />
+
+      {/* Fullscreen Voice Assistant Focus Mode Modal */}
+      <VoiceFocusModeModal
+        isOpen={isVoiceFocusOpen}
+        onClose={() => setIsVoiceFocusOpen(false)}
+        onSendMessage={handleSendChatMessage}
+        messages={chatMessages}
+        openAiChatWithPrompt={openAiChatWithPrompt}
       />
     </div>
   );

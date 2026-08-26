@@ -17,10 +17,30 @@ import {
   getDbAiPersonaConfig,
   saveDbAiPersonaConfig,
 } from './firebaseDb.ts';
+import { searchSemanticDocuments } from './embeddingService.ts';
 import { Task, Note, DriveFile, AiMemoryFact } from '../src/types/index.ts';
 
 // 1. Function Declarations for Gemini Tool Calling
 export const aiFunctionDeclarations: FunctionDeclaration[] = [
+  {
+    name: 'semanticSearchDocuments',
+    description: 'Tìm kiếm ngữ nghĩa (Semantic Vector Search) trên toàn bộ kho ghi chú và tệp tin/tài liệu. Sử dụng khi người dùng hỏi các câu hỏi tự nhiên như "Hôm trước mình có ghi lại thông tin về hợp đồng máy móc ở đâu nhỉ?", "Tài liệu nào liên quan đến bảo mật và PIN?", "Tìm thông tin về kế hoạch du lịch Đà Lạt"... mà từ khóa có thể không trùng khớp 100%.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        naturalQuery: {
+          type: Type.STRING,
+          description: 'Câu hỏi hoặc cụm từ tự nhiên mô tả nội dung cần tìm kiếm',
+        },
+        targetType: {
+          type: Type.STRING,
+          enum: ['all', 'notes', 'files'],
+          description: 'Phạm vi tìm kiếm: all (tất cả), notes (chỉ ghi chú), files (chỉ tài liệu/file)',
+        },
+      },
+      required: ['naturalQuery'],
+    },
+  },
   {
     name: 'createTask',
     description: 'Tạo mới một công việc (Task) với tiêu đề, thời hạn (deadline ISO hoặc chuỗi giờ Việt Nam), độ ưu tiên (low, medium, high), mô tả chi tiết và tags.',
@@ -478,6 +498,46 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
     };
   }
 
+  if (name === 'semanticSearchDocuments') {
+    const naturalQuery = String(args.naturalQuery || '').trim();
+    const targetType = (args.targetType || 'all') as 'all' | 'notes' | 'files';
+
+    if (!naturalQuery) {
+      return {
+        success: false,
+        message: '⚠️ Vui lòng cung cấp nội dung hoặc câu hỏi cần tìm kiếm.',
+      };
+    }
+
+    const searchResults = await searchSemanticDocuments(naturalQuery, {
+      topK: 6,
+      threshold: 0.35,
+      type: targetType,
+    });
+
+    if (searchResults.length === 0) {
+      return {
+        success: true,
+        data: [],
+        message: `🔍 Tôi đã quét toàn bộ kho dữ liệu ngữ nghĩa nhưng chưa tìm thấy ghi chú hoặc tệp tin nào tương ứng với nội dung: _"${naturalQuery}"_.`,
+      };
+    }
+
+    const listText = searchResults
+      .map((item, idx) => {
+        const typeBadge = item.type === 'note' ? '📝 [Ghi chú]' : '📂 [Tài liệu/File]';
+        const simPercent = Math.round(item.similarity * 100);
+        return `${idx + 1}. ${typeBadge} **${item.title}** (Khớp ngữ nghĩa: \`${simPercent}%\`)\n   • Nội dung trích xuất: _${item.snippet}_`;
+      })
+      .join('\n\n');
+
+    return {
+      success: true,
+      data: searchResults,
+      message: `🔍 **KẾT QUẢ TÌM KIẾM NGỮ NGHĨA VECTOR (SEMANTIC RETRIEVAL) CHO: "${naturalQuery}":**\n\n${listText}`,
+    };
+  }
+
   if (name === 'queryNotes') {
     const notes = await getDbNotes();
     let filtered = notes;
@@ -494,6 +554,19 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
           n.content.toLowerCase().includes(kw) ||
           (n.tags && n.tags.some(t => t.toLowerCase().includes(kw)))
       );
+
+      // If exact keyword match yielded 0 results, fallback to semantic embedding search
+      if (filtered.length === 0) {
+        const semanticMatches = await searchSemanticDocuments(args.searchKeyword, {
+          topK: 5,
+          threshold: 0.35,
+          type: 'notes',
+        });
+        if (semanticMatches.length > 0) {
+          const matchedIds = new Set(semanticMatches.map(m => m.id));
+          filtered = notes.filter(n => matchedIds.has(n.id));
+        }
+      }
     }
 
     if (filtered.length === 0) {
@@ -545,6 +618,19 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
           (f.classification && f.classification.toLowerCase().includes(kw)) ||
           (f.tags && f.tags.some(t => t.toLowerCase().includes(kw)))
       );
+
+      // If exact keyword match yielded 0 results, fallback to semantic embedding search
+      if (filtered.length === 0) {
+        const semanticMatches = await searchSemanticDocuments(args.searchKeyword, {
+          topK: 5,
+          threshold: 0.35,
+          type: 'files',
+        });
+        if (semanticMatches.length > 0) {
+          const matchedIds = new Set(semanticMatches.map(m => m.id));
+          filtered = files.filter(f => matchedIds.has(f.id));
+        }
+      }
     }
 
     if (filtered.length === 0) {
