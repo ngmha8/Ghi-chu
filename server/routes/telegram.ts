@@ -9,6 +9,8 @@ import {
   sendTelegramMessage,
   setTelegramBotCommands,
   deleteTelegramWebhook,
+  getTelegramWebhookInfo,
+  telegramApiFetch,
   TelegramInlineKeyboard,
 } from '../telegramHelper.ts';
 import {
@@ -103,12 +105,11 @@ router.post('/set-webhook', async (req: Request, res: Response) => {
       drop_pending_updates: false,
     };
 
-    const telegramRes = await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/setWebhook`, {
+    const data = await telegramApiFetch(`bot${telegramConfig.botToken}/setWebhook`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: payload,
+      timeoutMs: 12000,
     });
-    const data: any = await telegramRes.json();
     if (data.ok) {
       await saveDbTelegramConfig({
         webhookSecret,
@@ -125,7 +126,7 @@ router.post('/set-webhook', async (req: Request, res: Response) => {
       });
       return res.json({ success: true, webhookUrl: targetUrl, telegramResponse: data });
     } else {
-      return res.status(400).json({ error: data.description || 'Không thể cài đặt Webhook trên Telegram' });
+      return res.status(400).json({ error: data.description || data.error || 'Không thể cài đặt Webhook trên Telegram' });
     }
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Lỗi kết nối tới Telegram API' });
@@ -139,8 +140,10 @@ router.get('/webhook-info', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Chưa cấu hình Telegram Bot Token.' });
   }
   try {
-    const tgRes = await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/getWebhookInfo`);
-    const data: any = await tgRes.json();
+    const data = await telegramApiFetch(`bot${telegramConfig.botToken}/getWebhookInfo`, {
+      method: 'GET',
+      timeoutMs: 8000,
+    });
     res.json({ success: true, info: data.result || data, currentConfig: telegramConfig });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Lỗi kiểm tra Webhook' });

@@ -1,4 +1,10 @@
+import dns from 'node:dns';
 import { Task } from '../src/types/index.ts';
+
+// Force Node.js to resolve IPv4 addresses before IPv6 to eliminate ConnectTimeoutError on environments without IPv6 routing
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 export interface TelegramInlineButton {
   text: string;
@@ -7,6 +13,70 @@ export interface TelegramInlineButton {
 }
 
 export type TelegramInlineKeyboard = TelegramInlineButton[][];
+
+/**
+ * Validates whether a Telegram Bot Token has the standard format (e.g. 123456789:ABCdefGHI...)
+ */
+export function isTelegramBotTokenValid(token?: string | null): boolean {
+  if (!token || typeof token !== 'string') return false;
+  const clean = token.trim();
+  if (clean.length < 15) return false;
+  if (clean.includes('YOUR_BOT_TOKEN') || clean.includes('PLACEHOLDER')) return false;
+  return /^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(clean);
+}
+
+/**
+ * Resilient wrapper for all Telegram API requests with IPv4 priority, AbortController timeouts, and error shielding
+ */
+export async function telegramApiFetch(
+  endpoint: string,
+  options: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: any;
+    timeoutMs?: number;
+  } = {}
+): Promise<{ ok: boolean; result?: any; description?: string; error?: any }> {
+  const timeoutMs = options.timeoutMs || 10000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const fetchOptions: RequestInit = {
+      method: options.method || 'GET',
+      headers: { ...(options.headers || {}) },
+      signal: controller.signal,
+    };
+
+    if (options.body) {
+      if (typeof options.body === 'string') {
+        fetchOptions.body = options.body;
+      } else {
+        fetchOptions.body = JSON.stringify(options.body);
+        (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json';
+      }
+    }
+
+    const url = endpoint.startsWith('http') ? endpoint : `https://api.telegram.org/${endpoint}`;
+    const res = await fetch(url, fetchOptions);
+    clearTimeout(timer);
+
+    const data: any = await res.json().catch(() => null);
+    if (!data) {
+      return { ok: false, description: `HTTP ${res.status} ${res.statusText}` };
+    }
+    return data;
+  } catch (err: any) {
+    clearTimeout(timer);
+    const isTimeout = err?.name === 'AbortError' || err?.code === 'ETIMEDOUT' || err?.message?.includes('timeout');
+    if (isTimeout) {
+      console.warn(`[Telegram API Timeout]: Request to ${endpoint} timed out after ${timeoutMs}ms`);
+    } else {
+      console.warn(`[Telegram Network Notice]: Request to ${endpoint} failed:`, err?.message || err);
+    }
+    return { ok: false, error: err?.message || 'Network request failed', description: err?.message };
+  }
+}
 
 /**
  * Cleanly escapes raw characters for Telegram HTML
@@ -102,18 +172,17 @@ export async function sendTelegramChatAction(
   chatId: string | number,
   action: 'typing' | 'upload_document' | 'record_voice' | 'find_location' = 'typing'
 ): Promise<boolean> {
-  if (!botToken || !chatId) return false;
+  if (!isTelegramBotTokenValid(botToken) || !chatId) return false;
   try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendChatAction`, {
+    const res = await telegramApiFetch(`bot${botToken}/sendChatAction`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: {
         chat_id: chatId,
         action,
-      }),
+      },
+      timeoutMs: 5000,
     });
-    const data: any = await res.json();
-    return !!data.ok;
+    return !!res.ok;
   } catch (err) {
     return false;
   }
@@ -179,7 +248,7 @@ export async function sendTelegramMessageWithResult(
   inlineKeyboard?: TelegramInlineKeyboard,
   replyToMessageId?: number
 ): Promise<{ success: boolean; messageId?: number }> {
-  if (!botToken || !chatId || !text) return { success: false };
+  if (!isTelegramBotTokenValid(botToken) || !chatId || !text) return { success: false };
 
   const chunks = splitTelegramMessage(text);
   let overallSuccess = true;
@@ -207,12 +276,11 @@ export async function sendTelegramMessageWithResult(
     }
 
     try {
-      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      const data = await telegramApiFetch(`bot${botToken}/sendMessage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: payload,
+        timeoutMs: 12000,
       });
-      const data: any = await res.json();
 
       if (data.ok) {
         if (i === 0 && data.result?.message_id) {
@@ -225,22 +293,22 @@ export async function sendTelegramMessageWithResult(
       delete payload.parse_mode;
       payload.text = stripHtmlToPlainText(rawChunk);
 
-      const fallbackRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      const fallbackData = await telegramApiFetch(`bot${botToken}/sendMessage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: payload,
+        timeoutMs: 12000,
       });
-      const fallbackData: any = await fallbackRes.json();
+
       if (fallbackData.ok) {
         if (i === 0 && fallbackData.result?.message_id) {
           firstMessageId = fallbackData.result.message_id;
         }
       } else {
-        console.error('[Telegram Send Error]:', fallbackData);
+        console.warn('[Telegram Send Error]:', fallbackData.description || fallbackData.error);
         overallSuccess = false;
       }
     } catch (err) {
-      console.warn('[Telegram Network Error]:', err);
+      console.warn('[Telegram Network Notice]:', err);
       overallSuccess = false;
     }
   }
@@ -258,7 +326,7 @@ export async function editTelegramMessageText(
   text: string,
   inlineKeyboard?: TelegramInlineKeyboard
 ): Promise<boolean> {
-  if (!botToken || !chatId || !messageId || !text) return false;
+  if (!isTelegramBotTokenValid(botToken) || !chatId || !messageId || !text) return false;
 
   const htmlText = convertMarkdownToTelegramHtml(text);
 
@@ -276,23 +344,21 @@ export async function editTelegramMessageText(
   }
 
   try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+    const data = await telegramApiFetch(`bot${botToken}/editMessageText`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: payload,
+      timeoutMs: 10000,
     });
-    const data: any = await res.json();
     if (data.ok) return true;
 
     // Fallback without parse_mode if formatting fails
     delete payload.parse_mode;
     payload.text = stripHtmlToPlainText(text);
-    const fallbackRes = await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+    const fallbackData = await telegramApiFetch(`bot${botToken}/editMessageText`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: payload,
+      timeoutMs: 10000,
     });
-    const fallbackData: any = await fallbackRes.json();
     return !!fallbackData.ok;
   } catch (err) {
     console.warn('editTelegramMessageText network error:', err);
@@ -304,7 +370,7 @@ export async function editTelegramMessageText(
  * Register standard Bot Commands with Telegram API so the '/' menu shows on mobile & desktop
  */
 export async function setTelegramBotCommands(botToken: string): Promise<boolean> {
-  if (!botToken) return false;
+  if (!isTelegramBotTokenValid(botToken)) return false;
   try {
     const commands = [
       { command: 'today', description: '📋 Danh sách deadline công việc hôm nay' },
@@ -317,12 +383,11 @@ export async function setTelegramBotCommands(botToken: string): Promise<boolean>
       { command: 'help', description: '💡 Hướng dẫn ra lệnh & Tin nhắn thoại' },
     ];
 
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+    const data = await telegramApiFetch(`bot${botToken}/setMyCommands`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ commands }),
+      body: { commands },
+      timeoutMs: 10000,
     });
-    const data: any = await res.json();
     return !!data.ok;
   } catch (err) {
     console.warn('setTelegramBotCommands error:', err);
@@ -339,18 +404,17 @@ export async function answerCallbackQuery(
   text?: string,
   showAlert: boolean = false
 ): Promise<boolean> {
-  if (!botToken || !callbackQueryId) return false;
+  if (!isTelegramBotTokenValid(botToken) || !callbackQueryId) return false;
   try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+    const data = await telegramApiFetch(`bot${botToken}/answerCallbackQuery`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: {
         callback_query_id: callbackQueryId,
         text: text || 'Đã tiếp nhận yêu cầu!',
         show_alert: showAlert,
-      }),
+      },
+      timeoutMs: 8000,
     });
-    const data: any = await res.json();
     return !!data.ok;
   } catch (err) {
     console.warn('answerCallbackQuery error:', err);
@@ -366,12 +430,19 @@ export async function getTelegramUpdates(
   offset: number = 0,
   timeoutSeconds: number = 20
 ): Promise<{ ok: boolean; result: any[] }> {
-  if (!botToken) return { ok: false, result: [] };
+  if (!isTelegramBotTokenValid(botToken)) return { ok: false, result: [] };
   try {
-    const url = `https://api.telegram.org/bot${botToken}/getUpdates?offset=${offset}&timeout=${timeoutSeconds}&allowed_updates=["message","edited_message","callback_query"]`;
-    const res = await fetch(url);
-    const data: any = await res.json();
-    return data;
+    const data = await telegramApiFetch(
+      `bot${botToken}/getUpdates?offset=${offset}&timeout=${timeoutSeconds}&allowed_updates=["message","edited_message","callback_query"]`,
+      {
+        method: 'GET',
+        timeoutMs: (timeoutSeconds + 6) * 1000,
+      }
+    );
+    return {
+      ok: !!data.ok,
+      result: Array.isArray(data.result) ? data.result : [],
+    };
   } catch (err) {
     return { ok: false, result: [] };
   }
@@ -381,12 +452,12 @@ export async function getTelegramUpdates(
  * Delete active webhook (useful before starting Long Polling)
  */
 export async function deleteTelegramWebhook(botToken: string): Promise<boolean> {
-  if (!botToken) return false;
+  if (!isTelegramBotTokenValid(botToken)) return false;
   try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/deleteWebhook?drop_pending_updates=false`, {
+    const data = await telegramApiFetch(`bot${botToken}/deleteWebhook?drop_pending_updates=false`, {
       method: 'POST',
+      timeoutMs: 10000,
     });
-    const data: any = await res.json();
     return !!data.ok;
   } catch (err) {
     return false;
@@ -397,10 +468,12 @@ export async function deleteTelegramWebhook(botToken: string): Promise<boolean> 
  * Get Webhook Info
  */
 export async function getTelegramWebhookInfo(botToken: string): Promise<any> {
-  if (!botToken) return null;
+  if (!isTelegramBotTokenValid(botToken)) return null;
   try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
-    const data: any = await res.json();
+    const data = await telegramApiFetch(`bot${botToken}/getWebhookInfo`, {
+      method: 'GET',
+      timeoutMs: 8000,
+    });
     return data.result || null;
   } catch (err) {
     return null;

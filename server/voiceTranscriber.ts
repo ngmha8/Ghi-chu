@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { safeGenerateContent } from './geminiHelper.ts';
+import { telegramApiFetch } from './telegramHelper.ts';
 
 /**
  * Transcribes any audio buffer (Telegram voice, Web browser microphone recording, etc.)
@@ -67,22 +68,34 @@ export async function transcribeTelegramVoice(
   gemini: GoogleGenAI
 ): Promise<string> {
   // 1. Get file path from Telegram
-  const fileMetaRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`);
-  const fileMeta: any = await fileMetaRes.json();
+  const fileMeta = await telegramApiFetch(`bot${botToken}/getFile?file_id=${fileId}`, {
+    method: 'GET',
+    timeoutMs: 10000,
+  });
+
   if (!fileMeta.ok || !fileMeta.result?.file_path) {
-    throw new Error(fileMeta.description || 'Không lấy được thông tin file âm thanh từ Telegram');
+    throw new Error(fileMeta.description || fileMeta.error || 'Không lấy được thông tin file âm thanh từ Telegram');
   }
 
   const filePath = fileMeta.result.file_path;
   const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
 
   // 2. Download audio binary
-  const audioRes = await fetch(downloadUrl);
-  if (!audioRes.ok) {
-    throw new Error(`Tải file âm thanh thất bại: ${audioRes.statusText}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  let arrayBuffer: ArrayBuffer;
+  try {
+    const audioRes = await fetch(downloadUrl, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!audioRes.ok) {
+      throw new Error(`Tải file âm thanh thất bại: ${audioRes.statusText}`);
+    }
+    arrayBuffer = await audioRes.arrayBuffer();
+  } catch (err: any) {
+    clearTimeout(timer);
+    throw new Error(`Lỗi tải âm thanh từ Telegram: ${err?.message || err}`);
   }
 
-  const arrayBuffer = await audioRes.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
   // 3. Determine MIME type

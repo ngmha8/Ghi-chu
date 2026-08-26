@@ -29,6 +29,7 @@ import {
   getTelegramUpdates,
   getTelegramWebhookInfo,
   deleteTelegramWebhook,
+  isTelegramBotTokenValid,
   TelegramInlineKeyboard,
 } from './telegramHelper.ts';
 import { transcribeTelegramVoice } from './voiceTranscriber.ts';
@@ -106,8 +107,8 @@ export async function processTelegramUpdate(
   }
 
   const telegramConfig = await getDbTelegramConfig();
-  if (!telegramConfig.botToken) {
-    return { success: false, reply: 'Chưa cấu hình Telegram Bot Token.' };
+  if (!isTelegramBotTokenValid(telegramConfig.botToken)) {
+    return { success: false, reply: 'Chưa cấu hình Telegram Bot Token hợp lệ.' };
   }
 
   const tasks = await getDbTasks();
@@ -714,7 +715,10 @@ export async function startTelegramPollingDaemon(context: TelegramEngineContext)
   if (pollingRunning) return;
 
   const config = await getDbTelegramConfig();
-  if (!config.botToken) return;
+  if (!isTelegramBotTokenValid(config.botToken)) {
+    console.log('ℹ️ [Telegram Polling Daemon] Token chưa được cấu hình hoặc chưa hợp lệ. Daemon chờ cấu hình từ người dùng.');
+    return;
+  }
 
   // Set up Telegram command menu on Telegram servers
   setTelegramBotCommands(config.botToken).catch(err => {
@@ -728,8 +732,8 @@ export async function startTelegramPollingDaemon(context: TelegramEngineContext)
     while (pollingRunning) {
       try {
         const currentConfig = await getDbTelegramConfig();
-        if (!currentConfig.botToken || !pollingRunning) {
-          await new Promise(r => setTimeout(r, 5000));
+        if (!isTelegramBotTokenValid(currentConfig.botToken) || !pollingRunning) {
+          await new Promise(r => setTimeout(r, 10000));
           continue;
         }
 

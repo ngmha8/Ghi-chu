@@ -1,3 +1,9 @@
+import dns from 'node:dns';
+// Force Node.js to resolve IPv4 addresses before IPv6 to avoid ConnectTimeoutError on environments without IPv6 routing
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
