@@ -198,55 +198,69 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Navigation Tabs Bar */}
       <div className="border-t border-[#2A2A2A] bg-[#0A0A0A] px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 py-1 text-xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 py-2">
           
           {/* Main Navigation Tabs */}
-          <div className="flex items-center gap-1 sm:gap-4 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-0.5">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`px-3 py-2 font-medium flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+              className={`px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-[14.5px] font-semibold flex items-center gap-2.5 whitespace-nowrap rounded-md transition-all duration-200 cursor-pointer ${
                 activeTab === 'dashboard'
-                  ? 'text-[#D4AF37] border-b-2 border-[#D4AF37] font-bold'
-                  : 'text-[#888888] hover:text-[#E0E0E0]'
+                  ? 'text-[#D4AF37] bg-[#D4AF37]/15 border-b-2 border-[#D4AF37] shadow-[0_2px_12px_rgba(212,175,55,0.15)] font-bold'
+                  : 'text-[#AAAAAA] hover:text-white hover:bg-[#1A1A1A] border-b-2 border-transparent'
               }`}
             >
-              <Layers className="w-3.5 h-3.5" />
+              <Layers className={`w-4.5 h-4.5 transition-colors ${activeTab === 'dashboard' ? 'text-[#D4AF37]' : 'text-[#888888]'}`} />
               <span>Dashboard</span>
             </button>
 
             <button
               onClick={() => setActiveTab('tasks')}
-              className={`px-3 py-2 font-medium flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+              className={`px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-[14.5px] font-semibold flex items-center gap-2.5 whitespace-nowrap rounded-md transition-all duration-200 cursor-pointer ${
                 activeTab === 'tasks'
-                  ? 'text-[#D4AF37] border-b-2 border-[#D4AF37] font-bold'
-                  : 'text-[#888888] hover:text-[#E0E0E0]'
+                  ? 'text-[#D4AF37] bg-[#D4AF37]/15 border-b-2 border-[#D4AF37] shadow-[0_2px_12px_rgba(212,175,55,0.15)] font-bold'
+                  : 'text-[#AAAAAA] hover:text-white hover:bg-[#1A1A1A] border-b-2 border-transparent'
               }`}
             >
-              <CheckSquare className="w-3.5 h-3.5" />
+              <CheckSquare className={`w-4.5 h-4.5 transition-colors ${activeTab === 'tasks' ? 'text-[#D4AF37]' : 'text-[#888888]'}`} />
               <span>Công việc (Tasks)</span>
+              {tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled').length > 0 && (
+                <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded-full ${
+                  activeTab === 'tasks' ? 'bg-[#D4AF37] text-black font-bold' : 'bg-[#222222] text-[#AAAAAA]'
+                }`}>
+                  {tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled').length}
+                </span>
+              )}
             </button>
 
             <button
               onClick={() => setActiveTab('notes')}
-              className={`px-3 py-2 font-medium flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+              className={`px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-[14.5px] font-semibold flex items-center gap-2.5 whitespace-nowrap rounded-md transition-all duration-200 cursor-pointer ${
                 activeTab === 'notes'
-                  ? 'text-[#D4AF37] border-b-2 border-[#D4AF37] font-bold'
-                  : 'text-[#888888] hover:text-[#E0E0E0]'
+                  ? 'text-[#D4AF37] bg-[#D4AF37]/15 border-b-2 border-[#D4AF37] shadow-[0_2px_12px_rgba(212,175,55,0.15)] font-bold'
+                  : 'text-[#AAAAAA] hover:text-white hover:bg-[#1A1A1A] border-b-2 border-transparent'
               }`}
             >
-              <FileText className="w-3.5 h-3.5" />
+              <FileText className={`w-4.5 h-4.5 transition-colors ${activeTab === 'notes' ? 'text-[#D4AF37]' : 'text-[#888888]'}`} />
               <span>Ghi chú (Notes)</span>
+              {notes.length > 0 && (
+                <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded-full ${
+                  activeTab === 'notes' ? 'bg-[#D4AF37] text-black font-bold' : 'bg-[#222222] text-[#AAAAAA]'
+                }`}>
+                  {notes.length}
+                </span>
+              )}
             </button>
 
             <button
               onClick={() => setActiveTab('files')}
-              className={`px-3 py-2 font-medium flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+              className={`px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-[14.5px] font-semibold flex items-center gap-2.5 whitespace-nowrap rounded-md transition-all duration-200 cursor-pointer ${
                 activeTab === 'files'
-                  ? 'text-[#D4AF37] border-b-2 border-[#D4AF37] font-bold'
-                  : 'text-[#888888] hover:text-[#E0E0E0]'
+                  ? 'text-[#D4AF37] bg-[#D4AF37]/15 border-b-2 border-[#D4AF37] shadow-[0_2px_12px_rgba(212,175,55,0.15)] font-bold'
+                  : 'text-[#AAAAAA] hover:text-white hover:bg-[#1A1A1A] border-b-2 border-transparent'
               }`}
             >
-              <FolderSync className="w-3.5 h-3.5" />
+              <FolderSync className={`w-4.5 h-4.5 transition-colors ${activeTab === 'files' ? 'text-[#D4AF37]' : 'text-[#888888]'}`} />
               <span>Google Drive</span>
             </button>
           </div>
@@ -259,29 +273,24 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className={`h-8 px-2.5 py-1.5 font-medium flex items-center gap-2 rounded-sm transition-all duration-200 cursor-pointer border ${
+              className={`h-10 px-3.5 py-2 text-sm font-semibold flex items-center gap-2.5 rounded-md transition-all duration-200 cursor-pointer border ${
                 isSettingsActive
-                  ? 'text-[#D4AF37] border-[#D4AF37]/50 bg-[#151515]'
-                  : 'text-[#888888] hover:text-[#E0E0E0] border-transparent hover:border-[#2A2A2A] hover:bg-[#121212]'
+                  ? 'text-[#D4AF37] border-[#D4AF37]/60 bg-[#D4AF37]/15 shadow-[0_2px_10px_rgba(212,175,55,0.15)]'
+                  : 'text-[#AAAAAA] hover:text-white border-[#2A2A2A] hover:border-[#444444] bg-[#121212] hover:bg-[#1A1A1A]'
               }`}
               title={isSettingsActive ? getActiveTabTitle() : 'Cài đặt & Tính năng mở rộng'}
             >
               <div className="relative flex items-center justify-center">
-                <Settings className={`w-4 h-4 transition-transform duration-300 ${isDropdownOpen ? 'rotate-90 text-[#D4AF37]' : ''} ${isSettingsActive ? 'text-[#D4AF37]' : ''}`} />
+                <Settings className={`w-4.5 h-4.5 transition-transform duration-300 ${isDropdownOpen ? 'rotate-90 text-[#D4AF37]' : ''} ${isSettingsActive ? 'text-[#D4AF37]' : ''}`} />
                 {isSettingsActive && !isDropdownOpen && (
-                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#D4AF37] ring-1 ring-[#0A0A0A]" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#D4AF37] ring-2 ring-[#0A0A0A]" />
                 )}
               </div>
 
-              {/* Text label only appears when hovered/dropdown is open */}
-              {isDropdownOpen && (
-                <div className="flex items-center gap-1.5 animate-fadeIn overflow-hidden whitespace-nowrap">
-                  <span className="text-xs font-semibold text-[#D4AF37]">
-                    {isSettingsActive ? getActiveTabTitle() : 'Cài Đặt & Mở Rộng'}
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5 rotate-180 text-[#D4AF37]" />
-                </div>
-              )}
+              <span className={`text-xs font-bold uppercase tracking-wider hidden sm:inline ${isSettingsActive ? 'text-[#D4AF37]' : 'text-[#CCCCCC]'}`}>
+                {isSettingsActive ? getActiveTabTitle() : 'Cài Đặt'}
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-[#D4AF37]' : 'text-[#777777]'}`} />
             </button>
 
             {/* Dropdown Menu List */}
