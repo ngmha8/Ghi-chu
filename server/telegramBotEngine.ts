@@ -77,6 +77,15 @@ function getTimeInZone(date: Date = new Date(), timeZone: string = 'Asia/Ho_Chi_
   return { date, dateStr, hour, minute, second, timeZone };
 }
 
+function formatTaskDeadline(dateStr: string, timeZone: string = 'Asia/Ho_Chi_Minh'): string {
+  if (!dateStr) return 'Không có hạn chót';
+  const d = new Date(dateStr);
+  const time = d.toLocaleTimeString('vi-VN', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false });
+  const weekday = d.toLocaleDateString('vi-VN', { timeZone, weekday: 'short' });
+  const date = d.toLocaleDateString('vi-VN', { timeZone, day: '2-digit', month: '2-digit', year: 'numeric' });
+  return `${time} ${weekday} (${date})`;
+}
+
 export interface TelegramEngineContext {
   gemini: GoogleGenAI;
   uploadsDir: string;
@@ -213,7 +222,7 @@ export async function processTelegramUpdate(
         msg = '🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*';
       } else {
         msg = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
-          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}`).join('\n\n');
+          todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Hạn chót: *${formatTaskDeadline(t.deadline, telegramConfig.timezone)}*`).join('\n\n');
       }
       await sendTelegramMessage(telegramConfig.botToken, chatId, msg, buildTaskListKeyboard(currentTasks));
       return { success: true, action: 'today', chatId };
@@ -224,7 +233,7 @@ export async function processTelegramUpdate(
       const currentTasks = await getDbTasks();
       const pending = currentTasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
       const msg = `📋 *Danh sách công việc chưa hoàn thành (${pending.length}):*\n\n` +
-        pending.map((t, idx) => `${idx + 1}. *${t.title}* (${t.priority.toUpperCase()})\n   ⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')}`).join('\n\n');
+        pending.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Hạn chót: *${formatTaskDeadline(t.deadline, telegramConfig.timezone)}*`).join('\n\n');
       await sendTelegramMessage(telegramConfig.botToken, chatId, msg, buildTaskListKeyboard(currentTasks));
       return { success: true, action: 'tasks', chatId };
     }
@@ -586,13 +595,13 @@ export async function processTelegramUpdate(
           botReply = `🎉 *Hôm nay bạn không có deadline công việc nào chưa hoàn thành!*`;
         } else {
           botReply = `📅 *Danh sách công việc hôm nay (${todayTasks.length}):*\n\n` +
-            todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Deadline: ${new Date(t.deadline).toLocaleTimeString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}\n   📌 Trạng thái: ${t.status}`).join('\n\n');
+            todayTasks.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Hạn chót: *${formatTaskDeadline(t.deadline, telegramConfig.timezone)}*\n   📌 Trạng thái: ${t.status}`).join('\n\n');
         }
         replyKeyboard = buildTaskListKeyboard(tasks);
       } else if (cleanInput.match(/^\/tasks\b/i)) {
         const pending = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
         botReply = `📋 *Danh sách công việc chưa hoàn thành (${pending.length}):*\n\n` +
-          pending.map((t, idx) => `${idx + 1}. *${t.title}* (${t.priority.toUpperCase()})\n   ⏰ ${new Date(t.deadline).toLocaleDateString('vi-VN')}`).join('\n\n');
+          pending.map((t, idx) => `${idx + 1}. [${t.priority.toUpperCase()}] *${t.title}*\n   ⏰ Hạn chót: *${formatTaskDeadline(t.deadline, telegramConfig.timezone)}*`).join('\n\n');
         replyKeyboard = buildTaskListKeyboard(tasks);
       } else if (cleanInput.match(/^\/notes\b/i)) {
         botReply = `📝 *Ghi chú cá nhân (${notes.length}):*\n\n` +
