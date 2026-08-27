@@ -3,6 +3,14 @@ import { api } from './api.js';
 
 export const DEFAULT_DOCUMENT_CATEGORIES: DocumentCategory[] = [
   {
+    id: 'unclassified',
+    name: 'Chưa xác định',
+    color: 'zinc',
+    icon: 'HelpCircle',
+    description: 'Tài liệu mới tải lên chờ phân loại cụ thể',
+    isDefault: true,
+  },
+  {
     id: 'work',
     name: 'Công việc',
     color: 'emerald',
@@ -68,6 +76,11 @@ export function getStoredCategories(): DocumentCategory[] {
     if (!raw) return DEFAULT_DOCUMENT_CATEGORIES;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
+      // Ensure 'unclassified' exists in category list
+      const hasUnclassified = parsed.some(c => c.id === 'unclassified' || c.name.toLowerCase() === 'chưa xác định');
+      if (!hasUnclassified) {
+        return [DEFAULT_DOCUMENT_CATEGORIES[0], ...parsed];
+      }
       return parsed;
     }
     return DEFAULT_DOCUMENT_CATEGORIES;
@@ -114,7 +127,7 @@ export function resolveCategory(
   categories: DocumentCategory[] = DEFAULT_DOCUMENT_CATEGORIES
 ): DocumentCategory {
   if (!classificationIdOrName) {
-    return categories.find(c => c.id === 'other') || DEFAULT_DOCUMENT_CATEGORIES[DEFAULT_DOCUMENT_CATEGORIES.length - 1];
+    return categories.find(c => c.id === 'unclassified' || c.name.toLowerCase() === 'chưa xác định') || categories.find(c => c.id === 'other') || DEFAULT_DOCUMENT_CATEGORIES[0];
   }
 
   const trimmed = classificationIdOrName.trim();

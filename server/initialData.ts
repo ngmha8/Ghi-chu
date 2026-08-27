@@ -12,6 +12,14 @@ import type {
 
 export const initialCategories: DocumentCategory[] = [
   {
+    id: 'unclassified',
+    name: 'Chưa xác định',
+    color: 'zinc',
+    icon: 'HelpCircle',
+    description: 'Tài liệu mới tải lên chờ phân loại cụ thể',
+    isDefault: true,
+  },
+  {
     id: 'work',
     name: 'Công việc',
     color: 'emerald',

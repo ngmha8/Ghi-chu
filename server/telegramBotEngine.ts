@@ -448,6 +448,7 @@ export async function processTelegramUpdate(
         mimeType: mimeType,
         size: fileSize,
         category: category,
+        classification: 'unclassified',
         isSyncedToDrive: false,
         syncStatus: 'local_only',
         downloadUrl: `/api/files/download/${localFileId}`,

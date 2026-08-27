@@ -82,7 +82,7 @@ router.post('/', async (req: Request, res: Response) => {
       size: size,
       webViewLink: isSynced && webViewLink ? webViewLink : undefined,
       category: req.body.category || 'document',
-      classification: req.body.classification || 'work',
+      classification: req.body.classification || 'unclassified',
       tags: req.body.tags || [],
       isSyncedToDrive: isSynced,
       driveFileId: driveFileId,

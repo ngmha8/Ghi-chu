@@ -598,8 +598,8 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const handleProcessUpload = async (rawFile: File) => {
     const formatCat = detectFormatCategory(rawFile.name, rawFile.type);
     const fileId = `file-${Date.now()}`;
-    // Assign classification based on currently selected filter, or fallback to 'work'
-    const targetClassification = selectedClassification !== 'all' ? selectedClassification : 'work';
+    // Assign classification based on currently selected filter, or fallback to 'unclassified' (Chưa xác định)
+    const targetClassification = selectedClassification !== 'all' ? selectedClassification : 'unclassified';
 
     setUploadProgress({
       active: true,

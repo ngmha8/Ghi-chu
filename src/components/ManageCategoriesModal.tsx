@@ -20,7 +20,8 @@ import {
   Layers,
   Sparkles,
   AlertTriangle,
-  AlertCircle
+  AlertCircle,
+  HelpCircle
 } from 'lucide-react';
 import { DEFAULT_DOCUMENT_CATEGORIES, CATEGORY_COLORS } from '../services/docClassification.js';
 
@@ -32,6 +33,7 @@ interface ManageCategoriesModalProps {
 }
 
 const AVAILABLE_ICONS = [
+  { name: 'HelpCircle', label: 'Chưa xác định / Chờ phân loại', component: HelpCircle },
   { name: 'Briefcase', label: 'Cặp công tác (Công việc)', component: Briefcase },
   { name: 'User', label: 'Cá nhân', component: User },
   { name: 'FileCheck', label: 'Biểu mẫu / Mẫu đơn', component: FileCheck },
@@ -58,6 +60,7 @@ const AVAILABLE_COLORS = [
 
 export const renderCategoryIcon = (iconName?: string, className: string = 'w-4 h-4') => {
   switch (iconName) {
+    case 'HelpCircle': return <HelpCircle className={className} />;
     case 'Briefcase': return <Briefcase className={className} />;
     case 'User': return <User className={className} />;
     case 'FileCheck': return <FileCheck className={className} />;
