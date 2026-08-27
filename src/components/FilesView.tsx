@@ -57,7 +57,10 @@ import {
   FolderKanban,
   Globe,
   Key,
-  Copy
+  Copy,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import {
   getStoredCategories,
@@ -112,6 +115,25 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Format Type Filter (Document, Spreadsheet, PDF...)
   const [formatFilter, setFormatFilter] = useState<DriveFile['category'] | 'all'>('all');
+
+  // Sorting State: by name, upload date (uploadedAt), or size
+  const [sortKey, setSortKey] = useState<'uploadedAt' | 'name' | 'size'>(() => {
+    return (localStorage.getItem('doc_sort_key') as 'uploadedAt' | 'name' | 'size') || 'uploadedAt';
+  });
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => {
+    return (localStorage.getItem('doc_sort_order') as 'asc' | 'desc') || 'desc';
+  });
+
+  const handleSortChange = (key: 'uploadedAt' | 'name' | 'size', order: 'asc' | 'desc') => {
+    setSortKey(key);
+    setSortOrder(order);
+    try {
+      localStorage.setItem('doc_sort_key', key);
+      localStorage.setItem('doc_sort_order', order);
+    } catch {
+      // ignore
+    }
+  };
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
@@ -711,7 +733,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Main file filtering: Classification + Format + Search Keyword / #Tags
   const filteredFiles = useMemo(() => {
-    return files.filter(f => {
+    const filtered = files.filter(f => {
       // 1. Classification filter (Công việc, Cá nhân, Mẫu giấy tờ...)
       if (selectedClassification !== 'all') {
         const fileCat = f.classification || 'other';
@@ -756,7 +778,42 @@ export const FilesView: React.FC<FilesViewProps> = ({
       }
       return true;
     });
-  }, [files, selectedClassification, formatFilter, search, categories, tasks, notes]);
+
+    // Apply Sorting Order (By Upload Date, Name, or Size)
+    return [...filtered].sort((a, b) => {
+      if (sortKey === 'name') {
+        const comp = a.name.localeCompare(b.name, 'vi', { sensitivity: 'base', numeric: true });
+        return sortOrder === 'asc' ? comp : -comp;
+      }
+
+      if (sortKey === 'uploadedAt') {
+        const parseTime = (file: DriveFile): number => {
+          if (file.uploadedAt) {
+            const t = new Date(file.uploadedAt).getTime();
+            if (!isNaN(t) && t > 0) return t;
+          }
+          // Fallback: extract timestamp from ID if matches file-123456789
+          const idMatch = file.id?.match(/(\d{10,13})/);
+          if (idMatch) return parseInt(idMatch[1], 10);
+          return 0;
+        };
+
+        const timeA = parseTime(a);
+        const timeB = parseTime(b);
+        if (timeA !== timeB) {
+          return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+        }
+        return a.name.localeCompare(b.name, 'vi', { sensitivity: 'base', numeric: true });
+      }
+
+      if (sortKey === 'size') {
+        const sizeDiff = (a.size || 0) - (b.size || 0);
+        return sortOrder === 'asc' ? sizeDiff : -sizeDiff;
+      }
+
+      return 0;
+    });
+  }, [files, selectedClassification, formatFilter, search, categories, tasks, notes, sortKey, sortOrder]);
 
   const totalBytes = files.reduce((acc, f) => acc + f.size, 0);
   const totalMb = (totalBytes / (1024 * 1024)).toFixed(2);
@@ -1115,34 +1172,134 @@ export const FilesView: React.FC<FilesViewProps> = ({
         </p>
       </div>
 
-      {/* Filter Info / Results Header */}
-      <div className="flex items-center justify-between text-xs text-[#888888] px-1">
-        <span>
-          Hiển thị <strong>{filteredFiles.length}</strong> / {files.length} tài liệu
-          {selectedClassification !== 'all' && (
-            <span className="ml-1 text-[#D4AF37]">
-              • Nhóm "{resolveCategory(selectedClassification, categories).name}"
-            </span>
-          )}
-          {formatFilter !== 'all' && (
-            <span className="ml-1 text-sky-400">
-              • Định dạng {formatFilter.toUpperCase()}
-            </span>
-          )}
-        </span>
+      {/* Filter Info / Results Header & Sorting Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#151515] p-3 rounded-sm border border-[#2A2A2A]">
+        {/* Left: File Count & Active Filters */}
+        <div className="flex items-center gap-2 text-xs text-[#888888] flex-wrap">
+          <span>
+            Hiển thị <strong className="text-white font-mono">{filteredFiles.length}</strong> / {files.length} tài liệu
+            {selectedClassification !== 'all' && (
+              <span className="ml-1.5 text-[#D4AF37] font-semibold">
+                • Nhóm "{resolveCategory(selectedClassification, categories).name}"
+              </span>
+            )}
+            {formatFilter !== 'all' && (
+              <span className="ml-1.5 text-sky-400 font-semibold">
+                • Định dạng {formatFilter.toUpperCase()}
+              </span>
+            )}
+          </span>
 
-        {(selectedClassification !== 'all' || formatFilter !== 'all' || search) && (
-          <button
-            onClick={() => {
-              setSelectedClassification('all');
-              setFormatFilter('all');
-              setSearch('');
-            }}
-            className="text-[11px] text-[#D4AF37] hover:underline cursor-pointer"
-          >
-            ✕ Xóa bộ lọc
-          </button>
-        )}
+          {(selectedClassification !== 'all' || formatFilter !== 'all' || search) && (
+            <button
+              onClick={() => {
+                setSelectedClassification('all');
+                setFormatFilter('all');
+                setSearch('');
+              }}
+              className="text-[11px] text-[#D4AF37] hover:underline cursor-pointer font-medium ml-1"
+            >
+              ✕ Xóa bộ lọc
+            </button>
+          )}
+        </div>
+
+        {/* Right: Modern Sorting Selector & Quick Toggles */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 bg-[#0C0C0C] border border-[#2A2A2A] px-2.5 py-1 rounded-sm text-xs">
+            <ArrowUpDown className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+            <span className="text-[#888888] font-medium hidden sm:inline">Sắp xếp:</span>
+            
+            {/* Quick Sort Toggle Buttons: Upload Date vs Name vs Size */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (sortKey === 'uploadedAt') {
+                    handleSortChange('uploadedAt', sortOrder === 'desc' ? 'asc' : 'desc');
+                  } else {
+                    handleSortChange('uploadedAt', 'desc');
+                  }
+                }}
+                className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1 ${
+                  sortKey === 'uploadedAt'
+                    ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/50'
+                    : 'text-[#888888] hover:text-white border border-transparent'
+                }`}
+                title={`Sắp xếp theo Thời gian tải lên (${sortKey === 'uploadedAt' && sortOrder === 'desc' ? 'Mới nhất → Cũ nhất' : 'Cũ nhất → Mới nhất'})`}
+              >
+                <span>Thời gian</span>
+                {sortKey === 'uploadedAt' && (
+                  sortOrder === 'desc' ? <ArrowDown className="w-3 h-3 text-[#D4AF37]" /> : <ArrowUp className="w-3 h-3 text-[#D4AF37]" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (sortKey === 'name') {
+                    handleSortChange('name', sortOrder === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    handleSortChange('name', 'asc');
+                  }
+                }}
+                className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1 ${
+                  sortKey === 'name'
+                    ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/50'
+                    : 'text-[#888888] hover:text-white border border-transparent'
+                }`}
+                title={`Sắp xếp theo Tên tài liệu (${sortKey === 'name' && sortOrder === 'asc' ? 'A → Z (Tăng dần)' : 'Z → A (Giảm dần)'})`}
+              >
+                <span>Tên (A-Z)</span>
+                {sortKey === 'name' && (
+                  sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-[#D4AF37]" /> : <ArrowDown className="w-3 h-3 text-[#D4AF37]" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (sortKey === 'size') {
+                    handleSortChange('size', sortOrder === 'desc' ? 'asc' : 'desc');
+                  } else {
+                    handleSortChange('size', 'desc');
+                  }
+                }}
+                className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1 ${
+                  sortKey === 'size'
+                    ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/50'
+                    : 'text-[#888888] hover:text-white border border-transparent'
+                }`}
+                title={`Sắp xếp theo Dung lượng tệp (${sortKey === 'size' && sortOrder === 'desc' ? 'Lớn → Nhỏ' : 'Nhỏ → Lớn'})`}
+              >
+                <span>Dung lượng</span>
+                {sortKey === 'size' && (
+                  sortOrder === 'desc' ? <ArrowDown className="w-3 h-3 text-[#D4AF37]" /> : <ArrowUp className="w-3 h-3 text-[#D4AF37]" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Direct Dropdown for full choice */}
+          <div className="relative">
+            <select
+              value={`${sortKey}-${sortOrder}`}
+              onChange={(e) => {
+                const [k, o] = e.target.value.split('-') as ['uploadedAt' | 'name' | 'size', 'asc' | 'desc'];
+                handleSortChange(k, o);
+              }}
+              className="bg-[#0C0C0C] text-[#E0E0E0] border border-[#2A2A2A] hover:border-[#D4AF37] focus:border-[#D4AF37] focus:outline-none text-[11px] font-semibold rounded-sm px-2.5 py-1.5 pr-7 appearance-none cursor-pointer transition-colors"
+            >
+              <option value="uploadedAt-desc">🕒 Tải lên: Mới nhất trước</option>
+              <option value="uploadedAt-asc">🕒 Tải lên: Cũ nhất trước</option>
+              <option value="name-asc">🔤 Tên tệp: A → Z (Tăng dần)</option>
+              <option value="name-desc">🔤 Tên tệp: Z → A (Giảm dần)</option>
+              <option value="size-desc">💾 Dung lượng: Lớn → Nhỏ</option>
+              <option value="size-asc">💾 Dung lượng: Nhỏ → Lớn</option>
+            </select>
+            <ChevronDown className="w-3 h-3 text-[#888888] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+        </div>
       </div>
 
       {/* Files Grid */}
@@ -1190,9 +1347,19 @@ export const FilesView: React.FC<FilesViewProps> = ({
                         <h3 className="text-xs font-editorial-serif font-bold text-white truncate group-hover/title:text-[#D4AF37] transition-colors" title={file.name}>
                           {file.name}
                         </h3>
-                        <span className="text-[10px] text-[#888888] font-mono">
-                          {(file.size / (1024 * 1024)).toFixed(2)} MB • {file.category.toUpperCase()}
-                        </span>
+                        <div className="text-[10px] text-[#888888] font-mono flex items-center gap-1.5 flex-wrap">
+                          <span>{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                          <span>•</span>
+                          <span>{file.category.toUpperCase()}</span>
+                          {file.uploadedAt && (
+                            <>
+                              <span>•</span>
+                              <span className="text-zinc-400" title={`Thời gian tải lên: ${new Date(file.uploadedAt).toLocaleString('vi-VN')}`}>
+                                {new Date(file.uploadedAt).toLocaleDateString('vi-VN')}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 
