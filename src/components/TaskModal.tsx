@@ -178,7 +178,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[#E0E0E0] font-editorial-serif font-bold mb-1">Thời hạn (Deadline)</label>
+              <label className="block text-[#E0E0E0] font-editorial-serif font-bold mb-1">⏰ Hạn chót chính thức (Deadline)</label>
               <input
                 type="datetime-local"
                 required

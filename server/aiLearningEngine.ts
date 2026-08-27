@@ -38,6 +38,7 @@ export async function synthesizeLearnedPromptContext(): Promise<string> {
     `  (Ví dụ: "${persona.aiHonorific || 'Tôi'} xin tóm tắt...", "${persona.aiHonorific || 'Tôi'} đã cập nhật xong công việc cho ${persona.userHonorific || 'bạn'}")\n` +
     `- PHONG CÁCH ĐỒNG HÀNH: ${styleDescriptions[persona.communicationStyle] || styleDescriptions.warm_empathetic}\n` +
     `- LĨNH VỰC TRỌNG TÂM: ${persona.focusDomain || 'Công nghệ, Quản trị dự án & Năng suất'}\n` +
+    `- ĐỊA BÀN HOẠT ĐỘNG CHÍNH (USER LOCATION): "${persona.location || 'Bắc Giang'}" (Việt Nam). Mọi câu hỏi chung về thời tiết, khu vực hoặc ngữ cảnh địa phương khi người dùng không chỉ định địa điểm khác mặc định là tại ${persona.location || 'Bắc Giang'}. Tuyệt đối không trả lời nhầm sang Hà Nội hoặc địa phương khác.\n` +
     (persona.customInstructions ? `- LỜI NHẮC ĐẶC BIỆT CỦA NGƯỜI DÙNG: "${persona.customInstructions}"\n` : '') +
     `- QUY TẮC TIẾP NHẬN HƯỚNG DẪN XƯNG HÔ: Bất kỳ khi nào người dùng nhắn nhắc đổi cách gọi (ví dụ: "Hãy gọi tôi là...", "Xưng em nhé", "Gọi anh là Nam"), hãy tôn trọng tuyệt đối, cập nhật ngay vào xưng hô trong câu trả lời này và gọi tool rememberUserFact để ghi nhớ vĩnh viễn!\n\n`;
 
@@ -99,7 +100,7 @@ export async function triggerPassiveLearningExtraction(
   if (!geminiClient) return;
 
   const msgTrimmed = userMessage.trim();
-  if (msgTrimmed.length < 5 || msgTrimmed.startsWith('/') || msgTrimmed.toLowerCase().includes('thời tiết')) {
+  if (msgTrimmed.length < 4 || msgTrimmed.startsWith('/')) {
     return;
   }
 

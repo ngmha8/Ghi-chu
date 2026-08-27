@@ -18,6 +18,7 @@ import {
   saveDbAiPersonaConfig,
 } from './firebaseDb.ts';
 import { searchSemanticDocuments } from './embeddingService.ts';
+import { fetchLiveWeather } from './weatherService.ts';
 import { Task, Note, DriveFile, AiMemoryFact } from '../src/types/index.ts';
 
 // 1. Function Declarations for Gemini Tool Calling
@@ -261,6 +262,24 @@ export const aiFunctionDeclarations: FunctionDeclaration[] = [
       },
     },
   },
+  {
+    name: 'getLiveWeather',
+    description: 'Tra cứu tình hình thời tiết trực tiếp, nhiệt độ, độ ẩm, khả năng mưa và cảnh báo thời tiết cho Bắc Giang hoặc bất kỳ tỉnh thành nào. Mặc định tự động lấy tại Bắc Giang (nơi ở của người dùng).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        location: {
+          type: Type.STRING,
+          description: 'Tên tỉnh thành hoặc khu vực (ví dụ: "Bắc Giang", "Việt Yên", "Hà Nội", "Đà Nẵng", "TP. Hồ Chí Minh"). Mặc định: "Bắc Giang"',
+        },
+        forecastDay: {
+          type: Type.STRING,
+          enum: ['today', 'tomorrow'],
+          description: 'Thời điểm: today (hôm nay) hoặc tomorrow (ngày mai). Mặc định: today',
+        },
+      },
+    },
+  },
 ];
 
 /**
@@ -389,7 +408,7 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
     return {
       success: true,
       data: saved,
-      message: `✅ Đã lưu thành công vào Firestore:\n📌 Công việc: **${saved.title}**\n⏰ Deadline: **${deadlineVnStr} [UTC+7]**\n🎯 Độ ưu tiên: **${saved.priority.toUpperCase()}**`,
+      message: `✅ Đã lưu thành công vào Firestore:\n📌 Công việc: **${saved.title}**\n⏰ Hạn chót chính thức: **${deadlineVnStr} [UTC+7]**\n🎯 Độ ưu tiên: **${saved.priority.toUpperCase()}**`,
     };
   }
 
@@ -852,6 +871,20 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       success: true,
       data: filtered,
       message: `🧠 **Những điều AI đã tự học và ghi nhớ về bạn (${filtered.length}):**\n\n${memList}`,
+    };
+  }
+
+  if (name === 'getLiveWeather') {
+    const persona = await getDbAiPersonaConfig();
+    const defaultLoc = persona.location || 'Bắc Giang';
+    const locationArg = args?.location || defaultLoc;
+    const isTomorrow = args?.forecastDay === 'tomorrow';
+    const weather = await fetchLiveWeather(locationArg, isTomorrow, defaultLoc);
+
+    return {
+      success: true,
+      data: weather,
+      message: weather.summary,
     };
   }
 

@@ -82,6 +82,7 @@ export const initialTelegramConfig: TelegramConfig = {
   alertOffsetMinutes: 15,
   isConnected: false,
   timezone: 'Asia/Ho_Chi_Minh',
+  location: 'Bắc Giang',
   morningBriefingHour: 7,
   morningBriefingMinute: 0,
   eveningBriefingHour: 21,
@@ -97,9 +98,21 @@ export const initialUserProfile: UserProfile = {
   email: 'ngmha8@gmail.com',
   avatarUrl: '',
   isGoogleConnected: false,
+  location: 'Bắc Giang',
 };
 
 export const initialAiMemories: AiMemoryFact[] = [
+  {
+    id: 'mem-location',
+    category: 'identity',
+    fact: 'Người dùng đang sinh sống và làm việc tại Bắc Giang (Việt Nam). Mọi câu hỏi chung về thời tiết, khu vực hoặc ngữ cảnh địa phương khi không nêu rõ tên thành phố khác mặc định phải áp dụng tại Bắc Giang.',
+    confidence: 1.0,
+    source: 'explicit',
+    occurrences: 10,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
   {
     id: 'mem-1',
     category: 'preference',
@@ -172,6 +185,7 @@ export const initialAiPersonaConfig: import('../src/types/index.ts').AiPersonaCo
   aiHonorific: 'Tôi',
   communicationStyle: 'warm_empathetic',
   focusDomain: 'Phát triển ứng dụng Web, Trí tuệ nhân tạo, Tự động hóa & Năng suất',
+  location: 'Bắc Giang',
   speechRate: 1.05,
   speechPitch: 1.0,
   autoSpeakResponse: false,

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Task, DriveFile, Note } from '../types/index.js';
 import { TagSearchInput } from './TagSearchInput.js';
+import { formatOfficialDeadline, getDeadlineStatusInfo } from '../services/dateUtils.js';
 import {
   Plus,
   Search,
@@ -369,6 +370,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
           ) : (
             filteredTasks.map(task => {
               const isOverdue = new Date(task.deadline) < new Date() && task.status !== 'completed' && task.status !== 'canceled';
+              const deadlineInfo = getDeadlineStatusInfo(task.deadline, task.status);
 
               return (
                 <div
@@ -388,7 +390,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       onChange={(e) => onTaskUpdate(task.id, { status: e.target.checked ? 'completed' : 'todo' })}
                       className="mt-1 w-4 h-4 rounded-sm border-[#2A2A2A] bg-[#0C0C0C] text-[#D4AF37] focus:ring-[#D4AF37] cursor-pointer"
                     />
-                    <div className="min-w-0 flex-1 space-y-1">
+                    <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-sm ${
                           task.priority === 'high' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
@@ -414,8 +416,17 @@ export const TasksView: React.FC<TasksViewProps> = ({
                           </span>
                         )}
 
-                        <span className={`text-xs ${isOverdue ? 'text-rose-400 font-semibold' : 'text-[#888888] italic'}`}>
-                          ⏰ {new Date(task.deadline).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}
+                        {/* Official Deadline Display */}
+                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] text-xs">
+                          <Clock className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+                          <span className="text-[#888888] font-medium">Hạn chót chính thức:</span>
+                          <span className="text-[#E0E0E0] font-semibold">
+                            {formatOfficialDeadline(task.deadline)}
+                          </span>
+                        </div>
+
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm border ${deadlineInfo.badgeClass}`}>
+                          {deadlineInfo.label}
                         </span>
                       </div>
 
@@ -519,12 +530,18 @@ export const TasksView: React.FC<TasksViewProps> = ({
                         }`}>
                           {task.priority.toUpperCase()}
                         </span>
-                        <span className="text-[10px] text-[#777777]">
-                          {new Date(task.deadline).toLocaleDateString('vi-VN')}
+                        <span className="text-[10px] text-[#D4AF37] font-semibold flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatOfficialDeadline(task.deadline).split(',')[0]}</span>
                         </span>
                       </div>
                       <h4 className="text-xs font-editorial-serif font-bold text-white leading-snug">{task.title}</h4>
                       <p className="text-[11px] text-[#888888] line-clamp-2">{task.description}</p>
+                      
+                      <div className="text-[10px] text-zinc-400 bg-[#151515] p-1.5 rounded-sm border border-zinc-800/80 space-y-0.5">
+                        <span className="text-zinc-500 font-medium block">Hạn chót chính thức:</span>
+                        <span className="text-zinc-200 font-semibold block">{formatOfficialDeadline(task.deadline)}</span>
+                      </div>
                       <div className="flex items-center justify-between pt-1 border-t border-[#2A2A2A]">
                         <button
                           onClick={() => editTask(task)}

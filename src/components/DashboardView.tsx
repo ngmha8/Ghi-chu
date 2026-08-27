@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Task, Note, DriveFile, NotificationLog } from '../types/index.js';
+import { formatOfficialDeadline, getDeadlineStatusInfo } from '../services/dateUtils.js';
 import {
   CheckCircle2,
   Clock,
@@ -241,6 +242,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 filteredPriorityTasks.slice(0, 6).map(task => {
                   const isOverdue = new Date(task.deadline) < now;
                   const isUrgent = task.priority === 'high';
+                  const deadlineInfo = getDeadlineStatusInfo(task.deadline, task.status);
 
                   return (
                     <div
@@ -261,7 +263,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         >
                           <CheckCircle2 className="w-5 h-5" />
                         </button>
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-sm ${
                               task.priority === 'high' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
@@ -275,8 +277,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 Lặp: {task.recurring.type}
                               </span>
                             )}
-                            <span className={`text-xs ${isOverdue ? 'text-rose-400 font-semibold' : 'text-[#888888] italic'}`}>
-                              Due: {new Date(task.deadline).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}
+                            
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] text-xs">
+                              <Clock className="w-3 h-3 text-[#D4AF37] shrink-0" />
+                              <span className="text-[#888888] font-medium">Hạn chót chính thức:</span>
+                              <span className="text-[#E0E0E0] font-semibold">
+                                {formatOfficialDeadline(task.deadline)}
+                              </span>
+                            </div>
+
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm border ${deadlineInfo.badgeClass}`}>
+                              {deadlineInfo.label}
                             </span>
                           </div>
                           <h3 className="text-sm font-editorial-serif font-bold text-white mt-1.5 truncate">{task.title}</h3>

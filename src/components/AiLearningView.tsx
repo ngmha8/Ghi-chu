@@ -393,7 +393,24 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2 border-t border-zinc-800/60">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2 border-t border-zinc-800/60">
+            {/* Location */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-zinc-300">
+                📍 Địa bàn / Tỉnh thành mặc định (Location):
+              </label>
+              <input
+                type="text"
+                value={personaConfig.location || 'Bắc Giang'}
+                onChange={(e) => setPersonaConfig({ ...personaConfig, location: e.target.value })}
+                placeholder="Ví dụ: Bắc Giang, Hà Nội, TP. Hồ Chí Minh..."
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+              />
+              <p className="text-[11px] text-zinc-500 italic">
+                AI sẽ mặc định áp dụng địa điểm này khi tra cứu thời tiết và ngữ cảnh địa phương.
+              </p>
+            </div>
+
             {/* Focus Domain */}
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-zinc-300">
@@ -403,7 +420,7 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
                 type="text"
                 value={personaConfig.focusDomain || ''}
                 onChange={(e) => setPersonaConfig({ ...personaConfig, focusDomain: e.target.value })}
-                placeholder="Ví dụ: Công nghệ thông tin, Quản trị doanh nghiệp, Y tế & Bức xạ..."
+                placeholder="Ví dụ: Công nghệ thông tin, Quản trị doanh nghiệp..."
                 className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
               />
             </div>
@@ -411,13 +428,13 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
             {/* Custom Directives */}
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-zinc-300">
-                🔒 Lời nhắc quy tắc đặc biệt (Custom Instructions):
+                🔒 Lời nhắc quy tắc đặc biệt:
               </label>
               <input
                 type="text"
                 value={personaConfig.customInstructions || ''}
                 onChange={(e) => setPersonaConfig({ ...personaConfig, customInstructions: e.target.value })}
-                placeholder="Ví dụ: Luôn tóm tắt hành động trước 16h00, ưu tiên phân tích sâu nguyên nhân gốc rễ..."
+                placeholder="Ví dụ: Luôn tóm tắt hành động trước 16h00..."
                 className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
               />
             </div>

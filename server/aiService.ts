@@ -69,7 +69,7 @@ export async function processAiChat(
   const queryLower = message.toLowerCase().trim();
 
   // -------------------------------------------------------------
-  // TIER 1: LIVE WEATHER INTENT ROUTING
+  // TIER 1: LIVE WEATHER INTENT ROUTING (NATURAL & CONTEXTUAL)
   // -------------------------------------------------------------
   if (
     queryLower.includes('thời tiết') ||
@@ -83,28 +83,36 @@ export async function processAiChat(
     queryLower.startsWith('/weather')
   ) {
     try {
+      const persona = await import('./firebaseDb.ts').then(m => m.getDbAiPersonaConfig());
+      const userHomeLocation = persona.location || 'Bắc Giang';
       const isTomorrow = queryLower.includes('ngày mai') || queryLower.includes('ngay mai') || queryLower.includes('mai');
-      const weatherData = await fetchLiveWeather(message, isTomorrow);
+      const weatherData = await fetchLiveWeather(message, isTomorrow, userHomeLocation);
       const dayLabel = isTomorrow ? 'ngày mai' : 'hôm nay';
 
       try {
         const ai = getGeminiClient();
-        const weatherPrompt = `Bạn là Trợ lý AI Cố Vấn Điều Hành Cao Cấp (Senior AI Executive Companion). Dưới đây là dữ liệu thời tiết THỰC TẾ TRỰC TIẾP tại ${weatherData.city} cho ${dayLabel}:\n` +
-          `- Nhiệt độ: ${weatherData.minTemp}°C - ${weatherData.maxTemp}°C (Hiện tại: ${weatherData.temperature}°C, Cảm giác: ${weatherData.apparentTemperature}°C)\n` +
-          `- Tình trạng: ${weatherData.condition}\n` +
-          `- Độ ẩm: ${weatherData.humidity}%\n` +
-          `- Khả năng mưa: ${weatherData.precipitationProb}%\n` +
-          `- Gió: ${weatherData.windSpeed} km/h\n` +
-          `- Chỉ số UV: ${weatherData.uvIndex}\n\n` +
-          `Yêu cầu: Hãy đóng vai một người bạn đồng hành thông minh, tinh tế và ân cần, viết phản hồi bằng tiếng Việt thân thiện, súc tích, định dạng Markdown đẹp mắt gửi trên Telegram/Web. ` +
-          `Bao gồm: bảng tóm tắt thời tiết (${weatherData.icon}), đánh giá điều kiện ngoài trời, và 2-3 lời khuyên thiết thực (trang phục, mang ô/áo mưa, che chắn UV, di chuyển, giữ gìn sức khỏe).`;
+        const learnedMemory = await synthesizeLearnedPromptContext();
+        const weatherPrompt = `${learnedMemory ? `${learnedMemory}\n\n` : ''}DỮ LIỆU THỜI TIẾT THỰC TẾ TRỰC TIẾP TẠI ${weatherData.city.toUpperCase()} (${dayLabel.toUpperCase()}):
+- Vị trí: ${weatherData.city} (Địa bàn của người dùng: ${userHomeLocation})
+- Nhiệt độ: ${weatherData.minTemp}°C - ${weatherData.maxTemp}°C (Hiện tại: ${weatherData.temperature}°C, cảm giác thực tế: ${weatherData.apparentTemperature}°C)
+- Tình trạng bầu trời: ${weatherData.condition} (${weatherData.icon})
+- Độ ẩm: ${weatherData.humidity}% | Tốc độ gió: ${weatherData.windSpeed} km/h
+- Xác suất mưa: ${weatherData.precipitationProb}%
+- Chỉ số tia UV: ${weatherData.uvIndex}
+
+CÂU HỎI CỦA NGƯỜI DÙNG: "${message}"
+
+YÊU CẦU:
+1. Hãy trả lời câu hỏi trực tiếp, ngắn gọn, súc tích và ấm áp theo đúng phong cách và danh xưng đã học.
+2. KHÔNG xuất bảng markdown thô cứng hay lời chào dập khuôn máy móc.
+3. Nêu rõ nhiệt độ, cảm giác thực tế, khả năng mưa tại ${weatherData.city} và 1-2 lời khuyên sinh hoạt/di chuyển thực tế, hữu ích.`;
 
         const weatherRes = await safeGenerateContent({
           gemini: ai,
           contents: weatherPrompt,
         });
 
-        if (weatherRes?.text && weatherRes.text.trim().length > 30) {
+        if (weatherRes?.text && weatherRes.text.trim().length > 20) {
           const reply = weatherRes.text.trim();
           appendConversationTurn(sessionId, message, reply);
           return {
@@ -118,9 +126,9 @@ export async function processAiChat(
       }
 
       const directReply = weatherData.summary +
-        `\n\n💡 **Lời khuyên từ Trợ Lý AI:**\n` +
-        `• ${weatherData.precipitationProb > 40 ? '⚠️ Khả năng có mưa cao, bạn nhớ mang theo áo mưa hoặc ô (dù) khi ra ngoài.' : '☀️ Thời tiết thuận lợi cho các hoạt động ngoài trời.'}\n` +
-        `• ${weatherData.temperature >= 32 ? '🥤 Nhiệt độ khá cao và oi bức, hãy uống nhiều nước và che chắn cẩn thận khi ra đường.' : '🍃 Không khí tương đối dễ chịu và thoáng đãng.'}`;
+        `\n\n💡 **Lời khuyên:**\n` +
+        `• ${weatherData.precipitationProb > 40 ? '⚠️ Khả năng có mưa cao, bạn nhớ mang theo áo mưa hoặc ô khi ra ngoài.' : '☀️ Thời tiết thuận lợi cho các hoạt động và công việc.'}\n` +
+        `• ${weatherData.temperature >= 32 ? '🥤 Nhiệt độ khá cao, hãy bổ sung nước đầy đủ và che chắn nắng khi ra đường.' : '🍃 Không khí tương đối thoáng đãng và dễ chịu.'}`;
 
       appendConversationTurn(sessionId, message, directReply);
       return {

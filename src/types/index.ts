@@ -73,6 +73,7 @@ export interface TelegramConfig {
   alertOffsetMinutes: number;
   isConnected: boolean;
   timezone?: string; // default 'Asia/Ho_Chi_Minh' (UTC+7)
+  location?: string; // default 'Bắc Giang'
   webhookUrl?: string;
   webhookSecret?: string;
   morningBriefingHour?: number; // 0-23, default 7 (7:00 AM VN)
@@ -131,6 +132,7 @@ export interface UserProfile {
   email: string;
   avatarUrl: string;
   isGoogleConnected: boolean;
+  location?: string; // e.g. 'Bắc Giang'
 }
 
 export interface SecurityPinSettings {
@@ -182,6 +184,7 @@ export interface AiPersonaConfig {
   aiHonorific: string; // e.g. "Em", "Tôi", "Trợ lý", "Tiểu Mai", "Jarvis"
   communicationStyle: AiCommunicationStyle;
   focusDomain: string; // e.g. "Công nghệ, Quản trị dự án & Năng suất", "Y tế & An toàn", "Kinh doanh & Tài chính"
+  location?: string; // e.g. "Bắc Giang"
   speechRate: number; // 0.8 to 1.5, default 1.05
   speechPitch: number; // 0.8 to 1.3, default 1.0
   autoSpeakResponse: boolean;
