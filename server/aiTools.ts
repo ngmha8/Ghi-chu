@@ -634,8 +634,11 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       filtered = filtered.filter(
         f =>
           f.name.toLowerCase().includes(kw) ||
+          (f.notes && f.notes.toLowerCase().includes(kw)) ||
+          (f.description && f.description.toLowerCase().includes(kw)) ||
           (f.classification && f.classification.toLowerCase().includes(kw)) ||
-          (f.tags && f.tags.some(t => t.toLowerCase().includes(kw)))
+          (f.tags && f.tags.some(t => t.toLowerCase().includes(kw))) ||
+          (f.textContent && f.textContent.toLowerCase().includes(kw))
       );
 
       // If exact keyword match yielded 0 results, fallback to semantic embedding search
@@ -665,7 +668,8 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       .map((f, idx) => {
         const driveBadge = f.isSyncedToDrive ? '☁️ [Drive Sync]' : '💾 [Vault Cục Bộ]';
         const linkStr = f.webViewLink ? ` | [Mở xem](${f.webViewLink})` : '';
-        return `${idx + 1}. **${f.name}**\n   • Nhóm: \`${f.classification || 'Chưa phân loại'}\` | Định dạng: \`${f.category}\` ${driveBadge}${linkStr}`;
+        const notesStr = f.notes || f.description ? `\n   • Chú thích: _${f.notes || f.description}_` : '';
+        return `${idx + 1}. **${f.name}**\n   • Nhóm: \`${f.classification || 'Chưa phân loại'}\` | Định dạng: \`${f.category}\` ${driveBadge}${linkStr}${notesStr}`;
       })
       .join('\n');
 

@@ -60,7 +60,9 @@ import {
   Copy,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  NotebookPen,
+  MessageSquareQuote
 } from 'lucide-react';
 import {
   getStoredCategories,
@@ -181,6 +183,13 @@ export const FilesView: React.FC<FilesViewProps> = ({
   // Custom Google Drive Link Modal
   const [editingUrlFile, setEditingUrlFile] = useState<DriveFile | null>(null);
   const [inputUrl, setInputUrl] = useState('');
+
+  // Document Note / Annotation Editing State & Modal
+  const [editingNoteFile, setEditingNoteFile] = useState<DriveFile | null>(null);
+  const [noteInputText, setNoteInputText] = useState('');
+  const [noteInputTags, setNoteInputTags] = useState('');
+  const [isGeneratingAiNote, setIsGeneratingAiNote] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
 
   // Delete Confirmation Modal
   const [fileToDelete, setFileToDelete] = useState<DriveFile | null>(null);
@@ -352,7 +361,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
       const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
       
       setDriveSyncProgress(prev => prev ? { ...prev, percent: 60, statusText: 'Đang tải nhị phân lên Google Drive...' } : null);
-      const uploaded = await uploadLocalFileToUserGoogleDrive(file.id, targetFolderId);
+      const uploaded = await uploadLocalFileToUserGoogleDrive(file.id, targetFolderId, file.base64Data || (file as any).thumbnailUrl);
 
       setDriveSyncProgress(prev => prev ? { ...prev, percent: 95, statusText: 'Đã hoàn tất lưu Drive & giải phóng bộ nhớ cục bộ...' } : null);
 
@@ -426,7 +435,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
       });
 
       try {
-        const uploaded = await uploadLocalFileToUserGoogleDrive(f.id, targetFolderId);
+        const uploaded = await uploadLocalFileToUserGoogleDrive(f.id, targetFolderId, f.base64Data || (f as any).thumbnailUrl);
         if (onFileUpdate && uploaded.file) {
           onFileUpdate(f.id, uploaded.file);
         } else if (onFileUpdate) {
@@ -659,12 +668,32 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
     const created = await onFileUpload(filePayload);
 
+    // If user is authenticated with Google Account, automatically sync file/image to Google Drive
+    const userToken = getGoogleAccessToken();
+    if (created && userToken && !created.isSyncedToDrive) {
+      try {
+        setUploadProgress({
+          active: true,
+          fileName: rawFile.name,
+          progress: 85,
+          statusText: 'Đang tự động lưu tệp lên Google Drive của bạn...'
+        });
+        const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
+        const uploaded = await uploadLocalFileToUserGoogleDrive(created.id, targetFolderId, base64Data);
+        if (onFileUpdate && uploaded.file) {
+          onFileUpdate(created.id, uploaded.file);
+        }
+      } catch (driveErr) {
+        console.info('Auto Drive upload deferred:', driveErr);
+      }
+    }
+
     if (created?.isSyncedToDrive && created?.webViewLink) {
       setUploadProgress({
         active: true,
         fileName: rawFile.name,
         progress: 100,
-        statusText: '✅ Đã tải lên và kết nối Google Drive thành công!'
+        statusText: '✅ Đã tải lên và lưu trữ Google Drive thành công!'
       });
     } else {
       setUploadProgress({
@@ -720,18 +749,86 @@ export const FilesView: React.FC<FilesViewProps> = ({
     setInputUrl('');
   };
 
-  // Collect available tags across linked tasks and notes
+  const handleOpenEditNote = (file: DriveFile) => {
+    setEditingNoteFile(file);
+    setNoteInputText(file.notes || file.description || '');
+    setNoteInputTags(file.tags ? file.tags.join(', ') : '');
+  };
+
+  const handleSaveNote = async () => {
+    if (!editingNoteFile) return;
+    setIsSavingNote(true);
+    try {
+      const parsedTags = noteInputTags
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean);
+
+      const trimmedNote = noteInputText.trim();
+      const updatedData: Partial<DriveFile> = {
+        notes: trimmedNote,
+        description: trimmedNote,
+        tags: parsedTags.length > 0 ? parsedTags : editingNoteFile.tags || [],
+      };
+
+      if (onFileUpdate) {
+        await onFileUpdate(editingNoteFile.id, updatedData);
+      }
+
+      if (previewFile?.id === editingNoteFile.id) {
+        setPreviewFile({
+          ...previewFile,
+          ...updatedData,
+        });
+      }
+      setEditingNoteFile(null);
+    } catch (err) {
+      console.error('Error saving document note:', err);
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const handleGenerateAiNote = async () => {
+    if (!editingNoteFile) return;
+    setIsGeneratingAiNote(true);
+    try {
+      const catObj = resolveCategory(editingNoteFile.classification, categories);
+      const prompt = `Bạn là trợ lý quản lý tài liệu thông minh. Hãy tạo một đoạn chú thích tóm tắt ngắn gọn (1-2 câu, khoảng 15-30 từ) cho tài liệu sau giúp người dùng tra cứu nhanh chóng và dễ dàng tìm thấy mà không bị phụ thuộc hoàn toàn vào tên tệp:
+- Tên tệp: "${editingNoteFile.name}"
+- Nhóm phân loại: "${catObj.name}"
+- Định dạng: "${editingNoteFile.category}"
+${editingNoteFile.textContent ? `- Nội dung trích đoạn: ${editingNoteFile.textContent.slice(0, 400)}` : ''}
+
+Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự nhiên bằng tiếng Việt, không kèm lời giải thích hay ngoặc kép thừa.`;
+
+      const res = await api.sendChatMessage(prompt, false, [], 'doc_note_generator');
+      if (res?.reply) {
+        const cleaned = res.reply.replace(/^["'\s]+|["'\s]+$/g, '').trim();
+        setNoteInputText(cleaned);
+      }
+    } catch (e) {
+      const cleanName = editingNoteFile.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+      const catName = resolveCategory(editingNoteFile.classification, categories).name;
+      setNoteInputText(`Tài liệu ${cleanName} thuộc nhóm ${catName}, lưu trữ phục vụ tra cứu thông tin và thủ tục.`);
+    } finally {
+      setIsGeneratingAiNote(false);
+    }
+  };
+
+  // Collect available tags across files, tasks, notes, and categories
   const availableTags = useMemo(() => {
     const set = new Set<string>();
-    const defaults = ['Công việc', 'Cá nhân', 'Mẫu giấy tờ', 'Tài chính', 'Hợp đồng', 'Báo cáo', 'Dự án', 'Architecture'];
+    const defaults = ['Công việc', 'Cá nhân', 'Mẫu giấy tờ', 'Tài chính', 'Hợp đồng', 'Báo cáo', 'Dự án', 'Architecture', 'Hóa đơn', 'Bảo hiểm', 'Chứng chỉ'];
     defaults.forEach(t => set.add(t));
+    files?.forEach(f => f.tags?.forEach(tag => tag && set.add(tag.trim())));
     tasks?.forEach(t => t.tags?.forEach(tag => tag && set.add(tag.trim())));
     notes?.forEach(n => n.tags?.forEach(tag => tag && set.add(tag.trim())));
     categories.forEach(c => set.add(c.name));
     return Array.from(set).filter(Boolean);
-  }, [tasks, notes, categories]);
+  }, [files, tasks, notes, categories]);
 
-  // Main file filtering: Classification + Format + Search Keyword / #Tags
+  // Main file filtering: Classification + Format + Search Keyword across (Name, Notes, Description, Content, Tags, Categories)
   const filteredFiles = useMemo(() => {
     const filtered = files.filter(f => {
       // 1. Classification filter (Công việc, Cá nhân, Mẫu giấy tờ...)
@@ -748,17 +845,21 @@ export const FilesView: React.FC<FilesViewProps> = ({
         return false;
       }
 
-      // 3. Search query / #tag query
+      // 3. Search query / #tag query - Full multi-field match (Name, Notes, Description, Content, Category, Tags)
       if (search.trim()) {
-        const q = search.toLowerCase();
+        const q = search.toLowerCase().trim();
         const tagQueries = q.match(/#([\w\p{L}]+)/gu)?.map(t => t.slice(1).toLowerCase()) || [];
         const nonTagQ = q.replace(/#([\w\p{L}]+)/gu, '').trim();
 
         const matchName = !nonTagQ || f.name.toLowerCase().includes(nonTagQ);
+        const matchNotes = !nonTagQ || (!!f.notes && f.notes.toLowerCase().includes(nonTagQ));
+        const matchDescription = !nonTagQ || (!!f.description && f.description.toLowerCase().includes(nonTagQ));
+        const matchContent = !nonTagQ || (!!f.textContent && f.textContent.toLowerCase().includes(nonTagQ));
 
         const linkedTasks = tasks.filter(t => t.attachedFileIds?.includes(f.id));
         const linkedNotes = notes.filter(n => n.attachedFileIds?.includes(f.id));
         const resolvedCat = resolveCategory(f.classification, categories);
+        const matchCatName = !nonTagQ || resolvedCat.name.toLowerCase().includes(nonTagQ);
 
         const fileTags = [
           ...(f.tags || []),
@@ -774,7 +875,9 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
         const matchAnyTag = fileTags.some(t => t.toLowerCase().includes(q));
 
-        return (matchName && matchAllTags) || matchAnyTag;
+        const matchAnyField = matchName || matchNotes || matchDescription || matchContent || matchCatName;
+
+        return (matchAnyField && matchAllTags) || matchAnyTag;
       }
       return true;
     });
@@ -1065,7 +1168,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#151515] p-3 rounded-sm border border-[#2A2A2A]">
         <div className="flex-1 w-full">
           <TagSearchInput
-            placeholder="Tìm kiếm tài liệu (tên file, nội dung, gõ #tag hoặc phân loại)..."
+            placeholder="Tìm kiếm tài liệu (tên file, chú thích, nội dung, gõ #tag hoặc phân loại)..."
             value={search}
             onChange={setSearch}
             availableTags={availableTags}
@@ -1365,6 +1468,15 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
                     <div className="flex items-center gap-1">
                       <button
+                        onClick={() => handleOpenEditNote(file)}
+                        className={`p-1.5 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] border transition-colors cursor-pointer ${
+                          file.notes || file.description ? 'text-[#D4AF37] border-[#D4AF37]/50 shadow-xs' : 'text-[#888888] hover:text-[#D4AF37] border-[#2A2A2A]'
+                        }`}
+                        title={file.notes || file.description ? `Chú thích: "${file.notes || file.description}" (Bấm để sửa)` : 'Thêm chú thích cho tài liệu'}
+                      >
+                        <NotebookPen className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => setPreviewFile(file)}
                         className="p-1.5 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#888888] hover:text-white border border-[#2A2A2A] transition-colors cursor-pointer"
                         title="Xem trước tài liệu"
@@ -1517,6 +1629,57 @@ export const FilesView: React.FC<FilesViewProps> = ({
                       </div>
                     )}
                   </div>
+
+                  {/* Document Note / Annotation Section */}
+                  {file.notes || file.description ? (
+                    <div
+                      onClick={() => handleOpenEditNote(file)}
+                      className={`p-2 rounded-sm bg-[#0B0B0B] border hover:border-[#D4AF37]/60 transition-all cursor-pointer group/notebox ${
+                        search.trim() && (
+                          (file.notes && file.notes.toLowerCase().includes(search.toLowerCase().trim())) ||
+                          (file.description && file.description.toLowerCase().includes(search.toLowerCase().trim()))
+                        )
+                          ? 'border-[#D4AF37] ring-1 ring-[#D4AF37]/30 bg-[#121008]'
+                          : 'border-[#222222]'
+                      }`}
+                      title="Bấm vào để chỉnh sửa chú thích tài liệu"
+                    >
+                      <div className="flex items-start gap-1.5 text-xs">
+                        <NotebookPen className="w-3 h-3 text-[#D4AF37] shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] text-[#CFCFCF] group-hover/notebox:text-white line-clamp-2 leading-relaxed italic">
+                            "{file.notes || file.description}"
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditNote(file)}
+                      className="w-full text-left px-2 py-1 rounded bg-[#0A0A0A] hover:bg-[#111111] border border-dashed border-[#262626] hover:border-[#D4AF37]/40 text-[10px] text-[#777777] hover:text-[#D4AF37] flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Thêm chú thích giúp tìm kiếm tài liệu nhanh hơn"
+                    >
+                      <Plus className="w-3 h-3 text-[#555555]" />
+                      <span>+ Thêm chú thích tìm kiếm...</span>
+                    </button>
+                  )}
+
+                  {/* Document Custom Tags */}
+                  {file.tags && file.tags.length > 0 && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {file.tags.map((t, idx) => (
+                        <span
+                          key={idx}
+                          onClick={() => setSearch(`#${t}`)}
+                          className="text-[9px] px-1.5 py-0.5 rounded bg-[#0D0D0D] border border-[#262626] text-[#A0A0A0] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 font-mono transition-colors cursor-pointer"
+                          title={`Bấm để lọc theo #${t}`}
+                        >
+                          #{t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Linked indicators */}
                   {(linkedTasks.length > 0 || linkedNotes.length > 0) && (
@@ -1760,6 +1923,51 @@ export const FilesView: React.FC<FilesViewProps> = ({
                 </div>
               </div>
 
+              {/* Note / Annotation Section in Preview */}
+              <div className="bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm p-3.5 space-y-2">
+                <div className="flex items-center justify-between border-b border-[#222222] pb-1.5">
+                  <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
+                    <NotebookPen className="w-3.5 h-3.5" />
+                    Chú Thích & Ghi Nhớ Tài Liệu (Hỗ trợ tìm kiếm không phụ thuộc tên tệp)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditNote(previewFile)}
+                    className="text-[11px] text-[#D4AF37] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    title="Chỉnh sửa chú thích tài liệu"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    <span>{previewFile.notes || previewFile.description ? 'Sửa chú thích' : '+ Thêm chú thích'}</span>
+                  </button>
+                </div>
+                {previewFile.notes || previewFile.description ? (
+                  <p className="text-xs text-[#E0E0E0] italic leading-relaxed bg-[#121212] p-2.5 rounded border border-[#222222]">
+                    "{previewFile.notes || previewFile.description}"
+                  </p>
+                ) : (
+                  <div className="flex items-center justify-between bg-[#121212] p-2.5 rounded border border-dashed border-[#222222]">
+                    <span className="text-xs text-[#777777]">Chưa có chú thích nào cho tài liệu này.</span>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditNote(previewFile)}
+                      className="px-2 py-1 bg-[#1A1A1A] hover:bg-[#D4AF37] text-[#D4AF37] hover:text-black font-bold text-[10px] uppercase tracking-wider rounded transition-colors cursor-pointer"
+                    >
+                      + Thêm chú thích ngay
+                    </button>
+                  </div>
+                )}
+                {previewFile.tags && previewFile.tags.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span className="text-[10px] text-[#666666] font-mono uppercase">Thẻ tags:</span>
+                    {previewFile.tags.map((tag, i) => (
+                      <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-[#161616] border border-[#2A2A2A] text-[#CCCCCC] font-mono">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* In-App Document Viewer Area */}
               <div className="bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm p-4 min-h-[180px] max-h-[280px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-3 border-b border-[#2A2A2A] pb-2">
@@ -1956,6 +2164,156 @@ export const FilesView: React.FC<FilesViewProps> = ({
                 }`}
               >
                 {categoryToDelete.fileCount > 0 ? 'Đồng Ý & Chuyển Về Khác' : 'Xác Nhận Xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 9. DOCUMENT NOTE / ANNOTATION EDITOR MODAL */}
+      {/* ============================================================== */}
+      {editingNoteFile && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 z-60 animate-in fade-in duration-150">
+          <div className="bg-[#151515] border border-[#2A2A2A] w-full max-w-lg rounded-sm shadow-2xl overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-[#2A2A2A] p-4 bg-[#111111]">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-2 rounded bg-[#0C0C0C] border border-[#D4AF37]/40 text-[#D4AF37] shrink-0">
+                  <NotebookPen className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-editorial-serif font-bold text-white text-sm truncate">
+                    Chú Thích & Thẻ Tìm Kiếm Tài Liệu
+                  </h3>
+                  <p className="text-[10px] text-[#888888] truncate font-mono">
+                    {editingNoteFile.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingNoteFile(null)}
+                className="p-1 text-[#888888] hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 text-xs">
+              {/* Document Summary Info */}
+              <div className="flex items-center justify-between p-2.5 rounded bg-[#0C0C0C] border border-[#252525] text-[11px]">
+                <div className="flex items-center gap-1.5 text-[#AAAAAA]">
+                  <span>Nhóm:</span>
+                  <strong className="text-white">{resolveCategory(editingNoteFile.classification, categories).name}</strong>
+                </div>
+                <div className="flex items-center gap-1.5 text-[#888888] font-mono text-[10px]">
+                  <span>{(editingNoteFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                  <span>•</span>
+                  <span>{editingNoteFile.category.toUpperCase()}</span>
+                </div>
+              </div>
+
+              {/* Note Textarea & AI Suggestion Button */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
+                    <MessageSquareQuote className="w-3.5 h-3.5" />
+                    Nội dung chú thích / Mô tả tài liệu:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateAiNote}
+                    disabled={isGeneratingAiNote}
+                    className="px-2 py-0.5 rounded bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 text-[#D4AF37] border border-[#D4AF37]/40 text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                    title="Dùng AI tự động viết chú thích súc tích theo nội dung tệp"
+                  >
+                    <Sparkles className={`w-3 h-3 ${isGeneratingAiNote ? 'animate-spin' : ''}`} />
+                    <span>{isGeneratingAiNote ? 'Đang tạo...' : '✨ AI Gợi Ý Chú Thích'}</span>
+                  </button>
+                </div>
+                <textarea
+                  value={noteInputText}
+                  onChange={(e) => setNoteInputText(e.target.value)}
+                  placeholder="Ví dụ: Giấy chứng nhận tốt nghiệp nộp phòng Đào tạo, Hợp đồng thuê nhà 2026, Bản sao công chứng hồ sơ..."
+                  rows={4}
+                  className="w-full p-3 bg-[#0C0C0C] border border-[#333333] focus:border-[#D4AF37] focus:outline-none rounded text-xs text-[#E0E0E0] placeholder:text-[#666666] leading-relaxed resize-none"
+                  autoFocus
+                />
+                <div className="flex items-center justify-between text-[10px] text-[#777777]">
+                  <span>💡 Giúp tìm kiếm file dễ dàng qua từ khóa hoặc hỏi AI mà không bị phụ thuộc vào tên tệp</span>
+                  <span>{noteInputText.length} ký tự</span>
+                </div>
+              </div>
+
+              {/* Custom Tags Section */}
+              <div className="space-y-2 pt-1 border-t border-[#222222]">
+                <label className="text-[11px] font-bold text-[#AAAAAA] uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  Thẻ từ khóa bổ sung (Tags, cách nhau bởi dấu phẩy):
+                </label>
+                <input
+                  type="text"
+                  value={noteInputTags}
+                  onChange={(e) => setNoteInputTags(e.target.value)}
+                  placeholder="Ví dụ: hợp đồng, tài chính, năm 2026, quan trọng..."
+                  className="w-full p-2.5 bg-[#0C0C0C] border border-[#333333] focus:border-[#D4AF37] focus:outline-none rounded text-xs text-[#E0E0E0] placeholder:text-[#666666]"
+                />
+
+                {/* Quick Tag Recommendations */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                  <span className="text-[10px] text-[#666666]">Gợi ý thẻ nhanh:</span>
+                  {['Hợp đồng', 'Báo cáo', 'Hóa đơn', 'Bảo hiểm', 'Cá nhân', 'Công việc', 'Chứng chỉ', 'Quan trọng'].map((t) => {
+                    const currentList = noteInputTags.split(',').map(s => s.trim().toLowerCase());
+                    const isAdded = currentList.includes(t.toLowerCase());
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => {
+                          if (isAdded) {
+                            const filtered = noteInputTags
+                              .split(',')
+                              .map(s => s.trim())
+                              .filter(s => s.toLowerCase() !== t.toLowerCase());
+                            setNoteInputTags(filtered.join(', '));
+                          } else {
+                            const current = noteInputTags.trim();
+                            setNoteInputTags(current ? `${current}, ${t}` : t);
+                          }
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                          isAdded
+                            ? 'bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37] font-bold'
+                            : 'bg-[#0C0C0C] border-[#2A2A2A] text-[#888888] hover:text-white hover:border-[#444444]'
+                        }`}
+                      >
+                        {isAdded ? `✓ #${t}` : `+ #${t}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2.5 p-4 border-t border-[#2A2A2A] bg-[#111111]">
+              <button
+                type="button"
+                onClick={() => setEditingNoteFile(null)}
+                className="px-4 py-2 bg-[#0C0C0C] hover:bg-[#1A1A1A] text-white border border-[#2A2A2A] text-xs font-bold rounded cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveNote}
+                disabled={isSavingNote}
+                className="px-5 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black text-xs font-bold uppercase tracking-wider rounded cursor-pointer shadow-md flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{isSavingNote ? 'Đang lưu...' : 'Lưu Chú Thích'}</span>
               </button>
             </div>
           </div>

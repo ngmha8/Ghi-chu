@@ -6,7 +6,8 @@ import { getGoogleAccessToken, signInWithGoogleWorkspace } from './googleAuth.js
  */
 export async function uploadLocalFileToUserGoogleDrive(
   fileId: string,
-  targetFolderId?: string
+  targetFolderId?: string,
+  base64Data?: string
 ): Promise<{ driveFileId: string; webViewLink: string; file: any }> {
   let token = getGoogleAccessToken();
 
@@ -25,7 +26,7 @@ export async function uploadLocalFileToUserGoogleDrive(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ folderId: targetFolderId }),
+    body: JSON.stringify({ folderId: targetFolderId, base64Data }),
   });
 
   if (!res.ok) {

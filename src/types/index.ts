@@ -56,6 +56,8 @@ export interface DriveFile {
   category: 'document' | 'spreadsheet' | 'presentation' | 'pdf' | 'image' | 'archive' | 'other';
   classification?: string; // ID or name of DocumentCategory e.g. 'work' | 'personal' | 'templates' | 'finance' | 'legal' | 'projects' | 'other'
   tags?: string[];
+  notes?: string; // Chú thích / ghi chú chi tiết cho tài liệu để tìm kiếm nhanh
+  description?: string; // Mô tả vắn tắt hoặc trích xuất tóm lược
   isSyncedToDrive: boolean;
   driveFileId?: string;
   uploadedAt: string;
@@ -64,6 +66,8 @@ export interface DriveFile {
   downloadUrl?: string;
   previewUrl?: string;
   textContent?: string;
+  base64Data?: string;
+  thumbnailUrl?: string;
 }
 
 export interface TelegramConfig {
