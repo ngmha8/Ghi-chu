@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, Tag, Hash, Check } from 'lucide-react';
+import { Search, Tag, Hash, Check, X } from 'lucide-react';
 
 interface TagSearchInputProps {
   value: string;
@@ -156,17 +156,34 @@ export const TagSearchInput: React.FC<TagSearchInputProps> = ({
 
   return (
     <div ref={containerRef} className={`relative w-full ${className}`}>
-      <div className="relative flex items-center">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#666666] pointer-events-none" />
+      <div className="relative flex items-center w-full">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#777777] pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
           value={value}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          title={value ? `Đang tìm: ${value}` : undefined}
           placeholder={placeholder}
-          className={`w-full pl-9 pr-4 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] placeholder-[#666666] focus:outline-none focus:border-[#D4AF37] transition-colors ${inputClassName}`}
+          className={`w-full pl-9 pr-10 py-2 bg-[#0C0C0C] hover:bg-[#111111] border border-[#2E2E2E] rounded-sm text-[13px] text-[#EDEDED] placeholder-[#666666] focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 transition-all ${inputClassName}`}
         />
+        {value && (
+          <button
+            type="button"
+            onClick={() => {
+              onChange('');
+              setIsOpen(false);
+              setSearchQuery('');
+              setHashPos(null);
+              inputRef.current?.focus();
+            }}
+            title="Xóa tìm kiếm"
+            className="absolute right-2.5 p-1 rounded-sm text-[#777777] hover:text-[#E0E0E0] hover:bg-[#222222] transition-colors cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Autocomplete Dropdown */}

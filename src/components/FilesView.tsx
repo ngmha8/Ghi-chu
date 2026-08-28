@@ -510,13 +510,26 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Change Classification for a file
   const handleUpdateFileClassification = (fileId: string, newClassification: string) => {
+    const targetFile = files.find(f => f.id === fileId);
+    let updatedTags = targetFile?.tags ? [...targetFile.tags] : [];
+
+    // Filter out obsolete/unclassified tags and placeholder tokens
+    updatedTags = updatedTags.filter(t => {
+      const clean = t.toLowerCase().trim();
+      return clean && clean !== 'unclassified' && clean !== 'chưa xác định' && clean !== 'chưa phân loại';
+    });
+
     if (onFileUpdate) {
-      onFileUpdate(fileId, { classification: newClassification });
+      onFileUpdate(fileId, { 
+        classification: newClassification,
+        tags: updatedTags 
+      });
     }
     if (previewFile?.id === fileId) {
       setPreviewFile({
         ...previewFile,
         classification: newClassification,
+        tags: updatedTags,
       });
     }
     setOpenCategoryPopoverFileId(null);
@@ -658,7 +671,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
       size: rawFile.size,
       category: formatCat,
       classification: targetClassification,
-      tags: [resolveCategory(targetClassification, categories).name],
+      tags: [],
       isSyncedToDrive: false,
       syncStatus: 'local_only',
       downloadUrl: `/api/files/download/${fileId}`,
@@ -761,14 +774,22 @@ export const FilesView: React.FC<FilesViewProps> = ({
     try {
       const parsedTags = noteInputTags
         .split(',')
-        .map(t => t.trim())
-        .filter(Boolean);
+        .map(t => t.trim().replace(/^#+/, ''))
+        .filter(t => {
+          const clean = t.toLowerCase();
+          return clean && clean !== 'unclassified' && clean !== 'chưa xác định' && clean !== 'chưa phân loại';
+        });
 
       const trimmedNote = noteInputText.trim();
+      const currentTags = (editingNoteFile.tags || []).filter(t => {
+        const clean = t.toLowerCase().trim();
+        return clean && clean !== 'unclassified' && clean !== 'chưa xác định' && clean !== 'chưa phân loại';
+      });
+
       const updatedData: Partial<DriveFile> = {
         notes: trimmedNote,
         description: trimmedNote,
-        tags: parsedTags.length > 0 ? parsedTags : editingNoteFile.tags || [],
+        tags: parsedTags.length > 0 ? parsedTags : currentTags,
       };
 
       if (onFileUpdate) {
@@ -1665,19 +1686,27 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     </button>
                   )}
 
-                  {/* Document Custom Tags */}
-                  {file.tags && file.tags.length > 0 && (
+                  {/* Document Custom Tags (excluding unclassified or category name duplicates) */}
+                  {file.tags && file.tags.filter(t => {
+                    const clean = t.toLowerCase().trim();
+                    return clean && clean !== 'unclassified' && clean !== 'chưa xác định' && clean !== 'chưa phân loại' && clean !== resolvedCat.name.toLowerCase() && clean !== resolvedCat.id.toLowerCase();
+                  }).length > 0 && (
                     <div className="flex items-center gap-1 flex-wrap">
-                      {file.tags.map((t, idx) => (
-                        <span
-                          key={idx}
-                          onClick={() => setSearch(`#${t}`)}
-                          className="text-[9px] px-1.5 py-0.5 rounded bg-[#0D0D0D] border border-[#262626] text-[#A0A0A0] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 font-mono transition-colors cursor-pointer"
-                          title={`Bấm để lọc theo #${t}`}
-                        >
-                          #{t}
-                        </span>
-                      ))}
+                      {file.tags
+                        .filter(t => {
+                          const clean = t.toLowerCase().trim();
+                          return clean && clean !== 'unclassified' && clean !== 'chưa xác định' && clean !== 'chưa phân loại' && clean !== resolvedCat.name.toLowerCase() && clean !== resolvedCat.id.toLowerCase();
+                        })
+                        .map((t, idx) => (
+                          <span
+                            key={idx}
+                            onClick={() => setSearch(`#${t}`)}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-[#0D0D0D] border border-[#262626] text-[#A0A0A0] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 font-mono transition-colors cursor-pointer"
+                            title={`Bấm để lọc theo #${t}`}
+                          >
+                            #{t}
+                          </span>
+                        ))}
                     </div>
                   )}
 
@@ -1956,16 +1985,26 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     </button>
                   </div>
                 )}
-                {previewFile.tags && previewFile.tags.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                    <span className="text-[10px] text-[#666666] font-mono uppercase">Thẻ tags:</span>
-                    {previewFile.tags.map((tag, i) => (
-                      <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-[#161616] border border-[#2A2A2A] text-[#CCCCCC] font-mono">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                {(() => {
+                  const resolvedPreviewCat = resolveCategory(previewFile.classification, categories);
+                  const validTags = (previewFile.tags || []).filter(t => {
+                    const clean = t.toLowerCase().trim();
+                    return clean && clean !== 'unclassified' && clean !== 'chưa xác định' && clean !== 'chưa phân loại' && clean !== resolvedPreviewCat.name.toLowerCase() && clean !== resolvedPreviewCat.id.toLowerCase();
+                  });
+
+                  if (validTags.length === 0) return null;
+
+                  return (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      <span className="text-[10px] text-[#666666] font-mono uppercase">Thẻ tags:</span>
+                      {validTags.map((tag, i) => (
+                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-[#161616] border border-[#2A2A2A] text-[#CCCCCC] font-mono">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* In-App Document Viewer Area */}

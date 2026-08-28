@@ -91,28 +91,28 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-[#0F0F0F]/95 backdrop-blur border-b border-[#2A2A2A] text-[#E0E0E0]">
       {/* Top Navbar Row */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-2 sm:gap-3 md:gap-4">
         
         {/* Brand Logo & Name */}
-        <div className="flex items-center gap-4 shrink-0 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
-          <div className="w-10 h-10 rounded-sm bg-[#151515] border border-[#2A2A2A] flex items-center justify-center text-[#D4AF37]">
-            <Sparkles className="w-5 h-5 text-[#D4AF37]" />
+        <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-sm bg-[#151515] border border-[#2A2A2A] flex items-center justify-center text-[#D4AF37] shrink-0">
+            <Sparkles className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-[#D4AF37]" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-editorial-serif italic text-2xl text-[#D4AF37] tracking-tight">
+          <div className="shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h1 className="font-editorial-serif italic text-xl sm:text-2xl text-[#D4AF37] tracking-tight whitespace-nowrap">
                 Architect.OS
               </h1>
-              <span className="text-[9px] uppercase tracking-[0.2em] font-bold px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30">
+              <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 whitespace-nowrap">
                 v2.4.0
               </span>
             </div>
-            <p className="text-[10px] uppercase tracking-widest text-[#888888] hidden sm:block">AI Productivity Suite</p>
+            <p className="text-[9px] uppercase tracking-widest text-[#888888] hidden sm:block whitespace-nowrap">AI Productivity Suite</p>
           </div>
         </div>
 
-        {/* Global Search Input with instant tasks, notes, files list results */}
-        <div className="flex-1 max-w-lg hidden md:block relative">
+        {/* Global Search Input - Dedicated Section that flexes dynamically without pushing buttons out */}
+        <div className="flex-1 min-w-0 max-w-lg lg:max-w-xl mx-1 sm:mx-3 relative">
           <GlobalSearchInput
             placeholder="Tìm kiếm công việc, ghi chú, tài liệu (gõ # để gợi ý tag)..."
             value={searchQuery}
@@ -127,71 +127,53 @@ export const Header: React.FC<HeaderProps> = ({
           />
         </div>
 
-        {/* Actions & Profile */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Actions & Profile (Always stays in viewport without clipping) */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Quick Create Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={openNewTaskModal}
-              className="px-3 py-2 text-xs font-bold uppercase tracking-widest rounded-sm bg-[#D4AF37] text-black hover:bg-[#c29f2e] transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 sm:px-3.5 py-2 text-xs font-bold uppercase tracking-wider rounded-sm bg-[#D4AF37] text-black hover:bg-[#c29f2e] transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0 whitespace-nowrap"
+              title="Tạo công việc mới"
             >
               <Plus className="w-3.5 h-3.5 stroke-[3]" />
               <span className="hidden sm:inline">Thêm Task</span>
+              <span className="sm:hidden">Task</span>
             </button>
             <button
               onClick={openNewNoteModal}
-              className="px-3 py-2 text-xs font-semibold uppercase tracking-wider rounded-sm bg-[#1A1A1A] border border-[#2A2A2A] text-[#E0E0E0] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 sm:px-3.5 py-2 text-xs font-semibold uppercase tracking-wider rounded-sm bg-[#161616] border border-[#2E2E2E] text-[#E0E0E0] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] hover:bg-[#1C1C1C] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+              title="Tạo ghi chú mới"
             >
               <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
               <span className="hidden sm:inline">Ghi Chú</span>
+              <span className="sm:hidden">Note</span>
             </button>
           </div>
 
-          {/* AI Assistant Chat & Voice Mode Triggers */}
-          <button
-            onClick={onOpenVoiceFocus}
-            className="px-3 py-2 text-xs font-bold uppercase tracking-wider rounded-sm bg-[#151515] border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/10 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-            title="Mở chế độ đàm thoại giọng nói 2 chiều toàn màn hình (Focus Mode)"
-          >
-            <Mic className="w-3.5 h-3.5 text-[#D4AF37] animate-pulse" />
-            <span className="hidden lg:inline">Thoại 2 Chiều</span>
-          </button>
-
-          <button
-            onClick={() => setIsAiDrawerOpen(!isAiDrawerOpen)}
-            className={`px-3 py-2 text-xs font-bold uppercase tracking-wider rounded-sm flex items-center gap-2 transition-all cursor-pointer ${
-              isAiDrawerOpen
-                ? 'bg-[#D4AF37] text-black border border-[#D4AF37]'
-                : 'bg-[#151515] border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#1A1A1A]'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-            <span className="hidden md:inline">Hỏi AI</span>
-          </button>
-
-          {/* Cloud Firestore & Google Drive Status */}
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[11px] text-[#A0A0A0]">
+          {/* Unified Cloud Firestore & Google Drive Status Pill */}
+          <div className="hidden xl:flex items-center gap-2 px-2.5 py-1.5 bg-[#141414] border border-[#282828] rounded-sm text-[11px] text-[#A0A0A0] shrink-0 whitespace-nowrap" title="Firestore DB & Google Drive tự động đồng bộ thời gian thực">
             <span className="text-amber-400 font-bold flex items-center gap-1">
-              🔥 Firestore
+              🔥 <span>Firestore</span>
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          </div>
-
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[11px] text-[#A0A0A0]">
-            <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Drive Sync</span>
+            <span className="text-[#333]">•</span>
+            <span className="flex items-center gap-1 text-emerald-400 font-medium">
+              <HardDrive className="w-3.5 h-3.5" />
+              <span>Drive</span>
+            </span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           </div>
 
-          {/* Quick Lock Button */}
+          {/* Quick Lock PIN Button - guaranteed visible */}
           <button
             type="button"
             onClick={onLockApp}
-            className="p-2 rounded-sm bg-[#151515] hover:bg-[#202020] text-[#888888] hover:text-[#D4AF37] border border-[#2A2A2A] hover:border-[#D4AF37]/40 transition-colors cursor-pointer flex items-center gap-1.5"
+            className="px-2.5 sm:px-3 py-2 rounded-sm bg-[#151515] hover:bg-[#202020] text-[#D4AF37] border border-[#2A2A2A] hover:border-[#D4AF37]/40 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             title="Khóa ứng dụng (Yêu cầu mã PIN)"
           >
             <Lock className="w-3.5 h-3.5 text-[#D4AF37]" />
-            <span className="hidden xl:inline text-xs font-bold text-[#D4AF37]">Khóa PIN</span>
+            <span className="text-xs font-bold text-[#D4AF37] hidden md:inline">Khóa PIN</span>
           </button>
         </div>
       </div>
@@ -298,10 +280,54 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="absolute right-0 top-full mt-1.5 w-64 bg-[#141414] border border-[#2A2A2A] rounded-lg shadow-2xl z-50 py-1.5 backdrop-blur-md animate-fadeIn divide-y divide-[#222222]">
                 <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#666666] flex items-center justify-between">
                   <span>Hệ thống & Trí tuệ AI</span>
-                  <span className="text-[#D4AF37]">4 tính năng</span>
+                  <span className="text-[#D4AF37]">Trợ lý & Cài đặt</span>
                 </div>
 
                 <div className="p-1 space-y-0.5">
+                  {/* AI Assistant Chat Trigger */}
+                  <button
+                    onClick={() => {
+                      setIsAiDrawerOpen(true);
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer text-[#CCCCCC] hover:text-[#D4AF37] hover:bg-[#1E1E1E]"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-md bg-[#D4AF37]/15 text-[#D4AF37]">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                          Trò Chuyện & Hỏi AI
+                        </div>
+                        <div className="text-[10px] text-[#777777]">Tra cứu, phân tích & tóm tắt</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1A1A1A] border border-[#333333] text-[#D4AF37] font-mono">Mở</span>
+                  </button>
+
+                  {/* Two-Way Voice Focus Mode Trigger */}
+                  <button
+                    onClick={() => {
+                      onOpenVoiceFocus();
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer text-[#CCCCCC] hover:text-[#D4AF37] hover:bg-[#1E1E1E]"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-md bg-[#D4AF37]/15 text-[#D4AF37]">
+                        <Mic className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                          Thoại 2 Chiều (Voice)
+                        </div>
+                        <div className="text-[10px] text-[#777777]">Đàm thoại tương tác âm thanh</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1A1A1A] border border-[#333333] text-[#D4AF37] font-mono">Mic</span>
+                  </button>
+
                   {/* 1. Telegram Bot */}
                   <button
                     onClick={() => {

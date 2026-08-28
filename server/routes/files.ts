@@ -88,6 +88,14 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
+    const rawTags: string[] = Array.isArray(req.body.tags) ? req.body.tags : [];
+    const cleanTags = rawTags
+      .map(t => String(t).trim())
+      .filter(t => {
+        const lower = t.toLowerCase();
+        return lower && lower !== 'unclassified' && lower !== 'chưa xác định' && lower !== 'chưa phân loại';
+      });
+
     const newFile: DriveFile = {
       id: fileId,
       name: fileName,
@@ -96,7 +104,7 @@ router.post('/', async (req: Request, res: Response) => {
       webViewLink: isSynced && webViewLink ? webViewLink : undefined,
       category: req.body.category || 'document',
       classification: req.body.classification || 'unclassified',
-      tags: req.body.tags || [],
+      tags: cleanTags,
       notes: req.body.notes || req.body.description || undefined,
       description: req.body.description || undefined,
       isSyncedToDrive: isSynced,
@@ -407,9 +415,20 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
     }
+
+    const mergedTags = req.body.tags !== undefined ? req.body.tags : file.tags;
+    const rawTags: string[] = Array.isArray(mergedTags) ? mergedTags : [];
+    const cleanTags = rawTags
+      .map(t => String(t).trim())
+      .filter(t => {
+        const lower = t.toLowerCase();
+        return lower && lower !== 'unclassified' && lower !== 'chưa xác định' && lower !== 'chưa phân loại';
+      });
+
     const updated: DriveFile = {
       ...file,
       ...req.body,
+      tags: cleanTags,
       id: fileId,
     };
     const saved = await saveDbFile(updated);
