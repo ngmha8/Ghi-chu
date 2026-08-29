@@ -1,6 +1,6 @@
 {
   "name": "AI Personal Productivity Assistant",
   "description": "Hệ thống AI Assistant quản lý công việc, ghi chú, tài liệu Google Drive, thông báo Telegram và Chat AI thông minh.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

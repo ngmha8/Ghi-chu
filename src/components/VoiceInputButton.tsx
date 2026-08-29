@@ -19,6 +19,8 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
 
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<any>(null);
@@ -153,10 +155,12 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
       };
 
       mediaRecorder.start();
-    } catch (mediaErr) {
-      console.error('Cannot access microphone:', mediaErr);
+    } catch (mediaErr: any) {
+      console.warn('Cannot access microphone:', mediaErr);
       setIsRecording(false);
       if (timerRef.current) clearInterval(timerRef.current);
+      setPermissionError('Vui lòng cho phép quyền truy cập Micro trên trình duyệt để ghi âm.');
+      setTimeout(() => setPermissionError(null), 4000);
     }
   };
 
@@ -202,6 +206,12 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
           <Mic className="w-4 h-4" />
         )}
       </button>
+
+      {permissionError && (
+        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-neutral-900 text-amber-300 border border-amber-500/50 rounded text-[11px] whitespace-nowrap shadow-xl z-50">
+          ⚠️ {permissionError}
+        </span>
+      )}
 
       {isRecording && (
         <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-red-950 text-red-200 border border-red-700/60 rounded text-[10px] whitespace-nowrap shadow-lg z-50 animate-bounce">
