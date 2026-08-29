@@ -102,11 +102,11 @@ export function assessTaskRisk(task: Task, nowMs: number, timeZone: string = 'As
 export function buildProactiveAlertKeyboard(task: Task): TelegramInlineKeyboard {
   return [
     [
-      { text: '✅ Đã hoàn thành', callback_data: `task:done:${task.id}` },
-      { text: '⏰ Gia hạn +1h', callback_data: `task:snooze1h:${task.id}` },
+      { text: '✅ Đã hoàn thành', callback_data: `done:${task.id}` },
+      { text: '⏰ Gia hạn +1h', callback_data: `snooze:${task.id}:60` },
     ],
     [
-      { text: '⏳ Gia hạn +3h', callback_data: `task:snooze3h:${task.id}` },
+      { text: '⏳ Gia hạn +3h', callback_data: `snooze:${task.id}:180` },
       { text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' },
     ],
   ];

@@ -126,19 +126,47 @@ export async function processTelegramUpdate(
     console.log(`🔘 Telegram Inline Button: [${data}] from Chat ID: ${chatId}`);
 
     // A. Done task
-    if (data.startsWith('done:')) {
-      const taskId = data.replace('done:', '');
+    if (
+      data.startsWith('done:') ||
+      data.startsWith('task:done:') ||
+      data.startsWith('task_done:') ||
+      data.startsWith('complete:') ||
+      data.startsWith('task:complete:')
+    ) {
+      let taskId = '';
+      if (data.startsWith('task:done:')) taskId = data.replace('task:done:', '');
+      else if (data.startsWith('task_done:')) taskId = data.replace('task_done:', '');
+      else if (data.startsWith('task:complete:')) taskId = data.replace('task:complete:', '');
+      else if (data.startsWith('complete:')) taskId = data.replace('complete:', '');
+      else if (data.startsWith('done:')) taskId = data.replace('done:', '');
+      taskId = taskId.trim();
+
       const currentTasks = await getDbTasks();
-      const target = currentTasks.find(t => t.id === taskId);
+      const target = currentTasks.find(
+        t => t.id === taskId || t.id.toLowerCase() === taskId.toLowerCase() || (taskId && t.id.includes(taskId))
+      );
+
       if (target) {
         target.status = 'completed';
         target.updatedAt = new Date().toISOString();
         await saveDbTask(target);
         await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `✅ Đã hoàn thành: ${target.title}`);
+        
+        // Log to notification audit trail
+        await addDbNotificationLog({
+          id: `notif-done-${Date.now()}`,
+          title: `✅ Hoàn thành qua Telegram: ${target.title}`,
+          message: `Người dùng đã nhấn xác nhận hoàn thành công việc "${target.title}" trực tiếp từ Telegram Bot.`,
+          channel: 'telegram',
+          status: 'sent',
+          timestamp: new Date().toISOString(),
+          taskId: target.id,
+        });
+
         await sendTelegramMessage(
           telegramConfig.botToken,
           chatId,
-          `🎉 *ĐÃ HOÀN THÀNH CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\nTrạng thái: *Đã hoàn thành (Completed)* ✅\n\n_Dữ liệu đã được lưu trữ tự động vào Firestore._`,
+          `🎉 *ĐÃ HOÀN THÀNH CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\nTrạng thái: *Đã hoàn thành (Completed)* ✅\n\n_Dữ liệu đã được lưu trữ & đồng bộ tự động vào Firestore._`,
           [
             [
               { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
@@ -147,29 +175,72 @@ export async function processTelegramUpdate(
           ]
         );
       } else {
-        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này.');
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này trong hệ thống.');
       }
       return { success: true, action: 'done', chatId };
     }
 
     // B. Snooze task
-    if (data.startsWith('snooze:')) {
-      const parts = data.split(':');
-      const taskId = parts[1];
-      const mins = parseInt(parts[2] || '15', 10);
+    if (
+      data.startsWith('snooze:') ||
+      data.startsWith('task:snooze') ||
+      data.startsWith('task_snooze') ||
+      data.startsWith('postpone:')
+    ) {
+      let taskId = '';
+      let mins = 15;
+
+      if (data.startsWith('task:snooze1h:')) {
+        taskId = data.replace('task:snooze1h:', '').trim();
+        mins = 60;
+      } else if (data.startsWith('task:snooze3h:')) {
+        taskId = data.replace('task:snooze3h:', '').trim();
+        mins = 180;
+      } else if (data.startsWith('task:snooze:')) {
+        const parts = data.split(':');
+        taskId = parts[2] || '';
+        mins = parseInt(parts[3] || '15', 10);
+      } else if (data.startsWith('snooze:')) {
+        const parts = data.split(':');
+        taskId = parts[1] || '';
+        mins = parseInt(parts[2] || '15', 10);
+      } else {
+        taskId = data.replace(/^task:snooze:?|^snooze:?|^postpone:?/, '').trim();
+        mins = 15;
+      }
+
       const currentTasks = await getDbTasks();
-      const target = currentTasks.find(t => t.id === taskId);
+      const target = currentTasks.find(
+        t => t.id === taskId || t.id.toLowerCase() === taskId.toLowerCase() || (taskId && t.id.includes(taskId))
+      );
+
       if (target) {
-        const newDeadline = new Date(new Date(target.deadline).getTime() + mins * 60 * 1000).toISOString();
+        const baseTime = target.deadline ? new Date(target.deadline).getTime() : Date.now();
+        // If deadline is already overdue, extend from current time
+        const referenceTime = baseTime < Date.now() ? Date.now() : baseTime;
+        const newDeadline = new Date(referenceTime + mins * 60 * 1000).toISOString();
         target.deadline = newDeadline;
-        target.isNotified = false; // reset reminder
+        target.isNotified = false; // reset reminder so user gets reminded before new deadline
         target.updatedAt = new Date().toISOString();
         await saveDbTask(target);
-        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `⏰ Đã hoãn thêm ${mins} phút!`);
+
+        const durationText = mins >= 60 ? `${mins / 60} giờ` : `${mins} phút`;
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `⏰ Đã gia hạn thêm ${durationText}!`);
+        
+        await addDbNotificationLog({
+          id: `notif-snooze-${Date.now()}`,
+          title: `⏰ Gia hạn qua Telegram: ${target.title} (+${durationText})`,
+          message: `Gia hạn hạn chót mới đến: ${new Date(newDeadline).toLocaleString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh' })}`,
+          channel: 'telegram',
+          status: 'sent',
+          timestamp: new Date().toISOString(),
+          taskId: target.id,
+        });
+
         await sendTelegramMessage(
           telegramConfig.botToken,
           chatId,
-          `⏰ *ĐÃ HOÃN DEADLINE*\n\n📌 Công việc: *${target.title}*\n⏳ Hạn chót mới: *${new Date(newDeadline).toLocaleString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh' })}* (+${mins} phút)\n🎯 Mức độ: *${target.priority.toUpperCase()}*`,
+          `⏰ *ĐÃ GIA HẠN DEADLINE THÀNH CÔNG*\n\n📌 Công việc: *${target.title}*\n⏳ Hạn chót mới: *${new Date(newDeadline).toLocaleString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh' })}* (+${durationText})\n🎯 Mức độ: *${target.priority.toUpperCase()}*`,
           buildTaskReminderKeyboard(target)
         );
       } else {
@@ -179,13 +250,37 @@ export async function processTelegramUpdate(
     }
 
     // C. Delete task
-    if (data.startsWith('del:')) {
-      const taskId = data.replace('del:', '');
+    if (
+      data.startsWith('del:') ||
+      data.startsWith('task:del:') ||
+      data.startsWith('task:delete:') ||
+      data.startsWith('delete:')
+    ) {
+      let taskId = '';
+      if (data.startsWith('task:delete:')) taskId = data.replace('task:delete:', '');
+      else if (data.startsWith('task:del:')) taskId = data.replace('task:del:', '');
+      else if (data.startsWith('delete:')) taskId = data.replace('delete:', '');
+      else if (data.startsWith('del:')) taskId = data.replace('del:', '');
+      taskId = taskId.trim();
+
       const currentTasks = await getDbTasks();
-      const target = currentTasks.find(t => t.id === taskId);
+      const target = currentTasks.find(
+        t => t.id === taskId || t.id.toLowerCase() === taskId.toLowerCase() || (taskId && t.id.includes(taskId))
+      );
+
       if (target) {
-        await deleteDbTask(taskId);
+        await deleteDbTask(target.id);
         await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `🗑️ Đã xóa: ${target.title}`);
+        
+        await addDbNotificationLog({
+          id: `notif-del-${Date.now()}`,
+          title: `🗑️ Đã xóa việc từ Telegram: ${target.title}`,
+          message: `Công việc "${target.title}" đã được xóa khỏi hệ thống.`,
+          channel: 'telegram',
+          status: 'sent',
+          timestamp: new Date().toISOString(),
+        });
+
         await sendTelegramMessage(
           telegramConfig.botToken,
           chatId,
