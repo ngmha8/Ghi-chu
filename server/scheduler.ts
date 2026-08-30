@@ -3,6 +3,7 @@ import {
   saveDbTask,
   getDbNotes,
   getDbTelegramConfig,
+  saveDbTelegramConfig,
   addDbNotificationLog,
 } from './firebaseDb.ts';
 import { getGeminiClient } from './aiService.ts';
@@ -16,9 +17,9 @@ import {
 } from './telegramHelper.ts';
 import type { Task, NotificationLog } from '../src/types/index.ts';
 
-// Tracker for daily briefing to prevent re-sending multiple times in the same day
-let lastMorningBriefingDate = '';
-let lastEveningBriefingDate = '';
+// In-flight mutex locks to prevent simultaneous duplicate calls within rapid scheduler ticks
+let isMorningDispatching = false;
+let isEveningDispatching = false;
 let lastVectorSyncTimestamp = 0;
 
 /**
@@ -129,13 +130,23 @@ export async function runSchedulerCheck() {
     const eveningMinute = telegramConfig.eveningBriefingMinute ?? 0;
     const isEveningEnabled = telegramConfig.enableEveningBriefing !== false;
 
-    // Morning briefing check
-    if (isMorningEnabled && lastMorningBriefingDate !== todayStr) {
-      const isMorningTime = (currentHour === morningHour && currentMinute >= morningMinute) || (currentHour > morningHour && currentHour <= morningHour + 2);
-      if (isMorningTime) {
-        lastMorningBriefingDate = todayStr;
-        console.log(`[Scheduler] 🌅 Dispatching Morning Briefing at VN Time: ${currentHour}:${currentMinute.toString().padStart(2, '0')} (${todayStr})`);
-        generateDailyBriefing('morning', getGeminiClient(), tasks, notes).then(async (morningBriefing) => {
+    // Morning briefing check: Deduplicate using Firestore persistence + mutex lock
+    const morningTargetMinutes = morningHour * 60 + morningMinute;
+    const currentTotalMinutes = currentHour * 60 + currentMinute;
+    const isMorningTimeWindow = currentTotalMinutes >= morningTargetMinutes && currentTotalMinutes <= morningTargetMinutes + 60;
+
+    if (isMorningEnabled && !isMorningDispatching && telegramConfig.lastMorningBriefingDate !== todayStr && isMorningTimeWindow) {
+      isMorningDispatching = true;
+      console.log(`[Scheduler] 🌅 Dispatching Morning Briefing at VN Time: ${currentHour}:${currentMinute.toString().padStart(2, '0')} (${todayStr})`);
+      
+      // Immediately write date lock to Firestore before slow AI generation
+      saveDbTelegramConfig({
+        lastMorningBriefingDate: todayStr,
+        lastMorningBriefingSentAt: new Date().toISOString(),
+      }).catch(err => console.warn('[Scheduler] Error saving morning briefing lock:', err));
+
+      generateDailyBriefing('morning', getGeminiClient(), tasks, notes)
+        .then(async (morningBriefing) => {
           await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, morningBriefing.reportText, [
             [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '🌤️ Thời tiết', callback_data: 'cmd:weather' }]
           ]);
@@ -147,17 +158,29 @@ export async function runSchedulerCheck() {
             status: 'sent',
             timestamp: new Date().toISOString(),
           });
-        }).catch(e => console.warn('Auto morning briefing error:', e));
-      }
+        })
+        .catch(e => console.warn('Auto morning briefing error:', e))
+        .finally(() => {
+          isMorningDispatching = false;
+        });
     }
 
-    // Evening briefing check
-    if (isEveningEnabled && lastEveningBriefingDate !== todayStr) {
-      const isEveningTime = (currentHour === eveningHour && currentMinute >= eveningMinute) || (currentHour > eveningHour && currentHour <= Math.min(23, eveningHour + 2));
-      if (isEveningTime) {
-        lastEveningBriefingDate = todayStr;
-        console.log(`[Scheduler] 🌙 Dispatching Evening Briefing at VN Time: ${currentHour}:${currentMinute.toString().padStart(2, '0')} (${todayStr})`);
-        generateDailyBriefing('evening', getGeminiClient(), tasks, notes).then(async (eveningBriefing) => {
+    // Evening briefing check: Deduplicate using Firestore persistence + mutex lock
+    const eveningTargetMinutes = eveningHour * 60 + eveningMinute;
+    const isEveningTimeWindow = currentTotalMinutes >= eveningTargetMinutes && currentTotalMinutes <= eveningTargetMinutes + 60;
+
+    if (isEveningEnabled && !isEveningDispatching && telegramConfig.lastEveningBriefingDate !== todayStr && isEveningTimeWindow) {
+      isEveningDispatching = true;
+      console.log(`[Scheduler] 🌙 Dispatching Evening Briefing at VN Time: ${currentHour}:${currentMinute.toString().padStart(2, '0')} (${todayStr})`);
+
+      // Immediately write date lock to Firestore before slow AI generation
+      saveDbTelegramConfig({
+        lastEveningBriefingDate: todayStr,
+        lastEveningBriefingSentAt: new Date().toISOString(),
+      }).catch(err => console.warn('[Scheduler] Error saving evening briefing lock:', err));
+
+      generateDailyBriefing('evening', getGeminiClient(), tasks, notes)
+        .then(async (eveningBriefing) => {
           await sendTelegramMessage(telegramConfig.botToken, telegramConfig.chatId, eveningBriefing.reportText, [
             [{ text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' }, { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }]
           ]);
@@ -169,8 +192,11 @@ export async function runSchedulerCheck() {
             status: 'sent',
             timestamp: new Date().toISOString(),
           });
-        }).catch(e => console.warn('Auto evening briefing error:', e));
-      }
+        })
+        .catch(e => console.warn('Auto evening briefing error:', e))
+        .finally(() => {
+          isEveningDispatching = false;
+        });
     }
   }
 

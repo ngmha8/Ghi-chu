@@ -94,61 +94,75 @@ function escapeHtml(text: string): string {
 export function convertMarkdownToTelegramHtml(markdown: string): string {
   if (!markdown) return '';
 
-  // Extract code blocks to avoid escaping/modifying their contents
-  const codeBlocks: string[] = [];
-  let processed = markdown.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_match, lang, code) => {
+  // Clean any accidental leftover raw placeholder tokens from legacy formats or prompt leakage
+  let processed = markdown
+    .replace(/(?:_{1,3})?TELEGRAM_INLINE_CODE_\d+(?:_{1,3})?/gi, '')
+    .replace(/(?:_{1,3})?TELEGRAM_CODE_BLOCK_\d+(?:_{1,3})?/gi, '');
+
+  // 1. Extract code blocks with syntax highlighting support
+  const codeBlocks: { token: string; html: string }[] = [];
+  processed = processed.replace(/```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g, (_match, lang, code) => {
     const escapedCode = escapeHtml(code.trim());
-    const placeholder = `___TELEGRAM_CODE_BLOCK_${codeBlocks.length}___`;
-    if (lang) {
-      codeBlocks.push(`<pre><code class="language-${lang}">${escapedCode}</code></pre>`);
-    } else {
-      codeBlocks.push(`<pre><code>${escapedCode}</code></pre>`);
-    }
-    return placeholder;
+    // Use strictly alphanumeric token to guarantee zero collisions with markdown regexes
+    const token = `TGCODEBLOCKTOKEN${codeBlocks.length}X`;
+    const html = lang
+      ? `<pre><code class="language-${lang}">${escapedCode}</code></pre>`
+      : `<pre><code>${escapedCode}</code></pre>`;
+    codeBlocks.push({ token, html });
+    return token;
   });
 
-  // Extract inline code
-  const inlineCodes: string[] = [];
+  // 2. Extract inline code
+  const inlineCodes: { token: string; html: string }[] = [];
   processed = processed.replace(/`([^`\n]+)`/g, (_match, code) => {
     const escapedCode = escapeHtml(code);
-    const placeholder = `___TELEGRAM_INLINE_CODE_${inlineCodes.length}___`;
-    inlineCodes.push(`<code>${escapedCode}</code>`);
-    return placeholder;
+    const token = `TGINLINECODETOKEN${inlineCodes.length}X`;
+    inlineCodes.push({ token, html: `<code>${escapedCode}</code>` });
+    return token;
   });
 
-  // Escape HTML in the remaining text
+  // 3. Escape HTML special characters for the remaining text
   processed = escapeHtml(processed);
 
-  // Convert bold: **text** or __text__
+  // 4. Convert markdown links: [text](url) -> <a href="url">text</a>
+  processed = processed.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2">$1</a>');
+
+  // 5. Convert headers (# Header -> <b>Header</b>)
+  processed = processed.replace(/^#{1,6}\s+(.+)$/gm, '<b>$1</b>');
+
+  // 6. Convert blockquotes: > quote -> <blockquote>quote</blockquote>
+  processed = processed.replace(/(?:^|\n)&gt;\s*(.+)(?=$|\n)/g, '\n<blockquote>$1</blockquote>');
+
+  // 7. Convert bold: **text** or __text__
   processed = processed.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
   processed = processed.replace(/__(.+?)__/g, '<u>$1</u>');
 
-  // Convert markdown links: [text](url) -> <a href="url">text</a>
-  processed = processed.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2">$1</a>');
-
-  // Convert headers (# Header -> <b>Header</b>)
-  processed = processed.replace(/^#{1,6}\s+(.+)$/gm, '<b>$1</b>');
-
-  // Convert standalone *text* to <b>text</b> if bounded by non-word chars or line boundaries
+  // 8. Convert standalone *text* to <b>text</b> if bounded by non-word chars or line boundaries
   processed = processed.replace(/(?<=^|[\s(])\*([^*\n]+)\*(?=[\s).,:;!?]|$)/g, '<b>$1</b>');
 
-  // Convert standalone _text_ to <i>text</i> if bounded by non-word chars or line boundaries
+  // 9. Convert standalone _text_ to <i>text</i> if bounded by non-word chars or line boundaries
   processed = processed.replace(/(?<=^|[\s(])_([^_\n]+)_(?=[\s).,:;!?]|$)/g, '<i>$1</i>');
 
-  // Convert strikethrough: ~~text~~
+  // 10. Convert strikethrough: ~~text~~
   processed = processed.replace(/~~(.+?)~~/g, '<s>$1</s>');
 
-  // Restore inline codes
-  inlineCodes.forEach((codeHtml, idx) => {
-    processed = processed.replace(`___TELEGRAM_INLINE_CODE_${idx}___`, codeHtml);
-  });
+  // 11. Restore inline codes (global replace with zero collision)
+  for (const item of inlineCodes) {
+    processed = processed.split(item.token).join(item.html);
+  }
 
-  // Restore code blocks
-  codeBlocks.forEach((blockHtml, idx) => {
-    processed = processed.replace(`___TELEGRAM_CODE_BLOCK_${idx}___`, blockHtml);
-  });
+  // 12. Restore code blocks (global replace with zero collision)
+  for (const item of codeBlocks) {
+    processed = processed.split(item.token).join(item.html);
+  }
 
-  return processed;
+  // 13. Final safety cleanup to prevent any stray tokens
+  processed = processed
+    .replace(/(?:_{1,3})?TELEGRAM_INLINE_CODE_\d+(?:_{1,3})?/gi, '')
+    .replace(/(?:_{1,3})?TELEGRAM_CODE_BLOCK_\d+(?:_{1,3})?/gi, '')
+    .replace(/TG(?:INLINE|CODEBLOCK)TOKEN\d+X/gi, '');
+
+  return processed.trim();
 }
 
 /**

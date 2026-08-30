@@ -86,6 +86,10 @@ export interface TelegramConfig {
   eveningBriefingMinute?: number; // 0-59, default 0
   enableMorningBriefing?: boolean; // default true
   enableEveningBriefing?: boolean; // default true
+  lastMorningBriefingDate?: string; // e.g. '2026-08-30'
+  lastMorningBriefingSentAt?: string; // ISO string
+  lastEveningBriefingDate?: string; // e.g. '2026-08-30'
+  lastEveningBriefingSentAt?: string; // ISO string
 }
 
 export interface NotificationLog {
