@@ -14,12 +14,39 @@ import {
   AiPersonaConfig
 } from '../types/index.js';
 
+// Safe HTTP Fetch with automatic retry for network drops and cold start recovery
+async function fetchWithRetry(url: string, options?: RequestInit, maxRetries = 3, baseDelayMs = 500): Promise<Response> {
+  let lastError: any;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, baseDelayMs * Math.pow(1.6, attempt)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 export const api = {
   // Category Endpoints (Document Classification)
   getCategories: async (): Promise<DocumentCategory[]> => {
-    const res = await fetch('/api/categories');
-    if (!res.ok) throw new Error('Failed to fetch categories');
-    return res.json();
+    try {
+      const res = await fetchWithRetry('/api/categories');
+      if (!res.ok) throw new Error('Failed to fetch categories');
+      const data = await res.json();
+      try { localStorage.setItem('cached_categories', JSON.stringify(data)); } catch {}
+      return data;
+    } catch (err) {
+      try {
+        const cached = localStorage.getItem('cached_categories');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+      throw err;
+    }
   },
 
   saveCategories: async (categories: DocumentCategory[]): Promise<DocumentCategory[]> => {
@@ -59,9 +86,19 @@ export const api = {
   },
   // Task Endpoints
   getTasks: async (): Promise<Task[]> => {
-    const res = await fetch('/api/tasks');
-    if (!res.ok) throw new Error('Failed to fetch tasks');
-    return res.json();
+    try {
+      const res = await fetchWithRetry('/api/tasks');
+      if (!res.ok) throw new Error('Failed to fetch tasks');
+      const data = await res.json();
+      try { localStorage.setItem('cached_tasks', JSON.stringify(data)); } catch {}
+      return data;
+    } catch (err) {
+      try {
+        const cached = localStorage.getItem('cached_tasks');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+      throw err;
+    }
   },
 
   createTask: async (task: Partial<Task>): Promise<Task> => {
@@ -92,9 +129,19 @@ export const api = {
 
   // Note Endpoints
   getNotes: async (): Promise<Note[]> => {
-    const res = await fetch('/api/notes');
-    if (!res.ok) throw new Error('Failed to fetch notes');
-    return res.json();
+    try {
+      const res = await fetchWithRetry('/api/notes');
+      if (!res.ok) throw new Error('Failed to fetch notes');
+      const data = await res.json();
+      try { localStorage.setItem('cached_notes', JSON.stringify(data)); } catch {}
+      return data;
+    } catch (err) {
+      try {
+        const cached = localStorage.getItem('cached_notes');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+      throw err;
+    }
   },
 
   createNote: async (note: Partial<Note>): Promise<Note> => {
@@ -125,9 +172,19 @@ export const api = {
 
   // File Endpoints
   getFiles: async (): Promise<DriveFile[]> => {
-    const res = await fetch('/api/files');
-    if (!res.ok) throw new Error('Failed to fetch files');
-    return res.json();
+    try {
+      const res = await fetchWithRetry('/api/files');
+      if (!res.ok) throw new Error('Failed to fetch files');
+      const data = await res.json();
+      try { localStorage.setItem('cached_files', JSON.stringify(data)); } catch {}
+      return data;
+    } catch (err) {
+      try {
+        const cached = localStorage.getItem('cached_files');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+      throw err;
+    }
   },
 
   uploadFile: async (fileData: Partial<DriveFile>): Promise<DriveFile> => {
@@ -168,9 +225,19 @@ export const api = {
 
   // Telegram Config & Webhook Bot Endpoints
   getTelegramConfig: async (): Promise<{ config: TelegramConfig; logs: NotificationLog[] }> => {
-    const res = await fetch('/api/telegram/config');
-    if (!res.ok) throw new Error('Failed to fetch Telegram config');
-    return res.json();
+    try {
+      const res = await fetchWithRetry('/api/telegram/config');
+      if (!res.ok) throw new Error('Failed to fetch Telegram config');
+      const data = await res.json();
+      try { localStorage.setItem('cached_telegram_config', JSON.stringify(data)); } catch {}
+      return data;
+    } catch (err) {
+      try {
+        const cached = localStorage.getItem('cached_telegram_config');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+      throw err;
+    }
   },
 
   updateTelegramConfig: async (config: Partial<TelegramConfig>): Promise<{ success: boolean; config: TelegramConfig }> => {

@@ -43,18 +43,63 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => isSessionUnlocked());
   const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'ai-learning' | 'settings' | 'architecture'>('dashboard');
 
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [files, setFiles] = useState<DriveFile[]>([]);
-  const [categories, setCategories] = useState<DocumentCategory[]>(() => getStoredCategories());
-  const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({
-    botToken: '',
-    chatId: '',
-    enabled: true,
-    alertOffsetMinutes: 15,
-    isConnected: true,
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_tasks');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
   });
-  const [notificationLogs, setNotificationLogs] = useState<NotificationLog[]>([]);
+  const [notes, setNotes] = useState<Note[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_notes');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [files, setFiles] = useState<DriveFile[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_files');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [categories, setCategories] = useState<DocumentCategory[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_categories');
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return getStoredCategories();
+  });
+  const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>(() => {
+    try {
+      const cached = localStorage.getItem('cached_telegram_config');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.config) return parsed.config;
+      }
+    } catch {}
+    return {
+      botToken: '',
+      chatId: '',
+      enabled: true,
+      alertOffsetMinutes: 15,
+      isConnected: true,
+    };
+  });
+  const [notificationLogs, setNotificationLogs] = useState<NotificationLog[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_telegram_config');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed?.logs)) return parsed.logs;
+      }
+    } catch {}
+    return [];
+  });
 
   // AI Autonomous Self-Learning & Mind State
   const [aiMemories, setAiMemories] = useState<AiMemoryFact[]>([]);
@@ -109,9 +154,12 @@ export default function App() {
 
   // Initial Fetching & Firestore Realtime Subscriptions
   useEffect(() => {
-    async function loadData() {
+    let isMounted = true;
+    let retryTimer: any = null;
+
+    async function loadData(retryAttempt = 0) {
       try {
-        const [tasksData, notesData, filesData, telegramData, categoriesData, memsData, insData, statsData] = await Promise.all([
+        const results = await Promise.allSettled([
           api.getTasks(),
           api.getNotes(),
           api.getFiles(),
@@ -121,22 +169,78 @@ export default function App() {
           api.getAiInsights().catch(() => []),
           api.getAiLearningStats().catch(() => null),
         ]);
-        setTasks(tasksData);
-        setNotes(notesData);
-        setFiles(filesData);
-        setTelegramConfig(telegramData.config);
-        setNotificationLogs(telegramData.logs);
-        if (categoriesData && categoriesData.length > 0) {
-          setCategories(categoriesData);
+
+        if (!isMounted) return;
+
+        let needsRetry = false;
+
+        // Tasks
+        if (results[0].status === 'fulfilled') {
+          setTasks(results[0].value);
+        } else {
+          needsRetry = true;
         }
-        if (memsData && memsData.length > 0) setAiMemories(memsData);
-        if (insData && insData.length > 0) setAiInsights(insData);
-        if (statsData) setAiStats(statsData);
+
+        // Notes
+        if (results[1].status === 'fulfilled') {
+          setNotes(results[1].value);
+        } else {
+          needsRetry = true;
+        }
+
+        // Files
+        if (results[2].status === 'fulfilled') {
+          setFiles(results[2].value);
+        }
+
+        // Telegram Config & Notification Logs
+        if (results[3].status === 'fulfilled') {
+          setTelegramConfig(results[3].value.config);
+          setNotificationLogs(results[3].value.logs);
+        }
+
+        // Categories
+        if (results[4].status === 'fulfilled' && results[4].value && results[4].value.length > 0) {
+          setCategories(results[4].value);
+        }
+
+        // AI Memories
+        if (results[5].status === 'fulfilled' && Array.isArray(results[5].value) && results[5].value.length > 0) {
+          setAiMemories(results[5].value);
+        }
+
+        // AI Insights
+        if (results[6].status === 'fulfilled' && Array.isArray(results[6].value) && results[6].value.length > 0) {
+          setAiInsights(results[6].value);
+        }
+
+        // AI Stats
+        if (results[7].status === 'fulfilled' && results[7].value) {
+          setAiStats(results[7].value);
+        }
+
+        // If core data had a transient fetch error (e.g. server cold-starting), schedule automatic retry
+        if (needsRetry && retryAttempt < 3) {
+          retryTimer = setTimeout(() => {
+            if (isMounted) loadData(retryAttempt + 1);
+          }, 2000 * (retryAttempt + 1));
+        }
       } catch (err) {
-        console.error('Error fetching initial data:', err);
+        console.warn('Initial data load attempt error (fallback active):', err);
+        if (retryAttempt < 3) {
+          retryTimer = setTimeout(() => {
+            if (isMounted) loadData(retryAttempt + 1);
+          }, 2500);
+        }
       }
     }
     loadData();
+
+    // Auto re-fetch when device reconnects to internet
+    const handleOnline = () => {
+      loadData(0);
+    };
+    window.addEventListener('online', handleOnline);
 
     // Sync PIN configuration from server
     fetchPinSettingsFromServer().then(pinCfg => {
@@ -227,12 +331,17 @@ export default function App() {
     }, 15000);
 
     return () => {
+      isMounted = false;
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener('online', handleOnline);
       unsubTasks();
       unsubNotes();
       unsubCategories();
       unsubFiles();
       unsubNotifs();
       unsubConfig();
+      unsubMemories();
+      unsubInsights();
       clearInterval(cronInterval);
       clearInterval(lockCheckInterval);
       window.removeEventListener('mousedown', handleUserActivity);

@@ -1,6 +1,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
+  initializeFirestore,
   getFirestore,
+  setLogLevel,
   collection,
   onSnapshot,
   doc,
@@ -20,9 +22,22 @@ import type {
 } from '../types/index.ts';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase App & Firestore Database
+// Silence offline/transient connection warning logs in browser console
+try {
+  setLogLevel('error');
+} catch (e) {}
+
+// Initialize Firebase App & Firestore Database with auto-detect long polling for sandbox/proxy compatibility
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+let firestoreInstance;
+try {
+  firestoreInstance = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+  }, firebaseConfig.firestoreDatabaseId);
+} catch (e) {
+  firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+}
+export const db = firestoreInstance;
 
 // -------------------------------------------------------------
 // REAL-TIME FIRESTORE SUBSCRIPTIONS
@@ -38,10 +53,14 @@ export function subscribeTasks(onUpdate: (tasks: Task[]) => void): () => void {
         const data = docSnap.data() as Task;
         tasks.push({ ...data, id: docSnap.id });
       });
+      try { localStorage.setItem('cached_tasks', JSON.stringify(tasks)); } catch {}
       // Sort tasks by priority or createdAt if present
       onUpdate(tasks);
     }, (error) => {
-      console.warn('Firestore tasks subscription fallback:', error);
+      // Benign offline fallback handler
+      if (error?.code !== 'unavailable') {
+        console.warn('Firestore tasks subscription status:', error?.message || error);
+      }
     });
   } catch (err) {
     console.warn('Could not initialize tasks subscription:', err);
@@ -59,9 +78,12 @@ export function subscribeNotes(onUpdate: (notes: Note[]) => void): () => void {
         const data = docSnap.data() as Note;
         notes.push({ ...data, id: docSnap.id });
       });
+      try { localStorage.setItem('cached_notes', JSON.stringify(notes)); } catch {}
       onUpdate(notes);
     }, (error) => {
-      console.warn('Firestore notes subscription fallback:', error);
+      if (error?.code !== 'unavailable') {
+        console.warn('Firestore notes subscription status:', error?.message || error);
+      }
     });
   } catch (err) {
     console.warn('Could not initialize notes subscription:', err);
@@ -79,9 +101,12 @@ export function subscribeCategories(onUpdate: (categories: DocumentCategory[]) =
         const data = docSnap.data() as DocumentCategory;
         categories.push({ ...data, id: docSnap.id });
       });
+      try { localStorage.setItem('cached_categories', JSON.stringify(categories)); } catch {}
       onUpdate(categories);
     }, (error) => {
-      console.warn('Firestore categories subscription fallback:', error);
+      if (error?.code !== 'unavailable') {
+        console.warn('Firestore categories subscription status:', error?.message || error);
+      }
     });
   } catch (err) {
     console.warn('Could not initialize categories subscription:', err);
@@ -99,9 +124,12 @@ export function subscribeFiles(onUpdate: (files: DriveFile[]) => void): () => vo
         const data = docSnap.data() as DriveFile;
         files.push({ ...data, id: docSnap.id });
       });
+      try { localStorage.setItem('cached_files', JSON.stringify(files)); } catch {}
       onUpdate(files);
     }, (error) => {
-      console.warn('Firestore files subscription fallback:', error);
+      if (error?.code !== 'unavailable') {
+        console.warn('Firestore files subscription status:', error?.message || error);
+      }
     });
   } catch (err) {
     console.warn('Could not initialize files subscription:', err);
@@ -114,10 +142,14 @@ export function subscribeTelegramConfig(onUpdate: (config: TelegramConfig) => vo
     const docRef = doc(db, 'config', 'telegram');
     return onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        onUpdate(docSnap.data() as TelegramConfig);
+        const configData = docSnap.data() as TelegramConfig;
+        try { localStorage.setItem('cached_telegram_config', JSON.stringify({ config: configData, logs: [] })); } catch {}
+        onUpdate(configData);
       }
     }, (error) => {
-      console.warn('Firestore telegram config subscription fallback:', error);
+      if (error?.code !== 'unavailable') {
+        console.warn('Firestore telegram config subscription status:', error?.message || error);
+      }
     });
   } catch (err) {
     console.warn('Could not initialize telegram config subscription:', err);
@@ -137,7 +169,9 @@ export function subscribeNotifications(onUpdate: (logs: NotificationLog[]) => vo
       });
       onUpdate(logs);
     }, (error) => {
-      console.warn('Firestore notifications subscription fallback:', error);
+      if (error?.code !== 'unavailable') {
+        console.warn('Firestore notifications subscription status:', error?.message || error);
+      }
     });
   } catch (err) {
     console.warn('Could not initialize notifications subscription:', err);
