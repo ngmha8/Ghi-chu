@@ -8,6 +8,9 @@ const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 const DATA_DIR = path.join(process.cwd(), 'data');
 const EMBEDDING_CACHE_FILE = path.join(DATA_DIR, 'embeddings_cache.json');
 
+export const PRIMARY_EMBEDDING_MODEL = 'gemini-embedding-2-preview';
+export const EMBEDDING_DIMENSIONS = 3072;
+
 export interface DocumentVector {
   id: string;
   type: 'note' | 'file';
@@ -17,6 +20,7 @@ export interface DocumentVector {
   classification?: string;
   category?: string;
   vector: number[];
+  model: string;
   hash: string;
   updatedAt: string;
 }
@@ -30,26 +34,188 @@ export interface SemanticSearchResult {
   tags: string[];
   classification?: string;
   category?: string;
-  similarity: number; // 0.0 to 1.0
+  similarity: number; // Normalized hybrid score 0.0 - 1.0
+  denseSimilarity?: number; // Raw Cosine similarity on 768D embedding (0.0 - 1.0)
+  sparseScore?: number; // Raw BM25 score
+  rrfScore?: number; // Reciprocal Rank Fusion score
+  matchMethod?: 'hybrid' | 'dense' | 'sparse';
   relevanceExplanation?: string;
 }
 
-// In-Memory Vector Store
+// In-Memory Dense Vector Store
 const vectorCache = new Map<string, DocumentVector>();
 let isVectorizing = false;
 
+// -------------------------------------------------------------
+// 1. SPARSE RETRIEVAL ENGINE: BM25 (Best Matching 25)
+// -------------------------------------------------------------
+export class BM25Engine {
+  private k1: number = 1.2;
+  private b: number = 0.75;
+  private docLengths = new Map<string, number>();
+  private docTokenFreqs = new Map<string, Map<string, number>>();
+  private termDocFreqs = new Map<string, number>();
+  private totalDocs: number = 0;
+  private avgDocLength: number = 0;
+  private docMetadata = new Map<string, {
+    id: string;
+    type: 'note' | 'file';
+    title: string;
+    content: string;
+    tags: string[];
+    classification?: string;
+    category?: string;
+  }>();
+
+  public clear() {
+    this.docLengths.clear();
+    this.docTokenFreqs.clear();
+    this.termDocFreqs.clear();
+    this.docMetadata.clear();
+    this.totalDocs = 0;
+    this.avgDocLength = 0;
+  }
+
+  /**
+   * High-accuracy multilingual & Vietnamese tokenizer
+   * Preserves accents, alphanumeric codes (e.g. NV-001, TASK-12), and hashtags (#báo_cáo)
+   */
+  public tokenize(text: string): string[] {
+    if (!text) return [];
+    const normalized = text.toLowerCase();
+    const tokens = normalized.match(/[\p{L}\p{N}_\-#]+/gu) || [];
+    return tokens.filter(t => t.length > 1);
+  }
+
+  public addDocument(doc: {
+    id: string;
+    type: 'note' | 'file';
+    title: string;
+    content: string;
+    tags: string[];
+    classification?: string;
+    category?: string;
+  }) {
+    const key = `${doc.type}-${doc.id}`;
+    const fullText = `${doc.title} ${doc.tags.join(' ')} ${doc.content} ${doc.classification || ''} ${doc.category || ''}`;
+    const tokens = this.tokenize(fullText);
+
+    // Give higher weighting to titles and tags
+    const titleTokens = this.tokenize(doc.title);
+    const tagTokens = this.tokenize(doc.tags.join(' '));
+
+    const freqMap = new Map<string, number>();
+    for (const t of tokens) {
+      freqMap.set(t, (freqMap.get(t) || 0) + 1);
+    }
+    for (const t of titleTokens) {
+      freqMap.set(t, (freqMap.get(t) || 0) + 2);
+    }
+    for (const t of tagTokens) {
+      freqMap.set(t, (freqMap.get(t) || 0) + 2);
+    }
+
+    const docLen = tokens.length + titleTokens.length * 2 + tagTokens.length * 2;
+    this.docLengths.set(key, docLen);
+    this.docTokenFreqs.set(key, freqMap);
+    this.docMetadata.set(key, doc);
+
+    for (const term of freqMap.keys()) {
+      this.termDocFreqs.set(term, (this.termDocFreqs.get(term) || 0) + 1);
+    }
+    this.totalDocs = this.docLengths.size;
+
+    let sumLen = 0;
+    for (const len of this.docLengths.values()) {
+      sumLen += len;
+    }
+    this.avgDocLength = this.totalDocs > 0 ? sumLen / this.totalDocs : 1;
+  }
+
+  public search(
+    query: string,
+    filterType: 'all' | 'notes' | 'files' = 'all',
+    topK: number = 25
+  ): Array<{ key: string; score: number; doc: any }> {
+    if (this.totalDocs === 0) return [];
+    const queryTokens = this.tokenize(query);
+    if (queryTokens.length === 0) return [];
+
+    const scores = new Map<string, number>();
+    const N = this.totalDocs;
+
+    for (const term of queryTokens) {
+      const n_q = this.termDocFreqs.get(term) || 0;
+      if (n_q === 0) continue;
+
+      // Robertson-Spärck Jones IDF
+      const idf = Math.log(1 + (N - n_q + 0.5) / (n_q + 0.5));
+
+      for (const [key, freqMap] of this.docTokenFreqs.entries()) {
+        const metadata = this.docMetadata.get(key);
+        if (!metadata) continue;
+        if (filterType !== 'all' && (filterType === 'notes' ? metadata.type !== 'note' : metadata.type !== 'file')) {
+          continue;
+        }
+
+        const tf = freqMap.get(term) || 0;
+        if (tf === 0) continue;
+
+        const docLen = this.docLengths.get(key) || 1;
+        const numerator = tf * (this.k1 + 1);
+        const denominator = tf + this.k1 * (1 - this.b + this.b * (docLen / this.avgDocLength));
+        const termScore = idf * (numerator / denominator);
+
+        scores.set(key, (scores.get(key) || 0) + termScore);
+      }
+    }
+
+    // Exact phrase and tag bonuses
+    const queryLower = query.toLowerCase().trim();
+    for (const [key, doc] of this.docMetadata.entries()) {
+      if (filterType !== 'all' && (filterType === 'notes' ? doc.type !== 'note' : doc.type !== 'file')) {
+        continue;
+      }
+
+      const titleLower = doc.title.toLowerCase();
+      if (titleLower.includes(queryLower)) {
+        scores.set(key, (scores.get(key) || 0) + 3.5);
+      }
+      for (const tag of doc.tags) {
+        if (tag.toLowerCase() === queryLower || `#${tag.toLowerCase()}` === queryLower) {
+          scores.set(key, (scores.get(key) || 0) + 4.5);
+        }
+      }
+    }
+
+    return Array.from(scores.entries())
+      .map(([key, score]) => ({
+        key,
+        score,
+        doc: this.docMetadata.get(key)!,
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK);
+  }
+}
+
+export const bm25Index = new BM25Engine();
+
+// -------------------------------------------------------------
+// 2. DENSE RETRIEVAL: Google text-embedding-004 (768 Dimensions)
+// -------------------------------------------------------------
+
 /**
- * Generates a normalized dense vector locally using hash projection (Feature Hashing)
- * for high-performance, offline-proof semantic vector calculations without external API dependency.
+ * Resilient deterministic pseudo-dense vector fallback
+ * Generates normalized 768-dimensional vectors when completely offline
  */
-export function generateLocalDenseVector(text: string, dimensions: number = 128): number[] {
+export function generateLocalDenseVector(text: string, dimensions: number = EMBEDDING_DIMENSIONS): number[] {
   const vec = new Array(dimensions).fill(0);
   const clean = text.toLowerCase().replace(/[^\w\s\u00C0-\u1EF9]/g, ' ');
   const words = clean.split(/\s+/).filter(w => w.length > 0);
   if (words.length === 0) return vec;
 
   for (const word of words) {
-    // Word hash
     let h1 = 0;
     for (let i = 0; i < word.length; i++) {
       h1 = ((h1 << 5) - h1) + word.charCodeAt(i);
@@ -58,7 +224,6 @@ export function generateLocalDenseVector(text: string, dimensions: number = 128)
     const idx1 = Math.abs(h1) % dimensions;
     vec[idx1] += 1.0;
 
-    // Character 3-grams
     if (word.length >= 3) {
       for (let i = 0; i <= word.length - 3; i++) {
         const tri = word.slice(i, i + 3);
@@ -87,102 +252,54 @@ export function generateLocalDenseVector(text: string, dimensions: number = 128)
   return vec;
 }
 
-// Simple string hash for cache invalidation
 function computeTextHash(text: string): string {
   let hash = 0;
   for (let i = 0; i < text.length; i++) {
     const char = text.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0; // Convert to 32bit integer
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
   }
   return hash.toString();
 }
 
 /**
- * Load saved vector embeddings from disk
+ * Generate 3072-dimensional dense vector using Google's gemini-embedding-2-preview model
  */
-export function loadEmbeddingCacheFromDisk() {
-  try {
-    if (fs.existsSync(EMBEDDING_CACHE_FILE)) {
-      const data = JSON.parse(fs.readFileSync(EMBEDDING_CACHE_FILE, 'utf-8'));
-      if (Array.isArray(data)) {
-        for (const item of data) {
-          if (item.id && Array.isArray(item.vector)) {
-            vectorCache.set(item.id, item);
-          }
-        }
-        console.log(`🧠 [Semantic Embedding Store] Loaded ${vectorCache.size} vectors from disk.`);
-      }
-    }
-  } catch (err) {
-    // Gracefully handle cache load failure
-  }
-}
-
-/**
- * Save vector embeddings to disk
- */
-export function saveEmbeddingCacheToDisk() {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    const items = Array.from(vectorCache.values());
-    fs.writeFileSync(EMBEDDING_CACHE_FILE, JSON.stringify(items), 'utf-8');
-  } catch (err) {
-    // Gracefully handle cache save failure
-  }
-}
-
-/**
- * Generate embedding vector using Gemini Embedding Model (gemini-embedding-2-preview)
- * with instant local vector fallback on network issues or missing keys.
- */
-export async function generateEmbedding(text: string): Promise<number[]> {
+export async function generateEmbedding(text: string): Promise<{ vector: number[]; model: string }> {
   const cleanText = text.trim().slice(0, 4000);
-  if (!cleanText) return generateLocalDenseVector('', 128);
+  if (!cleanText) {
+    return { vector: generateLocalDenseVector('', EMBEDDING_DIMENSIONS), model: 'local-dense' };
+  }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (apiKey && apiKey.trim().length > 0) {
+    const ai = getGeminiClient();
+
+    // 1. Primary: gemini-embedding-2-preview (official model in @google/genai SDK)
     try {
-      const ai = getGeminiClient();
-      try {
-        const response = await ai.models.embedContent({
-          model: 'gemini-embedding-2-preview',
-          contents: cleanText,
-        });
+      const response = await ai.models.embedContent({
+        model: PRIMARY_EMBEDDING_MODEL,
+        contents: cleanText,
+      });
 
-        const values = (response as any)?.embedding?.values || response?.embeddings?.[0]?.values;
-        if (values && Array.isArray(values) && values.length > 0) {
-          return values;
-        }
-      } catch {
-        // Fallback to text-embedding-004
-        try {
-          const response2 = await ai.models.embedContent({
-            model: 'text-embedding-004',
-            contents: cleanText,
-          });
-
-          const values2 = (response2 as any)?.embedding?.values || response2?.embeddings?.[0]?.values;
-          if (values2 && Array.isArray(values2) && values2.length > 0) {
-            return values2;
-          }
-        } catch {
-          // Fall back gracefully to local vector
-        }
+      const values = (response as any)?.embeddings?.[0]?.values || (response as any)?.embedding?.values;
+      if (values && Array.isArray(values) && values.length > 0) {
+        return { vector: values, model: PRIMARY_EMBEDDING_MODEL };
       }
-    } catch {
-      // Fall back gracefully to local vector
+    } catch (err: any) {
+      console.warn(`[Embedding] Primary ${PRIMARY_EMBEDDING_MODEL} failed, attempting resilient local:`, err?.message);
     }
   }
 
-  // Resilient local dense vector calculation
-  return generateLocalDenseVector(cleanText, 128);
+  // 2. Resilient local fallback
+  return {
+    vector: generateLocalDenseVector(cleanText, EMBEDDING_DIMENSIONS),
+    model: 'local-dense',
+  };
 }
 
 /**
- * Calculates cosine similarity between two vectors (-1 to 1)
+ * Calculates cosine similarity between two dense vectors (-1.0 to 1.0)
  */
 export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
@@ -202,34 +319,43 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return Math.max(0, Math.min(1, dotProduct / denominator));
 }
 
-/**
- * Lightweight token-based Jaccard/N-Gram semantic fallback similarity
- */
-function tokenSimilarityFallback(textA: string, textB: string): number {
-  const tokenize = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^\w\s\u00C0-\u1EF9]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 1);
-
-  const tokensA = new Set(tokenize(textA));
-  const tokensB = new Set(tokenize(textB));
-
-  if (tokensA.size === 0 || tokensB.size === 0) return 0;
-
-  let intersection = 0;
-  tokensA.forEach(t => {
-    if (tokensB.has(t)) intersection++;
-  });
-
-  const union = new Set([...tokensA, ...tokensB]).size;
-  return union === 0 ? 0 : intersection / union;
+// -------------------------------------------------------------
+// 3. CACHE STORAGE MANAGEMENT
+// -------------------------------------------------------------
+export function loadEmbeddingCacheFromDisk() {
+  try {
+    if (fs.existsSync(EMBEDDING_CACHE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(EMBEDDING_CACHE_FILE, 'utf-8'));
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          // Validate model & dimension compatibility (768D)
+          if (item.id && Array.isArray(item.vector) && item.vector.length === EMBEDDING_DIMENSIONS) {
+            vectorCache.set(item.id, item);
+          }
+        }
+        console.log(`🧠 [Hybrid RAG Store] Loaded ${vectorCache.size} dense vectors (${PRIMARY_EMBEDDING_MODEL}) from disk.`);
+      }
+    }
+  } catch (err) {
+    // Gracefully handle cache load failure
+  }
 }
 
-/**
- * Re-indexes all notes and files in background to ensure semantic vectors are up to date
- */
+export function saveEmbeddingCacheToDisk() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const items = Array.from(vectorCache.values());
+    fs.writeFileSync(EMBEDDING_CACHE_FILE, JSON.stringify(items), 'utf-8');
+  } catch (err) {
+    // Gracefully handle cache save failure
+  }
+}
+
+// -------------------------------------------------------------
+// 4. SYNCHRONIZATION & RE-INDEXING (HYBRID)
+// -------------------------------------------------------------
 export async function syncAndVectorizeAllDocuments(): Promise<number> {
   if (isVectorizing) return vectorCache.size;
   isVectorizing = true;
@@ -237,6 +363,31 @@ export async function syncAndVectorizeAllDocuments(): Promise<number> {
   try {
     const notes = await getDbNotes();
     const files = await getDbFiles();
+
+    // Rebuild BM25 Sparse Index in Memory
+    bm25Index.clear();
+    for (const note of notes) {
+      bm25Index.addDocument({
+        id: note.id,
+        type: 'note',
+        title: note.title,
+        content: note.content,
+        tags: note.tags || [],
+      });
+    }
+
+    for (const file of files) {
+      const fileNotes = file.notes || file.description || '';
+      bm25Index.addDocument({
+        id: file.id,
+        type: 'file',
+        title: file.name,
+        content: fileNotes ? `${fileNotes}\n${file.textContent || ''}` : (file.textContent || file.name),
+        tags: file.tags || [],
+        classification: file.classification,
+        category: file.category,
+      });
+    }
 
     let updatedCount = 0;
 
@@ -246,8 +397,9 @@ export async function syncAndVectorizeAllDocuments(): Promise<number> {
       const hash = computeTextHash(combinedText);
       const cached = vectorCache.get(`note-${note.id}`);
 
-      if (!cached || cached.hash !== hash) {
-        const vector = await generateEmbedding(combinedText);
+      // Re-index if hash changed or if vector dimension is not 768
+      if (!cached || cached.hash !== hash || cached.vector.length !== EMBEDDING_DIMENSIONS) {
+        const { vector, model } = await generateEmbedding(combinedText);
         if (vector) {
           vectorCache.set(`note-${note.id}`, {
             id: note.id,
@@ -256,12 +408,12 @@ export async function syncAndVectorizeAllDocuments(): Promise<number> {
             content: note.content,
             tags: note.tags || [],
             vector,
+            model,
             hash,
             updatedAt: note.updatedAt || new Date().toISOString(),
           });
           updatedCount++;
-          // Small delay to respect rate limits
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise(r => setTimeout(r, 60));
         }
       }
     }
@@ -269,12 +421,12 @@ export async function syncAndVectorizeAllDocuments(): Promise<number> {
     // 2. Vectorize Files
     for (const file of files) {
       const fileNotes = file.notes || file.description || '';
-      const fileText = `Tên tài liệu: ${file.name}\nPhân loại: ${file.classification || 'Chưa phân loại'}\nĐịnh dạng: ${file.category}\nThẻ: ${(file.tags || []).join(', ')}\n${fileNotes ? `Chú thích / Ghi chú: ${fileNotes}\n` : ''}${file.textContent ? `Nội dung: ${file.textContent.slice(0, 1500)}` : ''}`;
+      const fileText = `Tên tài liệu: ${file.name}\nPhân loại: ${file.classification || 'Chưa phân loại'}\nĐịnh dạng: ${file.category}\nThẻ: ${(file.tags || []).join(', ')}\n${fileNotes ? `Chú thích / Ghi chú: ${fileNotes}\n` : ''}${file.textContent ? `Nội dung: ${file.textContent.slice(0, 2000)}` : ''}`;
       const hash = computeTextHash(fileText);
       const cached = vectorCache.get(`file-${file.id}`);
 
-      if (!cached || cached.hash !== hash) {
-        const vector = await generateEmbedding(fileText);
+      if (!cached || cached.hash !== hash || cached.vector.length !== EMBEDDING_DIMENSIONS) {
+        const { vector, model } = await generateEmbedding(fileText);
         if (vector) {
           vectorCache.set(`file-${file.id}`, {
             id: file.id,
@@ -285,32 +437,33 @@ export async function syncAndVectorizeAllDocuments(): Promise<number> {
             classification: file.classification,
             category: file.category,
             vector,
+            model,
             hash,
             updatedAt: file.uploadedAt || new Date().toISOString(),
           });
           updatedCount++;
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise(r => setTimeout(r, 60));
         }
       }
     }
 
     if (updatedCount > 0) {
       saveEmbeddingCacheToDisk();
-      console.log(`✨ [Semantic Embedding] Successfully vectorized ${updatedCount} new/updated documents.`);
+      console.log(`✨ [Hybrid RAG] Vectorized ${updatedCount} documents with ${PRIMARY_EMBEDDING_MODEL} (${EMBEDDING_DIMENSIONS}D).`);
     }
 
     return vectorCache.size;
   } catch (err) {
-    console.warn('[Semantic Embedding] Vectorization background error:', err);
+    console.warn('[Hybrid RAG] Sync error:', err);
     return vectorCache.size;
   } finally {
     isVectorizing = false;
   }
 }
 
-/**
- * Perform Semantic Vector Search across Notes and Files
- */
+// -------------------------------------------------------------
+// 5. HYBRID SEARCH: Dense + BM25 + Reciprocal Rank Fusion (RRF)
+// -------------------------------------------------------------
 export async function searchSemanticDocuments(
   query: string,
   options: {
@@ -319,105 +472,126 @@ export async function searchSemanticDocuments(
     type?: 'all' | 'notes' | 'files';
   } = {}
 ): Promise<SemanticSearchResult[]> {
-  const { topK = 5, threshold = 0.45, type = 'all' } = options;
+  const { topK = 5, threshold = 0.30, type = 'all' } = options;
   const cleanQuery = query.trim();
   if (!cleanQuery) return [];
 
-  // Generate vector for query
-  const queryVector = await generateEmbedding(cleanQuery);
-  const results: SemanticSearchResult[] = [];
+  // Parallel Execution: Dense Embedding Retrieval + Sparse BM25 Retrieval
+  const [embedResult, bm25Results] = await Promise.all([
+    generateEmbedding(cleanQuery),
+    Promise.resolve(bm25Index.search(cleanQuery, type, 30)),
+  ]);
 
-  const allDocs = Array.from(vectorCache.values());
+  const queryVector = embedResult.vector;
+  const allDenseDocs = Array.from(vectorCache.values());
 
-  // Also read current live notes and files in case some aren't in vector cache yet
-  const liveNotes = await getDbNotes();
-  const liveFiles = await getDbFiles();
-
-  // If vector is available, perform cosine similarity
-  if (queryVector) {
-    for (const doc of allDocs) {
+  // 1. Dense Scoring
+  const denseRanked: Array<{ key: string; doc: DocumentVector; denseSim: number }> = [];
+  if (queryVector && queryVector.length === EMBEDDING_DIMENSIONS) {
+    for (const doc of allDenseDocs) {
       if (type !== 'all' && (type === 'notes' ? doc.type !== 'note' : doc.type !== 'file')) {
         continue;
       }
-
-      const similarity = cosineSimilarity(queryVector, doc.vector);
-      if (similarity >= threshold) {
-        // Build readable snippet
-        const snippet = doc.content.length > 250 ? `${doc.content.slice(0, 250)}...` : doc.content;
-        results.push({
-          id: doc.id,
-          type: doc.type,
-          title: doc.title,
-          snippet,
-          fullText: doc.content,
-          tags: doc.tags,
-          classification: doc.classification,
-          category: doc.category,
-          similarity: parseFloat(similarity.toFixed(4)),
+      const sim = cosineSimilarity(queryVector, doc.vector);
+      if (sim >= threshold) {
+        denseRanked.push({
+          key: `${doc.type}-${doc.id}`,
+          doc,
+          denseSim: sim,
         });
       }
     }
+    denseRanked.sort((a, b) => b.denseSim - a.denseSim);
   }
 
-  // Fallback / Supplementary: check live notes and files that might not be in vector cache or if queryVector was null
-  if (results.length === 0 || !queryVector) {
-    const qLower = cleanQuery.toLowerCase();
-    
-    if (type === 'all' || type === 'notes') {
-      for (const n of liveNotes) {
-        const fullDocStr = `${n.title} ${n.content} ${(n.tags || []).join(' ')}`.toLowerCase();
-        const score = tokenSimilarityFallback(cleanQuery, fullDocStr);
-        const hasKeyword = fullDocStr.includes(qLower);
-        const finalScore = hasKeyword ? Math.max(score, 0.75) : score;
+  // 2. Build Rank Position Maps for RRF
+  const RRF_K = 60; // Standard reciprocal rank fusion constant
+  const denseRankMap = new Map<string, { rank: number; score: number; doc: DocumentVector }>();
+  denseRanked.forEach((item, index) => {
+    denseRankMap.set(item.key, { rank: index + 1, score: item.denseSim, doc: item.doc });
+  });
 
-        if (finalScore >= 0.25) {
-          results.push({
-            id: n.id,
-            type: 'note',
-            title: n.title,
-            snippet: n.content.length > 250 ? `${n.content.slice(0, 250)}...` : n.content,
-            fullText: n.content,
-            tags: n.tags || [],
-            similarity: parseFloat(finalScore.toFixed(4)),
-          });
-        }
-      }
+  const sparseRankMap = new Map<string, { rank: number; score: number; doc: any }>();
+  bm25Results.forEach((item, index) => {
+    sparseRankMap.set(item.key, { rank: index + 1, score: item.score, doc: item.doc });
+  });
+
+  // 3. Compute Reciprocal Rank Fusion (RRF) Scores
+  const allCandidateKeys = new Set<string>([...denseRankMap.keys(), ...sparseRankMap.keys()]);
+  const fusionResults: SemanticSearchResult[] = [];
+
+  for (const key of allCandidateKeys) {
+    const denseEntry = denseRankMap.get(key);
+    const sparseEntry = sparseRankMap.get(key);
+
+    const denseComponent = denseEntry ? 1.0 / (RRF_K + denseEntry.rank) : 0;
+    const sparseComponent = sparseEntry ? 1.0 / (RRF_K + sparseEntry.rank) : 0;
+    const rrfScore = denseComponent + sparseComponent;
+
+    const doc = denseEntry ? denseEntry.doc : sparseEntry!.doc;
+    const denseSim = denseEntry ? parseFloat(denseEntry.score.toFixed(4)) : undefined;
+    const sparseScore = sparseEntry ? parseFloat(sparseEntry.score.toFixed(2)) : undefined;
+
+    let matchMethod: 'hybrid' | 'dense' | 'sparse' = 'hybrid';
+    let explanation = '';
+
+    if (denseEntry && sparseEntry) {
+      matchMethod = 'hybrid';
+      explanation = `Khớp cả ngữ nghĩa trừu tượng (${PRIMARY_EMBEDDING_MODEL}: ${Math.round(denseEntry.score * 100)}%) và từ khóa chính xác (BM25: điểm ${sparseEntry.score.toFixed(1)})`;
+    } else if (denseEntry) {
+      matchMethod = 'dense';
+      explanation = `Khớp ngữ nghĩa chuyên sâu (${PRIMARY_EMBEDDING_MODEL}: ${Math.round(denseEntry.score * 100)}%)`;
+    } else {
+      matchMethod = 'sparse';
+      explanation = `Khớp từ khóa chính xác / mã số / tên riêng (BM25: điểm ${sparseEntry!.score.toFixed(1)})`;
     }
 
-    if (type === 'all' || type === 'files') {
-      for (const f of liveFiles) {
-        const fullDocStr = `${f.name} ${f.classification || ''} ${f.category} ${(f.tags || []).join(' ')} ${f.textContent || ''}`.toLowerCase();
-        const score = tokenSimilarityFallback(cleanQuery, fullDocStr);
-        const hasKeyword = fullDocStr.includes(qLower);
-        const finalScore = hasKeyword ? Math.max(score, 0.75) : score;
-
-        if (finalScore >= 0.25) {
-          results.push({
-            id: f.id,
-            type: 'file',
-            title: f.name,
-            snippet: f.textContent ? (f.textContent.length > 250 ? `${f.textContent.slice(0, 250)}...` : f.textContent) : `Tài liệu: ${f.name} [${f.classification || f.category}]`,
-            fullText: f.textContent || f.name,
-            tags: f.tags || [],
-            classification: f.classification,
-            category: f.category,
-            similarity: parseFloat(finalScore.toFixed(4)),
-          });
-        }
-      }
+    // Normalized overall similarity (0.0 to 1.0)
+    let normalizedSimilarity = 0;
+    if (denseSim !== undefined && sparseScore !== undefined) {
+      normalizedSimilarity = Math.min(1.0, denseSim * 0.7 + Math.min(1.0, sparseScore / 10) * 0.3);
+    } else if (denseSim !== undefined) {
+      normalizedSimilarity = denseSim;
+    } else if (sparseScore !== undefined) {
+      normalizedSimilarity = Math.min(0.95, 0.5 + Math.min(0.45, sparseScore / 20));
     }
+
+    const snippet = doc.content && doc.content.length > 250
+      ? `${doc.content.slice(0, 250)}...`
+      : (doc.content || doc.title);
+
+    fusionResults.push({
+      id: doc.id,
+      type: doc.type,
+      title: doc.title,
+      snippet,
+      fullText: doc.content || doc.title,
+      tags: doc.tags || [],
+      classification: doc.classification,
+      category: doc.category,
+      similarity: parseFloat(normalizedSimilarity.toFixed(4)),
+      denseSimilarity: denseSim,
+      sparseScore,
+      rrfScore: parseFloat(rrfScore.toFixed(6)),
+      matchMethod,
+      relevanceExplanation: explanation,
+    });
   }
 
-  // Sort descending by similarity score
-  results.sort((a, b) => b.similarity - a.similarity);
+  // Sort primarily by RRF score descending
+  fusionResults.sort((a, b) => (b.rrfScore || 0) - (a.rrfScore || 0));
 
-  // Return Top K items
-  return results.slice(0, topK);
+  return fusionResults.slice(0, topK);
 }
 
-// Initialize on module load
+// -------------------------------------------------------------
+// INITIALIZATION
+// -------------------------------------------------------------
 loadEmbeddingCacheFromDisk();
-// Trigger initial vectorization asynchronously
+
+// Trigger initial asynchronous sync & BM25 indexing
 setTimeout(() => {
-  syncAndVectorizeAllDocuments().catch(err => console.warn('Vector init error:', err));
-}, 2000);
+  syncAndVectorizeAllDocuments().catch(err => {
+    console.warn('Hybrid RAG vector init error:', err?.message);
+  });
+}, 1500);

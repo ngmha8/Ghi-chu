@@ -39,3 +39,293 @@ body {
   background: #D4AF37;
 }
 
+/* ==========================================================================
+   ARCHITECT.OS — SAPPHIRE EXECUTIVE LIGHT THEME (XANH & TRẮNG CHUYÊN NGHIỆP)
+   Designed from a Web Architecture & AI Engineering perspective:
+   - Primary: Royal Sapphire Blue (#0F52BA), Cobalt Blue (#2563EB)
+   - Secondary / Surfaces: Alabaster Ice Background (#F4F7FC), Pure Crystalline White (#FFFFFF)
+   - Contrast: High-fidelity Slate Neutrals (#0F172A, #334155, #64748B)
+   - Standards: WCAG AAA legibility, micro-contrast elevation shadows
+   ========================================================================== */
+
+html.theme-light {
+  color-scheme: light;
+}
+
+html.theme-light body {
+  background-color: #F4F7FC !important;
+  color: #0F172A !important;
+}
+
+html.theme-light ::selection {
+  background-color: #0F52BA !important;
+  color: #FFFFFF !important;
+}
+
+/* Canvas & Header Architecture */
+html.theme-light header {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-bottom-color: #E2E8F0 !important;
+  color: #0F172A !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05) !important;
+}
+
+html.theme-light .bg-\[\#0F0F0F\] {
+  background-color: #F4F7FC !important;
+}
+
+html.theme-light .bg-\[\#0F0F0F\]\/95 {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+}
+
+html.theme-light .bg-\[\#0A0A0A\] {
+  background-color: #EDF3FA !important;
+}
+
+html.theme-light .bg-\[\#0C0C0C\] {
+  background-color: #FFFFFF !important;
+}
+
+html.theme-light .bg-\[\#0E0E0E\] {
+  background-color: #FFFFFF !important;
+}
+
+/* Surfaces, Cards, Modals & Drawers */
+html.theme-light .bg-\[\#111111\],
+html.theme-light .bg-\[\#121212\],
+html.theme-light .bg-\[\#141414\],
+html.theme-light .bg-\[\#151515\],
+html.theme-light .bg-\[\#161616\],
+html.theme-light .bg-\[\#181818\] {
+  background-color: #FFFFFF !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 4px 14px -2px rgba(15, 82, 186, 0.04) !important;
+}
+
+/* Subtle Secondary Layers & Hover States */
+html.theme-light .bg-\[\#1A1A1A\],
+html.theme-light .bg-\[\#1E1E1E\],
+html.theme-light .bg-\[\#202020\],
+html.theme-light .bg-\[\#222222\],
+html.theme-light .bg-\[\#252525\] {
+  background-color: #F1F5F9 !important;
+}
+
+html.theme-light .bg-\[\#2A2A2A\] {
+  background-color: #E2E8F0 !important;
+}
+
+html.theme-light .hover\:bg-\[\#1A1A1A\]:hover,
+html.theme-light .hover\:bg-\[\#1C1C1C\]:hover,
+html.theme-light .hover\:bg-\[\#1E1E1E\]:hover,
+html.theme-light .hover\:bg-\[\#202020\]:hover {
+  background-color: #E6EFFB !important;
+}
+
+/* Borders & Dividers */
+html.theme-light .border-\[\#2A2A2A\],
+html.theme-light .border-\[\#222222\],
+html.theme-light .border-\[\#282828\],
+html.theme-light .border-\[\#2E2E2E\],
+html.theme-light .border-\[\#333333\],
+html.theme-light .border-\[\#444444\] {
+  border-color: #E2E8F0 !important;
+}
+
+html.theme-light .hover\:border-\[\#444444\]:hover {
+  border-color: #CBD5E1 !important;
+}
+
+html.theme-light .divide-\[\#222222\] > :not([hidden]) ~ :not([hidden]),
+html.theme-light .divide-\[\#2A2A2A\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #E2E8F0 !important;
+}
+
+/* Form Controls & Inputs */
+html.theme-light input:not([type="checkbox"]):not([type="radio"]),
+html.theme-light select,
+html.theme-light textarea {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+
+html.theme-light select option {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
+
+html.theme-light input::placeholder,
+html.theme-light textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+/* Royal Sapphire Blue Accent System (Transformation from Gold to Sapphire Blue) */
+html.theme-light .text-\[\#D4AF37\] {
+  color: #0F52BA !important;
+}
+
+html.theme-light .hover\:text-\[\#D4AF37\]:hover {
+  color: #0A3E92 !important;
+}
+
+html.theme-light .bg-\[\#D4AF37\] {
+  background-color: #0F52BA !important;
+  color: #FFFFFF !important;
+}
+
+html.theme-light .bg-\[\#D4AF37\] * {
+  color: #FFFFFF !important;
+}
+
+html.theme-light .hover\:bg-\[\#c29f2e\]:hover {
+  background-color: #0A3E92 !important;
+}
+
+html.theme-light .border-\[\#D4AF37\] {
+  border-color: #0F52BA !important;
+}
+
+html.theme-light .border-\[\#D4AF37\]\/30,
+html.theme-light .border-\[\#D4AF37\]\/40,
+html.theme-light .border-\[\#D4AF37\]\/50,
+html.theme-light .border-\[\#D4AF37\]\/60 {
+  border-color: #BFDBFE !important;
+}
+
+html.theme-light .hover\:border-\[\#D4AF37\]\/50:hover,
+html.theme-light .hover\:border-\[\#D4AF37\]\/40:hover {
+  border-color: #0F52BA !important;
+}
+
+html.theme-light .bg-\[\#D4AF37\]\/10,
+html.theme-light .bg-\[\#D4AF37\]\/15,
+html.theme-light .bg-\[\#D4AF37\]\/20 {
+  background-color: #EBF3FF !important;
+  color: #0F52BA !important;
+}
+
+html.theme-light .bg-\[\#D4AF37\]\/10 *,
+html.theme-light .bg-\[\#D4AF37\]\/15 *,
+html.theme-light .bg-\[\#D4AF37\]\/20 * {
+  color: #0F52BA !important;
+}
+
+html.theme-light .focus\:border-\[\#D4AF37\]:focus {
+  border-color: #0F52BA !important;
+  box-shadow: 0 0 0 1px #0F52BA !important;
+}
+
+html.theme-light .shadow-\[0_2px_12px_rgba\(212\,175\,55\,0\.15\)\] {
+  box-shadow: 0 2px 12px rgba(15, 82, 186, 0.18) !important;
+}
+
+/* High-Contrast Typographic Hierarchy */
+html.theme-light .text-white {
+  color: #0F172A !important;
+}
+
+html.theme-light .text-\[\#E0E0E0\] {
+  color: #1E293B !important;
+}
+
+html.theme-light .text-\[\#CCCCCC\] {
+  color: #334155 !important;
+}
+
+html.theme-light .text-\[\#AAAAAA\] {
+  color: #475569 !important;
+}
+
+html.theme-light .text-\[\#A0A0A0\] {
+  color: #64748B !important;
+}
+
+html.theme-light .text-\[\#888888\] {
+  color: #64748B !important;
+}
+
+html.theme-light .text-\[\#777777\] {
+  color: #64748B !important;
+}
+
+html.theme-light .text-\[\#666666\] {
+  color: #94A3B8 !important;
+}
+
+html.theme-light .text-zinc-400,
+html.theme-light .text-zinc-300 {
+  color: #475569 !important;
+}
+
+/* Protect text colors on dark action buttons & status tags */
+html.theme-light button.bg-\[\#D4AF37\],
+html.theme-light button.bg-\[\#D4AF37\] span,
+html.theme-light .bg-\[\#D4AF37\] .text-black,
+html.theme-light .bg-blue-600,
+html.theme-light .bg-blue-600 span,
+html.theme-light .bg-emerald-600,
+html.theme-light .bg-emerald-600 span,
+html.theme-light .bg-red-600,
+html.theme-light .bg-red-600 span {
+  color: #FFFFFF !important;
+}
+
+/* Dropdown Menus & Modal Elevation */
+html.theme-light .shadow-2xl {
+  box-shadow: 0 20px 35px -8px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(226, 232, 240, 0.9) !important;
+}
+
+/* Light Theme Scrollbars */
+html.theme-light ::-webkit-scrollbar-track {
+  background: #F4F7FC;
+}
+
+html.theme-light ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+
+html.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: #0F52BA;
+}
+
+/* Badges & Status Pills in Light Mode */
+html.theme-light .bg-blue-500\/10,
+html.theme-light .bg-blue-500\/20 {
+  background-color: #EFF6FF !important;
+  color: #1D4ED8 !important;
+}
+
+html.theme-light .bg-emerald-500\/10,
+html.theme-light .bg-emerald-500\/20 {
+  background-color: #ECFDF5 !important;
+  color: #047857 !important;
+}
+
+html.theme-light .bg-amber-500\/10,
+html.theme-light .bg-amber-500\/20 {
+  background-color: #FFFBEB !important;
+  color: #B45309 !important;
+}
+
+html.theme-light .bg-purple-500\/10,
+html.theme-light .bg-purple-500\/20 {
+  background-color: #FAF5FF !important;
+  color: #6D28D9 !important;
+}
+
+html.theme-light .bg-rose-500\/10,
+html.theme-light .bg-rose-500\/20 {
+  background-color: #FFF1F2 !important;
+  color: #BE123C !important;
+}
+
+/* Recharts Tooltip in Light Mode */
+html.theme-light .recharts-default-tooltip,
+html.theme-light .recharts-tooltip-wrapper .bg-\[\#181818\] {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12) !important;
+  color: #0F172A !important;
+}
+

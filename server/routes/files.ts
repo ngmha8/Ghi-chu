@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import path from 'path';
-import fs from 'fs';
 import {
   getDbFiles,
   saveDbFile,
@@ -9,11 +8,12 @@ import {
   getDbFileById,
 } from '../firebaseDb.ts';
 import {
-  uploadFileToDriveFolder,
-  deleteFileFromDrive,
-  downloadFileFromDrive,
-} from '../googleDriveServiceAccount.ts';
-import { UPLOADS_DIR } from '../aiService.ts';
+  savePersistentBinary,
+  getPersistentBinary,
+  deletePersistentBinary,
+  UPLOADS_DIR,
+} from '../storageService.ts';
+import { syncAndVectorizeAllDocuments } from '../embeddingService.ts';
 import type { DriveFile } from '../../src/types/index.ts';
 
 const router = Router();
@@ -41,50 +41,35 @@ router.post('/', async (req: Request, res: Response) => {
     const textContent = req.body.textContent;
     const base64Data = req.body.base64Data;
 
-    // Ensure uploads directory exists
-    if (!fs.existsSync(UPLOADS_DIR)) {
-      try {
-        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-      } catch (e) {}
-    }
-
-    // Save binary to server uploads directory if provided
+    // Decode binary if provided
     let fileBuffer: Buffer | null = null;
     if (base64Data) {
       try {
         fileBuffer = Buffer.from(base64Data.replace(/^data:.*?;base64,/, ''), 'base64');
-        const filePath = path.join(UPLOADS_DIR, `${fileId}_${path.basename(fileName)}`);
-        fs.writeFileSync(filePath, fileBuffer);
-        const fileIdPath = path.join(UPLOADS_DIR, `${fileId}.bin`);
-        fs.writeFileSync(fileIdPath, fileBuffer);
       } catch (e) {
-        console.warn('Error saving uploaded file binary to disk:', e);
+        console.warn('Error decoding base64Data:', e);
       }
     } else if (textContent) {
       fileBuffer = Buffer.from(textContent, 'utf-8');
-      try {
-        const filePath = path.join(UPLOADS_DIR, `${fileId}_${path.basename(fileName)}`);
-        fs.writeFileSync(filePath, fileBuffer);
-      } catch (e) {}
     }
 
-    // Automatic Service Account Google Drive Upload if active
-    const saConfig = await getDbDriveServiceAccountConfig();
-    if (saConfig.isEnabled && saConfig.isConnected && saConfig.folderId && fileBuffer && !driveFileId) {
-      try {
-        const uploadedToDrive = await uploadFileToDriveFolder(
-          saConfig,
-          fileName,
-          mimeType,
-          fileBuffer
-        );
-        if (uploadedToDrive?.uploadedToDrive && uploadedToDrive.id) {
-          driveFileId = uploadedToDrive.id;
-          webViewLink = uploadedToDrive.webViewLink;
-          isSynced = true;
-        }
-      } catch (driveErr: any) {
-        console.info(`ℹ️ File "${fileName}" stored safely in local vault: ${driveErr?.message || 'Drive sync deferred'}`);
+    let storageType: 'drive' | 'firestore_vault' | 'disk' = 'disk';
+
+    // Persist binary data permanently into multi-tier storage
+    if (fileBuffer) {
+      const persistRes = await savePersistentBinary({
+        fileId,
+        fileName,
+        mimeType,
+        buffer: fileBuffer,
+        tryDriveSync: !driveFileId,
+      });
+
+      storageType = persistRes.storageType;
+      if (persistRes.isSyncedToDrive && persistRes.driveFileId) {
+        driveFileId = persistRes.driveFileId;
+        webViewLink = persistRes.webViewLink;
+        isSynced = true;
       }
     }
 
@@ -96,12 +81,15 @@ router.post('/', async (req: Request, res: Response) => {
         return lower && lower !== 'unclassified' && lower !== 'chưa xác định' && lower !== 'chưa phân loại';
       });
 
+    const isImage = mimeType.startsWith('image/') || /\.(jpe?g|png|webp|gif|svg)$/i.test(fileName);
+    const thumbnail = (base64Data && isImage && base64Data.length < 40000) ? base64Data : undefined;
+
     const newFile: DriveFile = {
       id: fileId,
       name: fileName,
       mimeType: mimeType,
-      size: size,
-      webViewLink: isSynced && webViewLink ? webViewLink : undefined,
+      size: fileBuffer ? fileBuffer.length : size,
+      webViewLink: isSynced && webViewLink ? webViewLink : (req.body.webViewLink || undefined),
       category: req.body.category || 'document',
       classification: req.body.classification || 'unclassified',
       tags: cleanTags,
@@ -109,16 +97,19 @@ router.post('/', async (req: Request, res: Response) => {
       description: req.body.description || undefined,
       isSyncedToDrive: isSynced,
       driveFileId: driveFileId,
-      syncStatus: isSynced ? 'synced' : 'local_only',
-      downloadUrl: driveFileId ? `/api/drive-service-account/download/${driveFileId}` : `/api/files/download/${fileId}`,
-      previewUrl: webViewLink || `/api/files/preview/${fileId}`,
+      syncStatus: (req.body.storageType === 'gcs' ? 'synced' : (isSynced ? 'synced' : 'local_only')),
+      downloadUrl: req.body.downloadUrl || (driveFileId ? `/api/drive-service-account/download/${driveFileId}` : `/api/files/download/${fileId}`),
+      previewUrl: req.body.previewUrl || webViewLink || `/api/files/preview/${fileId}`,
       textContent: textContent,
-      base64Data: (base64Data && base64Data.length < 800000) ? base64Data : undefined,
-      thumbnailUrl: (base64Data && (mimeType.startsWith('image/') || /\.(jpe?g|png|webp|gif|svg)$/i.test(fileName))) ? base64Data : undefined,
+      thumbnailUrl: thumbnail,
+      storageType: req.body.storageType || storageType,
+      storagePath: req.body.storagePath,
+      hasBinary: !!fileBuffer || !!req.body.storagePath,
       uploadedAt: req.body.uploadedAt || new Date().toISOString(),
     };
 
     const saved = await saveDbFile(newFile);
+    syncAndVectorizeAllDocuments().catch(() => {});
     res.status(201).json(saved);
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Error saving file' });
@@ -134,47 +125,29 @@ router.get('/download/:id', async (req: Request, res: Response) => {
     return res.status(404).send('Không tìm thấy tệp yêu cầu');
   }
 
-  // If has driveFileId and Service Account is connected, download from Drive
-  if (file.driveFileId) {
-    try {
-      const saConfig = await getDbDriveServiceAccountConfig();
-      if (saConfig.clientEmail && saConfig.privateKey) {
-        const { buffer, mimeType, fileName } = await downloadFileFromDrive(saConfig, file.driveFileId);
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName || file.name)}"`);
-        res.setHeader('Content-Type', mimeType || file.mimeType || 'application/octet-stream');
-        return res.send(buffer);
-      }
-    } catch (e) {
-      console.warn('Fallback to local disk download:', e);
-    }
+  // If file has direct Google Cloud Storage or external downloadUrl
+  if (file.downloadUrl && (file.downloadUrl.startsWith('https://') || file.downloadUrl.startsWith('http://'))) {
+    return res.redirect(file.downloadUrl);
   }
 
-  // Look for stored file on disk
-  try {
-    const filesInDir = fs.readdirSync(UPLOADS_DIR);
-    const matched = filesInDir.find(fn => fn.startsWith(fileId));
-    if (matched) {
-      const fullPath = path.join(UPLOADS_DIR, matched);
-      if (fs.existsSync(fullPath)) {
-        const ext = path.extname(file.name).toLowerCase();
-        let safeMime = file.mimeType || 'application/octet-stream';
-        if (ext === '.docx') safeMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        else if (ext === '.doc') safeMime = 'application/msword';
-        else if (ext === '.xlsx') safeMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-        else if (ext === '.xls') safeMime = 'application/vnd.ms-excel';
-        else if (ext === '.pdf') safeMime = 'application/pdf';
+  // Retrieve binary through Multi-Tier Storage (Disk Cache -> Drive -> Firestore Vault)
+  const persistent = await getPersistentBinary(fileId, file.driveFileId, file.name, file.mimeType);
+  if (persistent?.buffer) {
+    const ext = path.extname(persistent.fileName || file.name).toLowerCase();
+    let safeMime = persistent.mimeType || file.mimeType || 'application/octet-stream';
+    if (ext === '.docx') safeMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    else if (ext === '.doc') safeMime = 'application/msword';
+    else if (ext === '.xlsx') safeMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    else if (ext === '.xls') safeMime = 'application/vnd.ms-excel';
+    else if (ext === '.pdf') safeMime = 'application/pdf';
 
-        const safeAsciiName = file.name.replace(/[^\x20-\x7E]/g, '_');
-        res.setHeader('Content-Type', safeMime);
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`
-        );
-        return res.sendFile(fullPath);
-      }
-    }
-  } catch (e) {
-    console.warn('Error checking uploads folder:', e);
+    const safeAsciiName = (persistent.fileName || file.name).replace(/[^\x20-\x7E]/g, '_');
+    res.setHeader('Content-Type', safeMime);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(persistent.fileName || file.name)}`
+    );
+    return res.send(persistent.buffer);
   }
 
   // If textContent available, send as text file
@@ -187,7 +160,7 @@ router.get('/download/:id', async (req: Request, res: Response) => {
   // Fallback realistic document generator
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
   res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
-  res.send(`--- TÀI LIỆU HỆ THỐNG TRỢ LÝ AI: ${file.name} ---\nLoại: ${file.category}\nKích thước: ${file.size} bytes\nNgày lưu: ${file.uploadedAt}\n\nNội dung văn bản lưu trữ an toàn trong Local Storage Vault.`);
+  res.send(`--- TÀI LIỆU HỆ THỐNG TRỢ LÝ AI: ${file.name} ---\nLoại: ${file.category}\nKích thước: ${file.size} bytes\nNgày lưu: ${file.uploadedAt}\n\nNội dung văn bản lưu trữ an toàn trong Cloud Vault.`);
 });
 
 // GET /api/files/preview/:id
@@ -199,22 +172,23 @@ router.get('/preview/:id', async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'File not found' });
   }
 
-  try {
-    const filesInDir = fs.readdirSync(UPLOADS_DIR);
-    const matched = filesInDir.find(fn => fn.startsWith(fileId));
-    if (matched) {
-      const fullPath = path.join(UPLOADS_DIR, matched);
-      res.setHeader('Content-Type', file.mimeType);
-      return res.sendFile(fullPath);
-    }
-  } catch (e) {}
+  // If file has direct Google Cloud Storage or external previewUrl
+  if (file.previewUrl && (file.previewUrl.startsWith('https://') || file.previewUrl.startsWith('http://'))) {
+    return res.redirect(file.previewUrl);
+  }
+
+  const persistent = await getPersistentBinary(fileId, file.driveFileId, file.name, file.mimeType);
+  if (persistent?.buffer) {
+    res.setHeader('Content-Type', persistent.mimeType || file.mimeType || 'application/octet-stream');
+    return res.send(persistent.buffer);
+  }
 
   res.json({
     id: file.id,
     name: file.name,
     category: file.category,
     mimeType: file.mimeType,
-    textContent: file.textContent || `[Tài liệu: ${file.name}] - Lưu trữ cục bộ an toàn.`,
+    textContent: file.textContent || `[Tài liệu: ${file.name}] - Lưu trữ đám mây an toàn.`,
     isSyncedToDrive: file.isSyncedToDrive,
     webViewLink: file.webViewLink,
   });
@@ -269,44 +243,15 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
       } catch (e) {}
     }
 
-    // 2. Check disk uploads directory
+    // 2. Multi-tier persistent binary retrieval (Local Cache -> Firestore Vault)
     if (!fileBuffer) {
-      try {
-        if (fs.existsSync(UPLOADS_DIR)) {
-          const filesInDir = fs.readdirSync(UPLOADS_DIR);
-          const matched = filesInDir.find(fn => fn.startsWith(fileId) || fn.includes(fileId) || fn === `${fileId}_${path.basename(file.name)}`);
-          if (matched) {
-            const fullPath = path.join(UPLOADS_DIR, matched);
-            if (fs.existsSync(fullPath)) {
-              fileBuffer = fs.readFileSync(fullPath);
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Error reading file from disk:', e);
+      const persistent = await getPersistentBinary(fileId, undefined, file.name, file.mimeType);
+      if (persistent?.buffer) {
+        fileBuffer = persistent.buffer;
       }
     }
 
-    // 3. Check base64Data stored on file object
-    if (!fileBuffer && (file as any).base64Data) {
-      try {
-        fileBuffer = Buffer.from((file as any).base64Data.replace(/^data:.*?;base64,/, ''), 'base64');
-      } catch (e) {}
-    }
-
-    // 4. Check thumbnailUrl stored on file object
-    if (!fileBuffer && (file as any).thumbnailUrl) {
-      try {
-        fileBuffer = Buffer.from((file as any).thumbnailUrl.replace(/^data:.*?;base64,/, ''), 'base64');
-      } catch (e) {}
-    }
-
-    // 5. Check textContent
-    if (!fileBuffer && file.textContent) {
-      fileBuffer = Buffer.from(file.textContent, 'utf-8');
-    }
-
-    // 6. Resilient Image & Document Generator Fallback (Ensures Drive uploads always succeed)
+    // 3. Resilient Image & Document Generator Fallback if binary is unavailable
     if (!fileBuffer) {
       const isImg = file.category === 'image' || (file.mimeType && file.mimeType.startsWith('image/')) || /\.(jpe?g|png|webp|gif|svg)$/i.test(file.name);
       if (isImg) {
@@ -432,6 +377,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       id: fileId,
     };
     const saved = await saveDbFile(updated);
+    syncAndVectorizeAllDocuments().catch(() => {});
     res.json(saved);
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Error updating file' });
@@ -444,25 +390,10 @@ router.delete('/:id', async (req: Request, res: Response) => {
     const fileId = req.params.id;
     const file = getDbFileById(fileId) || (await getDbFiles()).find(f => f.id === fileId);
 
-    if (file?.driveFileId) {
-      try {
-        const saConfig = await getDbDriveServiceAccountConfig();
-        if (saConfig.isEnabled && saConfig.isConnected) {
-          await deleteFileFromDrive(saConfig, file.driveFileId);
-        }
-      } catch (e) {
-        console.warn('Drive file deletion error (non-fatal):', e);
-      }
-    }
-
+    // Delete across all storage tiers (Google Drive, Firestore Binary Vault, Local Disk)
+    await deletePersistentBinary(fileId, file?.driveFileId);
     await deleteDbFile(fileId);
-    try {
-      const filesInDir = fs.readdirSync(UPLOADS_DIR);
-      const matched = filesInDir.find(fn => fn.startsWith(fileId));
-      if (matched) {
-        fs.unlinkSync(path.join(UPLOADS_DIR, matched));
-      }
-    } catch (e) {}
+    syncAndVectorizeAllDocuments().catch(() => {});
     res.json({ success: true, id: fileId });
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Error deleting file' });

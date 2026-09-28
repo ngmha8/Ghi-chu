@@ -1,1 +1,99 @@
-[]
+[
+  {
+    "status": "completed",
+    "isNotified": false,
+    "attachedFileIds": [
+      "file-1787822331364",
+      "file-1787822331363",
+      "file-1787821406563",
+      "file-1787820146806",
+      "file-1787820146805"
+    ],
+    "priority": "high",
+    "tags": [
+      "Công việc"
+    ],
+    "title": "Xin cấp chứng chỉ nhân viên bức xạ",
+    "recurring": {
+      "type": "none"
+    },
+    "deadline": "2026-09-10T09:15:00.000Z",
+    "description": "Hoàn thành nộp hồ sơ xin cấp chứng chỉ nhân viên bức xạ gửi vè sở khoa học công nghệ",
+    "updatedAt": "2026-09-22T12:41:01.170Z",
+    "createdAt": "2026-08-25T11:15:52.066Z",
+    "reminderOffsetMinutes": 120,
+    "order": 1,
+    "id": "task-1787656552066"
+  },
+  {
+    "recurring": {
+      "type": "none"
+    },
+    "id": "task-1787656644725",
+    "description": "Tham dự lễ và kết nạp Đảng viên dự bị",
+    "updatedAt": "2026-09-22T12:41:01.171Z",
+    "createdAt": "2026-08-25T11:17:24.725Z",
+    "order": 2,
+    "priority": "medium",
+    "reminderOffsetMinutes": 30,
+    "isNotified": true,
+    "deadline": "2026-08-26T08:30:00.000Z",
+    "attachedFileIds": [],
+    "status": "completed",
+    "tags": [
+      "Cá nhân"
+    ],
+    "title": "Tham dự lễ kết nạp Đảng",
+    "lastNotifiedAt": "2026-08-26T08:00:20.743Z"
+  },
+  {
+    "id": "task-1787713081768",
+    "order": 3,
+    "createdAt": "2026-08-26T02:58:01.768Z",
+    "updatedAt": "2026-09-22T12:41:01.173Z",
+    "lastNotifiedAt": "2026-08-29T02:12:19.606Z",
+    "tags": [
+      "Công việc"
+    ],
+    "recurring": {
+      "type": "none"
+    },
+    "priority": "medium",
+    "isNotified": true,
+    "reminderOffsetMinutes": 15,
+    "status": "completed",
+    "title": "Kiểm định máy",
+    "deadline": "2026-08-29T02:27:00.000Z",
+    "description": "Kiểm định toàn bộ máy chụp X Quang, máy chụp CLVT, chú ý kiểm định cả 3 máy điện tim (phòng Nội Soi, Điện tim, Khoa Mắt)",
+    "attachedFileIds": []
+  },
+  {
+    "tags": [
+      "Công việc"
+    ],
+    "createdAt": "2026-09-22T12:40:53.521Z",
+    "status": "in_progress",
+    "overdueReminderCount": 5,
+    "recurring": {
+      "completedCycles": 1,
+      "originalDeadline": "2026-09-25T12:17:00.000Z",
+      "type": "interval",
+      "unit": "month",
+      "repeatOnComplete": true,
+      "lastCompletedAt": "2026-09-25T15:43:30.448Z",
+      "interval": 3
+    },
+    "title": "Gửi liều kế cá nhân",
+    "lastOverdueNotifiedAt": "2026-09-25T15:42:26.494Z",
+    "deadline": "2026-12-25T12:17:00.000Z",
+    "isNotified": false,
+    "updatedAt": "2026-09-25T15:43:30.784Z",
+    "id": "task-1790080853521",
+    "lastNotifiedAt": "2026-09-24T14:55:45.631Z",
+    "description": "Gửi liều kế cá nhân của nhân viên x quang đi đọc kết quả theo địa chỉ:\nVũ Xuân Thành SĐT: 0834705874 - 0969227961\nTrung tâm đánh giá không phá hủy , 140 đường Nguyễn Tuân, phường Thanh Xuân Trung, quận Thanh Xuân, Hà Nội",
+    "priority": "medium",
+    "order": 0,
+    "attachedFileIds": [],
+    "reminderOffsetMinutes": 1440
+  }
+]

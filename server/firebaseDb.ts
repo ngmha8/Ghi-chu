@@ -1,8 +1,10 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getFirestore,
+  setLogLevel,
   collection,
   doc,
   setDoc,
@@ -11,6 +13,13 @@ import {
   deleteDoc,
   Firestore,
 } from 'firebase/firestore';
+
+// Silence internal Firestore gRPC stream lifecycle & idle disconnection logs in Node.js server
+try {
+  setLogLevel('silent');
+} catch (e) {
+  // Ignore fallback
+}
 import type {
   Task,
   Note,
@@ -49,22 +58,59 @@ export const initialDriveServiceAccountConfig: DriveServiceAccountConfig = {
 };
 
 export interface SecurityPinConfig {
-  pin: string;
+  pinHash: string;
+  salt: string;
   isEnabled: boolean;
   autolockMinutes: number;
   hint: string;
   updatedAt: string;
 }
 
+export interface SafeSecurityPinSettings {
+  isEnabled: boolean;
+  hasCustomPin: boolean;
+  autolockMinutes: number;
+  hint: string;
+  updatedAt: string;
+}
+
+/**
+ * Hash a PIN with a cryptographically secure random salt using SHA-256
+ */
+export function hashPinWithSalt(pin: string, customSalt?: string): { hash: string; salt: string } {
+  const salt = customSalt || crypto.randomBytes(16).toString('hex');
+  const hash = crypto.createHash('sha256').update(`${salt}:${pin.trim()}`).digest('hex');
+  return { hash, salt };
+}
+
+/**
+ * Verify a PIN against a stored Salted SHA-256 hash using constant-time comparison
+ */
+export function verifyPinWithSalt(inputPin: string, storedHash: string, storedSalt: string): boolean {
+  if (!storedHash || !storedSalt || !inputPin) return false;
+  const computedHash = crypto.createHash('sha256').update(`${storedSalt}:${inputPin.trim()}`).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(storedHash, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
 export const defaultSecurityPin = process.env.ADMIN_PIN || process.env.APP_PIN || '1234';
+const defaultHashed = hashPinWithSalt(defaultSecurityPin, 'ai_studio_system_default_salt_2026');
 
 export let cachedSecurityPinConfig: SecurityPinConfig = {
-  pin: defaultSecurityPin,
+  pinHash: defaultHashed.hash,
+  salt: defaultHashed.salt,
   isEnabled: true,
   autolockMinutes: 0,
   hint: defaultSecurityPin === '1234' ? 'Mã PIN mặc định là 1234' : 'Mã PIN bảo vệ hệ thống',
   updatedAt: new Date().toISOString(),
 };
+
+export function isCustomPinActive(): boolean {
+  return !verifyPinWithSalt('1234', cachedSecurityPinConfig.pinHash, cachedSecurityPinConfig.salt);
+}
 
 // In-Memory cache for high-speed access & offline resilience
 export let cachedCategories: DocumentCategory[] = [...initialCategories];
@@ -74,7 +120,6 @@ export let cachedFiles: DriveFile[] = [...initialFiles];
 export let cachedTelegramConfig: TelegramConfig = { ...initialTelegramConfig };
 export let cachedNotificationLogs: NotificationLog[] = [...initialNotificationLogs];
 export let cachedDriveServiceAccountConfig: DriveServiceAccountConfig = { ...initialDriveServiceAccountConfig };
-export let cachedSecurityPin: string = defaultSecurityPin;
 export let cachedAiMemories: AiMemoryFact[] = [...initialAiMemories];
 export let cachedAiInsights: AiLearningInsight[] = [...initialAiInsights];
 export let cachedAiPersonaConfig: AiPersonaConfig = { ...initialAiPersonaConfig };
@@ -141,12 +186,24 @@ try {
 
   const pinData = loadJsonFileSafe('security_pin.json');
   if (pinData) {
-    if (pinData.pin) cachedSecurityPin = pinData.pin.toString();
-    cachedSecurityPinConfig = {
-      ...cachedSecurityPinConfig,
-      ...pinData,
-      pin: pinData.pin ? pinData.pin.toString() : cachedSecurityPin,
-    };
+    if (pinData.pinHash && pinData.salt) {
+      cachedSecurityPinConfig = {
+        ...cachedSecurityPinConfig,
+        ...pinData,
+      };
+    } else if (pinData.pin) {
+      // Auto-migrate legacy plaintext PIN into Salted SHA-256
+      console.log('🔒 Auto-migrating legacy plaintext PIN in security_pin.json to Salted SHA-256...');
+      const migrated = hashPinWithSalt(pinData.pin.toString());
+      cachedSecurityPinConfig = {
+        ...cachedSecurityPinConfig,
+        ...pinData,
+        pinHash: migrated.hash,
+        salt: migrated.salt,
+        updatedAt: new Date().toISOString(),
+      };
+      delete (cachedSecurityPinConfig as any).pin;
+    }
   }
 } catch (e) {
   console.warn('Could not read local backup files:', e);
@@ -216,6 +273,10 @@ export function getDbFileById(id: string): DriveFile | undefined {
   return cacheIndex.fileMap.get(id);
 }
 let firestoreDb: Firestore | null = null;
+
+export function getFirestoreDb(): Firestore | null {
+  return firestoreDb;
+}
 
 // Safe cleaner to strip undefined properties for Firestore
 function cleanForFirestore<T>(data: T): Record<string, any> {
@@ -355,10 +416,23 @@ export async function initializeFirestoreData() {
     // 7. Sync Security PIN Settings
     const pinDocSnap = await getDoc(doc(firestoreDb, 'settings', 'security_pin'));
     if (pinDocSnap.exists()) {
-      const cloudPin = pinDocSnap.data() as SecurityPinConfig;
-      cachedSecurityPinConfig = { ...cachedSecurityPinConfig, ...cloudPin };
-      if (cloudPin.pin) cachedSecurityPin = cloudPin.pin;
-      console.log(`📥 Loaded Security PIN Config from Firebase Firestore.`);
+      const cloudPin = pinDocSnap.data() as any;
+      if (cloudPin.pinHash && cloudPin.salt) {
+        cachedSecurityPinConfig = { ...cachedSecurityPinConfig, ...cloudPin };
+      } else if (cloudPin.pin) {
+        console.log('🔒 Auto-migrating Firestore legacy plaintext PIN to Salted SHA-256...');
+        const migrated = hashPinWithSalt(cloudPin.pin.toString());
+        cachedSecurityPinConfig = {
+          ...cachedSecurityPinConfig,
+          ...cloudPin,
+          pinHash: migrated.hash,
+          salt: migrated.salt,
+          updatedAt: new Date().toISOString(),
+        };
+        delete (cachedSecurityPinConfig as any).pin;
+        await firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
+      }
+      console.log(`📥 Loaded & Verified Security PIN Config (Salted SHA-256) from Firebase Firestore.`);
     } else {
       await firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
     }
@@ -470,8 +544,17 @@ export async function deleteDbTask(id: string): Promise<boolean> {
 // -------------------------------------------------------------
 // CRUD METHODS (NOTE)
 // -------------------------------------------------------------
+export function sortNotesByRecent(notes: Note[]): Note[] {
+  return [...notes].sort((a, b) => {
+    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+    const timeA = new Date(a.noteDate || a.createdAt || a.updatedAt || 0).getTime();
+    const timeB = new Date(b.noteDate || b.createdAt || b.updatedAt || 0).getTime();
+    return timeB - timeA;
+  });
+}
+
 export async function getDbNotes(): Promise<Note[]> {
-  return cachedNotes;
+  return sortNotesByRecent(cachedNotes);
 }
 
 export async function saveDbNote(note: Note): Promise<Note> {
@@ -511,17 +594,27 @@ export async function getDbFiles(): Promise<DriveFile[]> {
   });
 }
 
-export async function saveDbFile(file: DriveFile): Promise<DriveFile> {
-  const index = cachedFiles.findIndex(f => f.id === file.id);
-  if (index >= 0) {
-    cachedFiles[index] = file;
-  } else {
-    cachedFiles.unshift(file);
+export function sanitizeFileForFirestore(file: DriveFile): DriveFile {
+  const clean: DriveFile = { ...file };
+  delete clean.base64Data;
+  if (clean.thumbnailUrl && clean.thumbnailUrl.length > 40000) {
+    delete clean.thumbnailUrl;
   }
-  cacheIndex.indexFile(file);
+  return clean;
+}
+
+export async function saveDbFile(file: DriveFile): Promise<DriveFile> {
+  const clean = sanitizeFileForFirestore(file);
+  const index = cachedFiles.findIndex(f => f.id === clean.id);
+  if (index >= 0) {
+    cachedFiles[index] = clean;
+  } else {
+    cachedFiles.unshift(clean);
+  }
+  cacheIndex.indexFile(clean);
   saveLocalBackups();
-  firestoreSetDoc('files', file.id, file);
-  return file;
+  firestoreSetDoc('files', clean.id, clean);
+  return clean;
 }
 
 export async function deleteDbFile(id: string): Promise<boolean> {
@@ -569,50 +662,49 @@ export async function saveDbDriveServiceAccountConfig(
 }
 
 // -------------------------------------------------------------
-// CRUD METHODS (SECURITY PIN)
+// CRUD METHODS (SECURITY PIN - SALTED SHA-256)
 // -------------------------------------------------------------
-export async function getDbSecurityPinConfig(): Promise<SecurityPinConfig & { hasCustomPin: boolean }> {
+export async function getDbSecurityPinConfig(): Promise<SafeSecurityPinSettings> {
   return {
-    ...cachedSecurityPinConfig,
-    hasCustomPin: cachedSecurityPinConfig.pin !== '1234',
+    isEnabled: cachedSecurityPinConfig.isEnabled,
+    hasCustomPin: isCustomPinActive(),
+    autolockMinutes: cachedSecurityPinConfig.autolockMinutes,
+    hint: cachedSecurityPinConfig.hint,
+    updatedAt: cachedSecurityPinConfig.updatedAt,
   };
 }
 
-export async function getDbSecurityPin(): Promise<string> {
-  return cachedSecurityPinConfig.pin;
-}
-
-export async function saveDbSecurityPin(pin: string, hint?: string): Promise<SecurityPinConfig> {
+export async function saveDbSecurityPin(pin: string, hint?: string): Promise<SafeSecurityPinSettings> {
   const cleanPin = pin.trim();
-  cachedSecurityPin = cleanPin;
+  const { hash, salt } = hashPinWithSalt(cleanPin);
   cachedSecurityPinConfig = {
     ...cachedSecurityPinConfig,
-    pin: cleanPin,
+    pinHash: hash,
+    salt,
     hint: hint !== undefined ? hint.trim() : cachedSecurityPinConfig.hint,
     updatedAt: new Date().toISOString(),
   };
+  delete (cachedSecurityPinConfig as any).pin;
   saveLocalBackups();
   firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
-  return cachedSecurityPinConfig;
+  return getDbSecurityPinConfig();
 }
 
-export async function saveDbSecurityPinSettings(updates: Partial<SecurityPinConfig>): Promise<SecurityPinConfig> {
+export async function saveDbSecurityPinSettings(updates: Partial<Omit<SecurityPinConfig, 'pinHash' | 'salt'>>): Promise<SafeSecurityPinSettings> {
   cachedSecurityPinConfig = {
     ...cachedSecurityPinConfig,
     ...updates,
     updatedAt: new Date().toISOString(),
   };
-  if (updates.pin) {
-    cachedSecurityPin = updates.pin.trim();
-  }
+  delete (cachedSecurityPinConfig as any).pin;
   saveLocalBackups();
   firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
-  return cachedSecurityPinConfig;
+  return getDbSecurityPinConfig();
 }
 
 export async function verifyDbSecurityPin(pin: string): Promise<boolean> {
   if (!cachedSecurityPinConfig.isEnabled) return true;
-  return String(pin).trim() === cachedSecurityPinConfig.pin;
+  return verifyPinWithSalt(pin, cachedSecurityPinConfig.pinHash, cachedSecurityPinConfig.salt);
 }
 
 // -------------------------------------------------------------

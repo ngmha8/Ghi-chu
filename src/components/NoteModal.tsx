@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Note, Task, DriveFile } from '../types/index.js';
-import { X, FileText, Paperclip } from 'lucide-react';
+import { X, FileText, Paperclip, Calendar, Clock } from 'lucide-react';
 import { TagAutocompleteInput } from './TagAutocompleteInput.js';
 import { VoiceInputButton } from './VoiceInputButton.tsx';
 
@@ -13,6 +13,16 @@ interface NoteModalProps {
   existingNotes?: Note[];
 }
 
+const getLocalIsoString = (date: Date = new Date()) => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export const NoteModal: React.FC<NoteModalProps> = ({
   isOpen,
   onClose,
@@ -22,6 +32,7 @@ export const NoteModal: React.FC<NoteModalProps> = ({
   existingNotes = [],
 }) => {
   const [title, setTitle] = useState('');
+  const [noteDate, setNoteDate] = useState<string>(() => getLocalIsoString());
   const [content, setContent] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
@@ -60,6 +71,7 @@ export const NoteModal: React.FC<NoteModalProps> = ({
     if (!title.trim()) return;
 
     const parsedTags = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+    const isoNoteDate = noteDate ? new Date(noteDate).toISOString() : new Date().toISOString();
 
     onSave({
       title,
@@ -68,6 +80,8 @@ export const NoteModal: React.FC<NoteModalProps> = ({
       linkedTaskIds: selectedTaskIds,
       attachedFileIds: selectedFileIds,
       isPinned: false,
+      noteDate: isoNoteDate,
+      createdAt: isoNoteDate,
     });
 
     setTitle('');
@@ -75,6 +89,7 @@ export const NoteModal: React.FC<NoteModalProps> = ({
     setTagsInput('');
     setSelectedTaskIds([]);
     setSelectedFileIds([]);
+    setNoteDate(getLocalIsoString());
     onClose();
   };
 
@@ -124,6 +139,56 @@ export const NoteModal: React.FC<NoteModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Nhập hoặc đọc tiêu đề ghi chú..."
+              className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
+            />
+          </div>
+
+          {/* Thời gian Ghi chú */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[#E0E0E0] font-editorial-serif font-bold flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span>Thời gian ghi chú</span>
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setNoteDate(getLocalIsoString(new Date()))}
+                  className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#1A1A1A] text-[#D4AF37] hover:bg-[#252525] border border-[#D4AF37]/30 transition-colors cursor-pointer flex items-center gap-1"
+                  title="Đặt thời gian hiện tại"
+                >
+                  <Clock className="w-2.5 h-2.5" />
+                  <span>Bây giờ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    today.setHours(8, 0, 0, 0);
+                    setNoteDate(getLocalIsoString(today));
+                  }}
+                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#1A1A1A] text-[#AAAAAA] hover:text-white hover:bg-[#252525] border border-[#2A2A2A] transition-colors cursor-pointer"
+                  title="08:00 sáng nay"
+                >
+                  Hôm nay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
+                    setNoteDate(getLocalIsoString(yesterday));
+                  }}
+                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#1A1A1A] text-[#AAAAAA] hover:text-white hover:bg-[#252525] border border-[#2A2A2A] transition-colors cursor-pointer"
+                  title="Thời gian ngày hôm qua"
+                >
+                  Hôm qua
+                </button>
+              </div>
+            </div>
+            <input
+              type="datetime-local"
+              value={noteDate}
+              onChange={(e) => setNoteDate(e.target.value)}
               className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
             />
           </div>

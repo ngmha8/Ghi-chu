@@ -1,58 +1,58 @@
 [
   {
-    "id": "work",
-    "name": "Công việc",
-    "color": "emerald",
-    "icon": "Briefcase",
-    "description": "Tài liệu dự án, công việc chuyên môn, quy trình công ty",
-    "isDefault": true
-  },
-  {
-    "id": "personal",
-    "name": "Cá nhân",
-    "color": "blue",
-    "icon": "User",
-    "description": "Giấy tờ tùy thân, tài liệu học tập, hồ sơ cá nhân",
-    "isDefault": true
-  },
-  {
-    "id": "templates",
-    "name": "Mẫu giấy tờ",
-    "color": "amber",
-    "icon": "FileCheck",
-    "description": "Biểu mẫu, tờ trình, mẫu đơn, template báo cáo chuẩn",
-    "isDefault": true
+    "id": "cat-1787642812780",
+    "color": "rose",
+    "isDefault": false,
+    "icon": "Scale",
+    "name": "An toàn bức xạ",
+    "description": "Quy chuẩn an toàn bức xạ và hạt nhân"
   },
   {
     "id": "finance",
-    "name": "Tài chính",
-    "color": "teal",
-    "icon": "DollarSign",
+    "isDefault": true,
     "description": "Báo cáo tài chính, hóa đơn, bảng kê chi phí, ngân sách",
-    "isDefault": true
+    "color": "teal",
+    "name": "Tài chính",
+    "icon": "DollarSign"
   },
   {
-    "id": "projects",
-    "name": "Dự án",
-    "color": "purple",
-    "icon": "FolderKanban",
-    "description": "Kế hoạch triển khai, thuyết minh dự án, sơ đồ kiến trúc",
-    "isDefault": true
-  },
-  {
-    "id": "other",
-    "name": "Khác",
     "color": "zinc",
-    "icon": "FileText",
+    "isDefault": true,
     "description": "Tài liệu tổng hợp hoặc chưa phân nhóm cụ thể",
-    "isDefault": true
+    "icon": "FileText",
+    "name": "Khác",
+    "id": "other"
   },
   {
-    "id": "cat-1787642812780",
-    "name": "An toàn bức xạ",
-    "color": "rose",
-    "icon": "Scale",
-    "description": "Quy chuẩn an toàn bức xạ và hạt nhân",
-    "isDefault": false
+    "icon": "User",
+    "name": "Cá nhân",
+    "description": "Giấy tờ tùy thân, tài liệu học tập, hồ sơ cá nhân",
+    "isDefault": true,
+    "id": "personal",
+    "color": "blue"
+  },
+  {
+    "color": "purple",
+    "isDefault": true,
+    "description": "Kế hoạch triển khai, thuyết minh dự án, sơ đồ kiến trúc",
+    "icon": "FolderKanban",
+    "name": "Dự án",
+    "id": "projects"
+  },
+  {
+    "description": "Biểu mẫu, tờ trình, mẫu đơn, template báo cáo chuẩn",
+    "isDefault": true,
+    "id": "templates",
+    "icon": "FileCheck",
+    "name": "Mẫu giấy tờ",
+    "color": "amber"
+  },
+  {
+    "description": "Tài liệu dự án, công việc chuyên môn, quy trình công ty",
+    "id": "work",
+    "name": "Công việc",
+    "icon": "Briefcase",
+    "isDefault": true,
+    "color": "emerald"
   }
 ]

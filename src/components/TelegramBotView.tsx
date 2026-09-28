@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TelegramConfig, NotificationLog } from '../types/index.js';
+import { useSystemStore } from '../stores/useSystemStore.js';
 import {
   Bot,
   MessageSquare,
@@ -20,26 +21,41 @@ import {
   Menu,
   RefreshCw,
   CornerDownRight,
-  MousePointerClick
+  MousePointerClick,
+  BellRing,
+  Timer
 } from 'lucide-react';
 
-interface TelegramBotViewProps {
-  telegramConfig: TelegramConfig;
-  notificationLogs: NotificationLog[];
-  onUpdateConfig: (config: Partial<TelegramConfig>) => void;
-  onSendTestMessage: (message?: string) => void;
-  onSendTelegramCommand: (command: string) => Promise<{ success: boolean; reply: string }>;
+export interface TelegramBotViewProps {
+  telegramConfig?: TelegramConfig;
+  notificationLogs?: NotificationLog[];
+  onUpdateConfig?: (config: Partial<TelegramConfig>) => void;
+  onSendTestMessage?: (message?: string) => void;
+  onSendTelegramCommand?: (command: string) => Promise<{ success: boolean; reply: string }>;
   onNavigateToSettings?: () => void;
 }
 
 export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
-  telegramConfig,
-  notificationLogs,
-  onUpdateConfig,
-  onSendTestMessage,
-  onSendTelegramCommand,
-  onNavigateToSettings
+  telegramConfig: propConfig,
+  notificationLogs: propLogs,
+  onUpdateConfig: propOnUpdateConfig,
+  onSendTestMessage: propOnSendTestMessage,
+  onSendTelegramCommand: propOnSendTelegramCommand,
+  onNavigateToSettings: propOnNavigateToSettings,
 }) => {
+  const storeConfig = useSystemStore(s => s.telegramConfig);
+  const storeLogs = useSystemStore(s => s.notificationLogs);
+  const storeUpdateConfig = useSystemStore(s => s.updateTelegramConfig);
+  const storeSendTestMessage = useSystemStore(s => s.sendTestTelegramMessage);
+  const storeSendCommand = useSystemStore(s => s.sendTelegramCommand);
+  const storeSetActiveTab = useSystemStore(s => s.setActiveTab);
+
+  const telegramConfig = propConfig ?? storeConfig;
+  const notificationLogs = propLogs ?? storeLogs;
+  const onUpdateConfig = propOnUpdateConfig ?? storeUpdateConfig;
+  const onSendTestMessage = propOnSendTestMessage ?? storeSendTestMessage;
+  const onSendTelegramCommand = propOnSendTelegramCommand ?? storeSendCommand;
+  const onNavigateToSettings = propOnNavigateToSettings ?? (() => storeSetActiveTab('settings'));
   // Daily Briefing State
   const [isGeneratingBriefing, setIsGeneratingBriefing] = useState<'morning' | 'evening' | null>(null);
   const [briefingStatus, setBriefingStatus] = useState<string | null>(null);
@@ -237,15 +253,15 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
       )}
 
       {/* Direct Telegram Interaction Feature Badges */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Voice to Task */}
         <div className="bg-[#151515] border border-[#2A2A2A] hover:border-[#D4AF37]/40 p-4 rounded-sm space-y-2 transition-all">
           <div className="flex items-center gap-2 text-emerald-400">
             <Mic className="w-4 h-4" />
-            <h3 className="text-xs font-bold uppercase tracking-wider">1. Ghi Âm & Tin Nhắn Thoại (Voice)</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider">1. Ghi Âm & Tin Thoại</h3>
           </div>
           <p className="text-[11px] text-[#A0A0A0] leading-relaxed">
-            Giữ micro trên Telegram nói tự nhiên bằng tiếng Việt. Gemini AI giải mã âm thanh và tự động tạo công việc/ghi chú kèm thời hạn và mức độ ưu tiên.
+            Giữ micro trên Telegram nói tự nhiên bằng tiếng Việt. Gemini AI giải mã âm thanh và tự động tạo công việc/ghi chú.
           </p>
         </div>
 
@@ -253,10 +269,10 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
         <div className="bg-[#151515] border border-[#2A2A2A] hover:border-[#D4AF37]/40 p-4 rounded-sm space-y-2 transition-all">
           <div className="flex items-center gap-2 text-amber-400">
             <CornerDownRight className="w-4 h-4" />
-            <h3 className="text-xs font-bold uppercase tracking-wider">2. Quoted Reply (Trả lời trích dẫn)</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider">2. Quoted Reply</h3>
           </div>
           <p className="text-[11px] text-[#A0A0A0] leading-relaxed">
-            Vuốt để trả lời tin nhắc việc của Bot trên Telegram với từ khóa: <em>"Xong rồi"</em>, <em>"Hoãn 15 phút"</em>, <em>"Xóa đi"</em> để thao tác tức thì.
+            Vuốt để trả lời tin nhắc việc của Bot trên Telegram: <em>"Xong rồi"</em>, <em>"Hoãn 15 phút"</em>, <em>"Xóa đi"</em> để thao tác tức thì.
           </p>
         </div>
 
@@ -267,7 +283,18 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
             <h3 className="text-xs font-bold uppercase tracking-wider">3. Nút Bấm Inline 1-Click</h3>
           </div>
           <p className="text-[11px] text-[#A0A0A0] leading-relaxed">
-            Tất cả thông báo nhắc nhở và báo cáo đều đính kèm nút bấm <strong>[✅ Đã xong]</strong>, <strong>[⏰ Hoãn]</strong>, <strong>[📋 Việc hôm nay]</strong>.
+            Thông báo nhắc nhở đính kèm nút bấm <strong>[✅ Đã xong]</strong>, <strong>[⏰ Hoãn]</strong>, <strong>[📋 Việc hôm nay]</strong>.
+          </p>
+        </div>
+
+        {/* Card 4: Overdue Follow-up Nagging & AI Escalation */}
+        <div className="bg-[#151515] border border-[#2A2A2A] hover:border-[#D4AF37]/40 p-4 rounded-sm space-y-2 transition-all">
+          <div className="flex items-center gap-2 text-[#D4AF37]">
+            <BellRing className="w-4 h-4" />
+            <h3 className="text-xs font-bold uppercase tracking-wider">4. Nhắc Quá Hạn & Leo Thang AI</h3>
+          </div>
+          <p className="text-[11px] text-[#A0A0A0] leading-relaxed">
+            Tự động gửi nhắc nhở định kỳ ({telegramConfig.overdueReminderIntervalMinutes || 30}p/lần) khi quá hạn chưa hoàn thành hoặc gia hạn, leo thang cảnh báo AI.
           </p>
         </div>
       </div>
@@ -455,6 +482,27 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
               className="px-2.5 py-1 rounded-sm bg-[#0C0C0C] text-[#D4AF37] border border-[#2A2A2A] hover:bg-[#D4AF37] hover:text-black text-xs font-bold transition-colors cursor-pointer"
             >
               🌤️ Thời tiết
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  setActionStatus({ type: 'success', message: 'Đang gửi thông báo nhắc lại quá hạn thử nghiệm...' });
+                  const res = await fetch('/api/telegram/test-overdue', { method: 'POST' });
+                  const data = await res.json();
+                  if (data.success) {
+                    setActionStatus({ type: 'success', message: '✅ Đã gửi thông báo nhắc lại quá hạn kèm nút bấm tới Telegram!' });
+                  } else {
+                    setActionStatus({ type: 'error', message: '❌ Lỗi: ' + (data.error || data.message) });
+                  }
+                } catch (e: any) {
+                  setActionStatus({ type: 'error', message: '❌ Lỗi kết nối: ' + e.message });
+                }
+              }}
+              className="px-2.5 py-1 rounded-sm bg-[#1F1607] text-amber-300 border border-amber-500/40 hover:bg-[#D4AF37] hover:text-black text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+              title="Gửi tin nhắn mẫu kiểm tra tính năng nhắc nhở quá hạn có nút Hoàn thành/Gia hạn/Dời sang mai"
+            >
+              <BellRing className="w-3.5 h-3.5" />
+              <span>🔔 Test Nhắc Quá Hạn</span>
             </button>
           </div>
 

@@ -50,14 +50,8 @@ router.put('/pin', async (req: Request, res: Response) => {
     const updated = await saveDbSecurityPin(targetPin, hint);
     res.json({
       success: true,
-      message: 'Đã cập nhật mã PIN bảo mật thành công cho toàn bộ hệ thống',
-      settings: {
-        isEnabled: updated.isEnabled,
-        hasCustomPin: updated.pin !== '1234',
-        autolockMinutes: updated.autolockMinutes,
-        hint: updated.hint,
-        updatedAt: updated.updatedAt,
-      },
+      message: 'Đã cập nhật mã PIN bảo mật (Salted SHA-256) thành công cho toàn bộ hệ thống',
+      settings: updated,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Lỗi lưu mã PIN' });
@@ -77,13 +71,7 @@ router.put('/pin/settings', async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'Đã lưu cài đặt bảo mật thành công',
-      settings: {
-        isEnabled: updated.isEnabled,
-        hasCustomPin: updated.pin !== '1234',
-        autolockMinutes: updated.autolockMinutes,
-        hint: updated.hint,
-        updatedAt: updated.updatedAt,
-      },
+      settings: updated,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Lỗi cập nhật cài đặt bảo mật' });

@@ -11,7 +11,8 @@ import {
   AiMemoryFact,
   AiLearningInsight,
   AiLearningStats,
-  AiPersonaConfig
+  AiPersonaConfig,
+  TaskAnalysisResult
 } from '../types/index.js';
 
 // Safe HTTP Fetch with automatic retry for network drops and cold start recovery
@@ -124,6 +125,16 @@ export const api = {
   deleteTask: async (id: string): Promise<{ success: boolean }> => {
     const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete task');
+    return res.json();
+  },
+
+  reorderTasks: async (orderedIds: string[]): Promise<Task[]> => {
+    const res = await fetch('/api/tasks/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderedIds }),
+    });
+    if (!res.ok) throw new Error('Failed to reorder tasks');
     return res.json();
   },
 
@@ -344,6 +355,65 @@ export const api = {
       throw new Error(errJson.error || 'AI Chat error');
     }
     return res.json();
+  },
+
+  // Real Native SSE Streaming AI Chat (0ms Time-To-First-Token)
+  streamChatMessage: async (
+    message: string,
+    enableSearch: boolean = false,
+    history: { role: string; content: string }[] = [],
+    sessionId: string = 'web_user_session',
+    onChunk: (chunk: string) => void = () => {},
+    onDone: (result: { reply: string; groundingSources?: any[]; retrievedContext?: any }) => void = () => {},
+    onError: (error: string) => void = () => {}
+  ): Promise<void> => {
+    try {
+      const response = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, enableSearch, history, sessionId }),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error(`Streaming failed with status: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+
+        for (const block of blocks) {
+          if (!block.trim()) continue;
+          const eventMatch = block.match(/event:\s*([^\n\r]+)/);
+          const dataMatch = block.match(/data:\s*(.+)/s);
+          if (!dataMatch) continue;
+
+          const event = eventMatch ? eventMatch[1].trim() : 'chunk';
+          try {
+            const data = JSON.parse(dataMatch[1].trim());
+            if (event === 'chunk' && data.text) {
+              onChunk(data.text);
+            } else if (event === 'done') {
+              onDone(data);
+            } else if (event === 'error') {
+              onError(data.error || 'Lỗi truyền dữ liệu');
+            }
+          } catch {
+            // Ignore incomplete chunks
+          }
+        }
+      }
+    } catch (err: any) {
+      onError(err?.message || 'Lỗi kết nối AI Stream');
+    }
   },
 
   clearChatMemory: async (sessionId: string = 'web_user_session'): Promise<{ success: boolean }> => {
@@ -580,6 +650,45 @@ export const api = {
   syncVectors: async () => {
     const res = await fetch('/api/ai/vector-sync', { method: 'POST' });
     if (!res.ok) throw new Error('Không thể đồng bộ Vector Embeddings');
+    return res.json();
+  },
+
+  // AI Generate Note from Completed Task
+  generateNoteFromTask: async (taskId?: string, task?: Partial<Task>): Promise<{
+    success: boolean;
+    note: {
+      title: string;
+      content: string;
+      tags: string[];
+      category?: string;
+    };
+  }> => {
+    const res = await fetch('/api/ai/generate-note-from-task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId, task }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Không thể tạo ghi chú từ công việc bằng AI');
+    }
+    return res.json();
+  },
+
+  // AI Direct Task Analysis & Evaluation without asking questions
+  analyzeTask: async (task?: Partial<Task>, taskId?: string): Promise<{
+    success: boolean;
+    analysis: TaskAnalysisResult;
+  }> => {
+    const res = await fetch('/api/ai/analyze-task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId, task }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Không thể phân tích công việc bằng AI');
+    }
     return res.json();
   },
 };

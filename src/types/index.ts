@@ -1,16 +1,49 @@
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'canceled';
 
-export type RecurringType = 'none' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+export interface TaskAnalysisStep {
+  step: number;
+  title: string;
+  description: string;
+  estimatedMinutes?: number;
+}
+
+export interface TaskAnalysisResult {
+  summary: string;
+  urgencyEvaluation: {
+    level: 'critical' | 'high' | 'medium' | 'low';
+    score: number; // 0 - 100
+    label: string;
+    explanation: string;
+  };
+  complexityEvaluation: {
+    level: 'simple' | 'moderate' | 'complex';
+    label: string;
+    explanation: string;
+  };
+  keyTakeaways: string[];
+  actionPlan: TaskAnalysisStep[];
+  suggestedCompletionWindow: string;
+  markdownReport: string;
+}
+
+export type RecurringUnit = 'day' | 'month' | 'year' | 'week' | 'hour';
+export type RecurringType = 'none' | 'interval' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface RecurringRule {
   type: RecurringType;
-  interval?: number;
+  unit?: RecurringUnit; // Đơn vị: ngày, tháng, năm, tuần, giờ
+  interval?: number; // Khoảng thời gian: e.g. 1, 3, 6, 12...
+  repeatOnComplete?: boolean; // Tự động dời thời gian cảnh báo sang chu kỳ tiếp theo sau khi hoàn thành
   daysOfWeek?: string[]; // ['Mon', 'Wed', 'Fri']
+  completedCycles?: number; // Số chu kỳ đã hoàn thành
+  lastCompletedAt?: string; // Thời điểm hoàn thành gần nhất
+  originalDeadline?: string; // Hạn chót gốc ban đầu
 }
 
 export interface Task {
   id: string;
+  order?: number;
   title: string;
   description: string;
   deadline: string; // ISO string or YYYY-MM-DDTHH:mm
@@ -22,6 +55,9 @@ export interface Task {
   reminderOffsetMinutes: number; // e.g., 15 mins before deadline
   isNotified?: boolean; // Anti-duplicate reminder flag
   lastNotifiedAt?: string;
+  overdueReminderCount?: number; // Số lần đã gửi thông báo nhắc lại khi quá hạn
+  lastOverdueNotifiedAt?: string; // Thời điểm gửi thông báo nhắc lại gần nhất
+  stopOverdueReminders?: boolean; // Tắt nhắc nhở quá hạn cho riêng công việc này
   createdAt: string;
   updatedAt: string;
 }
@@ -34,6 +70,7 @@ export interface Note {
   linkedTaskIds: string[];
   attachedFileIds: string[];
   isPinned: boolean;
+  noteDate?: string; // Thời gian ghi chú do người dùng chọn/nhập (ISO string)
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +105,9 @@ export interface DriveFile {
   textContent?: string;
   base64Data?: string;
   thumbnailUrl?: string;
+  storageType?: 'drive' | 'gcs' | 'firestore_vault' | 'disk';
+  storagePath?: string;
+  hasBinary?: boolean;
 }
 
 export interface TelegramConfig {
@@ -90,6 +130,12 @@ export interface TelegramConfig {
   lastMorningBriefingSentAt?: string; // ISO string
   lastEveningBriefingDate?: string; // e.g. '2026-08-30'
   lastEveningBriefingSentAt?: string; // ISO string
+
+  // Overdue Recurring Reminder / Nagging Settings
+  enableOverdueReminders?: boolean; // Bật/tắt gửi thông báo nhắc lại khi đến hạn mà chưa hoàn thành hoặc gia hạn
+  overdueReminderIntervalMinutes?: number; // Khoảng thời gian giãn cách giữa các lần gửi nhắc lại (phút): 15, 30, 45, 60, 120...
+  maxOverdueReminders?: number; // Số lần gửi nhắc lại tối đa: 1, 3, 5, 10, 0 = không giới hạn
+  escalateOverdueTone?: boolean; // Tự động leo thang cấp độ cảnh báo AI và đưa ra gợi ý giải quyết khi quá hạn kéo dài
 }
 
 export interface NotificationLog {
@@ -199,4 +245,6 @@ export interface AiPersonaConfig {
   customInstructions?: string; // e.g. "Luôn ghi chú các việc gấp lên trước, tóm tắt ý chính"
   updatedAt?: string;
 }
+
+export type AppTheme = 'dark' | 'light';
 

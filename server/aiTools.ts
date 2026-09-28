@@ -20,6 +20,7 @@ import {
 import { searchSemanticDocuments } from './embeddingService.ts';
 import { fetchLiveWeather } from './weatherService.ts';
 import { Task, Note, DriveFile, AiMemoryFact } from '../src/types/index.ts';
+import { processTaskRecurrenceOnComplete, formatRecurringLabel } from './recurringEngine.ts';
 
 // 1. Function Declarations for Gemini Tool Calling
 export const aiFunctionDeclarations: FunctionDeclaration[] = [
@@ -428,6 +429,16 @@ export async function executeAiFunctionCall(name: string, args: any): Promise<{ 
       return {
         success: false,
         message: `⚠️ Tôi đã tra cứu nhưng không tìm thấy công việc phù hợp với từ khóa "${args.taskQuery || args.taskId}". Bạn hãy kiểm tra lại tên công việc nhé.`,
+      };
+    }
+
+    const recResult = processTaskRecurrenceOnComplete(target);
+    if (recResult.isRecurring) {
+      await saveDbTask(recResult.updatedTask);
+      return {
+        success: true,
+        data: recResult.updatedTask,
+        message: `🎉 Tuyệt vời! Bạn đã hoàn thành chu kỳ này của công việc **"${target.title}"**!\n🔁 Hệ thống đã tự động dời thời gian cảnh báo sang chu kỳ tiếp theo (${formatRecurringLabel(target.recurring)}): **${recResult.formattedNextDate}** và kích hoạt lại lịch thông báo trên Telegram.`,
       };
     }
 

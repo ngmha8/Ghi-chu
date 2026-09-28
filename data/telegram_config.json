@@ -3,12 +3,19 @@
   "chatId": "5786910216",
   "enabled": true,
   "alertOffsetMinutes": 15,
-  "isConnected": false,
+  "isConnected": true,
   "timezone": "Asia/Ho_Chi_Minh",
+  "location": "Bắc Giang",
   "morningBriefingHour": 7,
   "morningBriefingMinute": 0,
   "eveningBriefingHour": 21,
   "eveningBriefingMinute": 0,
   "enableMorningBriefing": true,
-  "enableEveningBriefing": true
+  "enableEveningBriefing": true,
+  "lastEveningBriefingDate": "2026-09-21",
+  "lastMorningBriefingDate": "2026-09-21",
+  "lastEveningBriefingSentAt": "2026-09-21T14:00:03.890Z",
+  "lastMorningBriefingSentAt": "2026-09-21T00:00:01.940Z",
+  "webhookSecret": "sec_ODg4OTkxODI2NTpBQUVtS255VFltWWJj",
+  "webhookUrl": "https://ai-personal-assistant-bfiz.onrender.com/api/telegram/webhook"
 }

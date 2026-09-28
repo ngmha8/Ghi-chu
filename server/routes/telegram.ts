@@ -4,6 +4,7 @@ import {
   saveDbTelegramConfig,
   getDbNotificationLogs,
   addDbNotificationLog,
+  getDbTasks,
 } from '../firebaseDb.ts';
 import {
   sendTelegramMessage,
@@ -12,6 +13,7 @@ import {
   getTelegramWebhookInfo,
   telegramApiFetch,
   TelegramInlineKeyboard,
+  buildOverdueReminderKeyboard,
 } from '../telegramHelper.ts';
 import {
   processTelegramUpdate,
@@ -83,6 +85,63 @@ router.post('/test', async (req: Request, res: Response) => {
     res.json({ success: true, log: newLog, telegramDelivered: delivered });
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Error sending test message' });
+  }
+});
+
+// POST /api/telegram/test-overdue (Thử nghiệm bắn thông báo nhắc lại khi quá hạn)
+router.post('/test-overdue', async (req: Request, res: Response) => {
+  try {
+    const telegramConfig = await getDbTelegramConfig();
+    if (!telegramConfig.botToken || !telegramConfig.chatId) {
+      return res.status(400).json({ error: 'Chưa cấu hình Telegram Bot Token hoặc Chat ID.' });
+    }
+
+    const tasks = await getDbTasks();
+    const activeTasks = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
+    // Find an overdue task or highest priority active task or mock representation
+    const sampleTask = activeTasks.find(t => new Date(t.deadline).getTime() < Date.now()) ||
+      activeTasks[0] || {
+        id: 'test-overdue-task',
+        title: 'Hoàn thiện tài liệu kế hoạch quý 3',
+        description: 'Tài liệu tổng hợp tiến độ và kế hoạch quý tới',
+        deadline: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+        priority: 'high' as any,
+        status: 'in_progress' as any,
+        tags: ['Kế hoạch', 'Gấp'],
+        recurring: { type: 'none' } as any,
+        attachedFileIds: [],
+        reminderOffsetMinutes: 15,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+    const timeZone = telegramConfig.timezone || 'Asia/Ho_Chi_Minh';
+    const intervalMins = telegramConfig.overdueReminderIntervalMinutes || 30;
+    const maxNag = telegramConfig.maxOverdueReminders ?? 5;
+
+    const testNagMessage = `⚠️ *[TEST] DEADLINE ĐÃ QUA - CHƯA XÁC NHẬN HOÀN THÀNH*\n\n📌 Công việc: *${sampleTask.title}*\n⏳ Hạn chót ban đầu: *${new Date(sampleTask.deadline).toLocaleString('vi-VN', { timeZone })}*\n⏱️ Trạng thái: *ĐÃ TRỄ 45 PHÚT*\n🔔 Lần nhắc: *1${maxNag > 0 ? '/' + maxNag : ''}* (chu kỳ nhắc lại mỗi ${intervalMins} phút)\n🎯 Mức độ ưu tiên: *${sampleTask.priority.toUpperCase()}*\n\n💡 *Gợi ý AI:* Đây là thông báo kiểm thử tính năng nhắc lại khi đến hạn mà chưa hoàn thành hoặc gia hạn. Bạn có thể bấm các nút hành động bên dưới để thử nghiệm phản hồi trực tiếp!\n\n👇 *Bấm nút bên dưới để xử lý:*`;
+
+    const delivered = await sendTelegramMessage(
+      telegramConfig.botToken,
+      telegramConfig.chatId,
+      testNagMessage,
+      buildOverdueReminderKeyboard(sampleTask, 1)
+    );
+
+    const testLog: NotificationLog = {
+      id: `notif-test-overdue-${Date.now()}`,
+      title: `⚠️ Thử nghiệm nhắc lại quá hạn: ${sampleTask.title}`,
+      message: `Đã bắn thử nghiệm thông báo nhắc lại công việc quá hạn "${sampleTask.title}" tới Telegram.`,
+      channel: 'telegram',
+      status: 'sent',
+      timestamp: new Date().toISOString(),
+      taskId: sampleTask.id
+    };
+    await addDbNotificationLog(testLog);
+
+    res.json({ success: true, log: testLog, telegramDelivered: delivered, task: sampleTask });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || 'Error sending test overdue notification' });
   }
 });
 

@@ -2,6 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Note, Task, DriveFile } from '../types/index.js';
 import { TagSearchInput } from './TagSearchInput.js';
 import { TagAutocompleteInput } from './TagAutocompleteInput.js';
+import { useNoteStore } from '../stores/useNoteStore.js';
+import { useTaskStore } from '../stores/useTaskStore.js';
+import { useFileStore } from '../stores/useFileStore.js';
+import { useSystemStore } from '../stores/useSystemStore.js';
 import {
   FileText,
   Plus,
@@ -21,69 +25,71 @@ import {
   Link,
   Save,
   RotateCcw,
-  Calendar
+  Calendar,
+  ArrowUpDown
 } from 'lucide-react';
 
-interface NotesViewProps {
-  notes: Note[];
-  tasks: Task[];
-  files: DriveFile[];
-  onNoteCreate: (note: Partial<Note>) => void;
-  onNoteUpdate: (id: string, updates: Partial<Note>) => void;
-  onNoteDelete: (id: string) => void;
-  openAiChatWithPrompt: (prompt: string) => void;
-  openNewNoteModal: () => void;
+export interface NotesViewProps {
+  notes?: Note[];
+  tasks?: Task[];
+  files?: DriveFile[];
+  onNoteCreate?: (note: Partial<Note>) => void;
+  onNoteUpdate?: (id: string, updates: Partial<Note>) => void;
+  onNoteDelete?: (id: string) => void;
+  openAiChatWithPrompt?: (prompt: string) => void;
+  openNewNoteModal?: () => void;
 }
 
 type NoteDateFilter = 'all' | '7days' | '30days';
+type NoteSortOrder = 'newest' | 'oldest' | 'title';
+
+const getLocalIsoString = (date: Date = new Date()) => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
 export const NotesView: React.FC<NotesViewProps> = ({
-  notes,
-  tasks,
-  files,
-  onNoteUpdate,
-  onNoteDelete,
-  openAiChatWithPrompt,
-  openNewNoteModal,
+  notes: propNotes,
+  tasks: propTasks,
+  files: propFiles,
+  onNoteCreate: propOnNoteCreate,
+  onNoteUpdate: propOnNoteUpdate,
+  onNoteDelete: propOnNoteDelete,
+  openAiChatWithPrompt: propOpenAiChatWithPrompt,
+  openNewNoteModal: propOpenNewNoteModal,
 }) => {
+  // Store slices
+  const storeNotes = useNoteStore(s => s.notes);
+  const storeCreateNote = useNoteStore(s => s.createNote);
+  const storeUpdateNote = useNoteStore(s => s.updateNote);
+  const storeDeleteNote = useNoteStore(s => s.deleteNote);
+  const storeOpenNoteModal = useNoteStore(s => s.openNoteModal);
+
+  const storeTasks = useTaskStore(s => s.tasks);
+  const storeFiles = useFileStore(s => s.files);
+  const storeOpenAiDrawer = useSystemStore(s => s.openAiDrawer);
+
+  // Resolved values
+  const notes = propNotes ?? storeNotes;
+  const tasks = propTasks ?? storeTasks;
+  const files = propFiles ?? storeFiles;
+  const onNoteCreate = propOnNoteCreate ?? storeCreateNote;
+  const onNoteUpdate = propOnNoteUpdate ?? storeUpdateNote;
+  const onNoteDelete = propOnNoteDelete ?? storeDeleteNote;
+  const openAiChatWithPrompt = propOpenAiChatWithPrompt ?? storeOpenAiDrawer;
+  const openNewNoteModal = propOpenNewNoteModal ?? storeOpenNoteModal;
   const [selectedNoteId, setSelectedNoteId] = useState<string>(notes[0]?.id || '');
   const [search, setSearch] = useState<string>('');
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<NoteDateFilter>('all');
+  const [sortOrder, setSortOrder] = useState<NoteSortOrder>('newest');
   const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-
-  const currentNote = notes.find(n => n.id === selectedNoteId) || notes[0];
-
-  const [editorTitle, setEditorTitle] = useState(currentNote?.title || '');
-  const [editorContent, setEditorContent] = useState(currentNote?.content || '');
-  const [editorTags, setEditorTags] = useState(currentNote?.tags?.join(', ') || '');
-
-  useEffect(() => {
-    if (currentNote) {
-      setEditorTitle(currentNote.title);
-      setEditorContent(currentNote.content);
-      setEditorTags(currentNote.tags.join(', '));
-    }
-  }, [selectedNoteId, currentNote?.id]);
-
-  // Handle Save Note
-  const handleSave = () => {
-    if (!currentNote) return;
-    setIsSaving(true);
-    const parsedTags = editorTags.split(',').map(t => t.trim()).filter(Boolean);
-    onNoteUpdate(currentNote.id, {
-      title: editorTitle,
-      content: editorContent,
-      tags: parsedTags,
-    });
-    setTimeout(() => setIsSaving(false), 500);
-  };
-
-  // Insert markdown helpers
-  const insertTextAtCursor = (prefix: string, suffix: string = '') => {
-    setEditorContent(prev => `${prev}\n${prefix} Text ${suffix}`);
-  };
 
   // Collect all unique tags across notes & tasks with counts
   const tagCounts = useMemo(() => {
@@ -106,17 +112,18 @@ export const NotesView: React.FC<NotesViewProps> = ({
     return Array.from(set).filter(Boolean);
   }, [notes, tasks]);
 
+  // Sắp xếp ghi chú: Mặc định gần nhất lên trên (ưu tiên ghi chú ghim)
   const filteredNotes = useMemo(() => {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    return notes.filter(note => {
+    const list = notes.filter(note => {
       // Tag filter
       if (selectedTag !== 'all' && !note.tags.some(t => t.toLowerCase() === selectedTag.toLowerCase())) return false;
 
       // Date range filter
-      const noteDate = new Date(note.updatedAt || note.createdAt);
+      const noteDate = new Date(note.noteDate || note.createdAt || note.updatedAt);
       if (dateFilter === '7days' && noteDate < sevenDaysAgo) return false;
       if (dateFilter === '30days' && noteDate < thirtyDaysAgo) return false;
 
@@ -140,7 +147,73 @@ export const NotesView: React.FC<NotesViewProps> = ({
       }
       return true;
     });
-  }, [notes, selectedTag, dateFilter, search]);
+
+    return list.sort((a, b) => {
+      // 1. Ghi chú được ghim luôn xếp trên cùng
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+
+      if (sortOrder === 'title') {
+        return (a.title || '').localeCompare(b.title || '', 'vi');
+      }
+
+      const timeA = new Date(a.noteDate || a.createdAt || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.noteDate || b.createdAt || b.updatedAt || 0).getTime();
+
+      if (sortOrder === 'oldest') {
+        return timeA - timeB;
+      }
+
+      // 'newest' (Mặc định): Gần nhất lên trên
+      return timeB - timeA;
+    });
+  }, [notes, selectedTag, dateFilter, search, sortOrder]);
+
+  // Tự động chọn ghi chú đầu tiên (ghi chú mới nhất/gần nhất) nếu chưa chọn
+  useEffect(() => {
+    if ((!selectedNoteId || !notes.some(n => n.id === selectedNoteId)) && filteredNotes.length > 0) {
+      setSelectedNoteId(filteredNotes[0].id);
+    }
+  }, [filteredNotes, notes, selectedNoteId]);
+
+  const currentNote = useMemo(() => {
+    return notes.find(n => n.id === selectedNoteId) || filteredNotes[0] || notes[0];
+  }, [notes, selectedNoteId, filteredNotes]);
+
+  const [editorTitle, setEditorTitle] = useState(currentNote?.title || '');
+  const [editorContent, setEditorContent] = useState(currentNote?.content || '');
+  const [editorTags, setEditorTags] = useState(currentNote?.tags?.join(', ') || '');
+  const [editorNoteDate, setEditorNoteDate] = useState<string>('');
+
+  useEffect(() => {
+    if (currentNote) {
+      setEditorTitle(currentNote.title);
+      setEditorContent(currentNote.content);
+      setEditorTags(currentNote.tags?.join(', ') || '');
+      const rawDate = currentNote.noteDate || currentNote.createdAt;
+      setEditorNoteDate(rawDate ? getLocalIsoString(new Date(rawDate)) : getLocalIsoString());
+    }
+  }, [selectedNoteId, currentNote?.id]);
+
+  // Handle Save Note
+  const handleSave = () => {
+    if (!currentNote) return;
+    setIsSaving(true);
+    const parsedTags = editorTags.split(',').map(t => t.trim()).filter(Boolean);
+    const isoDate = editorNoteDate ? new Date(editorNoteDate).toISOString() : currentNote.noteDate;
+    onNoteUpdate(currentNote.id, {
+      title: editorTitle,
+      content: editorContent,
+      tags: parsedTags,
+      noteDate: isoDate,
+      createdAt: isoDate,
+    });
+    setTimeout(() => setIsSaving(false), 500);
+  };
+
+  // Insert markdown helpers
+  const insertTextAtCursor = (prefix: string, suffix: string = '') => {
+    setEditorContent(prev => `${prev}\n${prefix} Text ${suffix}`);
+  };
 
   const hasActiveFilters = selectedTag !== 'all' || dateFilter !== 'all' || search.trim() !== '';
 
@@ -228,20 +301,39 @@ export const NotesView: React.FC<NotesViewProps> = ({
               ))}
             </div>
 
-            {/* Filter Count & Reset */}
-            <div className="flex items-center justify-between text-xs pt-1 border-t border-[#222222]">
-              <span className="text-[#888888]">
-                Hiển thị <strong className="text-[#D4AF37]">{filteredNotes.length}</strong> / {notes.length}
-              </span>
-              {hasActiveFilters && (
-                <button
-                  onClick={handleResetFilters}
-                  className="text-[10px] text-[#AAAAAA] hover:text-rose-400 flex items-center gap-1 cursor-pointer"
+            {/* Filter Count, Sort Order Selector & Reset */}
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1.5 border-t border-[#222222]">
+              <div className="flex items-center gap-2">
+                <span className="text-[#888888]">
+                  Hiển thị <strong className="text-[#D4AF37]">{filteredNotes.length}</strong> / {notes.length}
+                </span>
+                {hasActiveFilters && (
+                  <button
+                    onClick={handleResetFilters}
+                    className="text-[10px] text-[#AAAAAA] hover:text-rose-400 flex items-center gap-1 cursor-pointer"
+                    title="Xóa bộ lọc tìm kiếm & thẻ"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    <span>Xóa lọc</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Bộ chọn sắp xếp ghi chú */}
+              <div className="flex items-center gap-1.5 bg-[#0C0C0C] px-2 py-0.5 rounded border border-[#2A2A2A]">
+                <ArrowUpDown className="w-3 h-3 text-[#D4AF37] shrink-0" />
+                <span className="text-[10px] text-[#777777] uppercase font-bold">Xếp:</span>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as NoteSortOrder)}
+                  className="bg-transparent text-[11px] text-[#D4AF37] font-semibold focus:outline-none cursor-pointer"
+                  title="Thứ tự sắp xếp ghi chú"
                 >
-                  <RotateCcw className="w-2.5 h-2.5" />
-                  <span>Xóa bộ lọc</span>
-                </button>
-              )}
+                  <option value="newest" className="bg-[#151515] text-[#E0E0E0]">Gần nhất lên trên</option>
+                  <option value="oldest" className="bg-[#151515] text-[#E0E0E0]">Cũ nhất trước</option>
+                  <option value="title" className="bg-[#151515] text-[#E0E0E0]">Tiêu đề (A-Z)</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -273,8 +365,17 @@ export const NotesView: React.FC<NotesViewProps> = ({
                     <p className="text-[11px] font-editorial-serif italic text-[#AAAAAA] line-clamp-2 mt-1 leading-relaxed">"{note.content || 'Nội dung trống...'}"</p>
 
                     <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[#2A2A2A]">
-                      <span className="text-[10px] font-mono text-[#777777]">
-                        {new Date(note.updatedAt).toLocaleDateString('vi-VN')}
+                      <span className="text-[10px] font-mono text-[#888888] flex items-center gap-1" title="Thời gian ghi chú">
+                        <Calendar className="w-3 h-3 text-[#D4AF37]/80 shrink-0" />
+                        <span>
+                          {new Date(note.noteDate || note.createdAt || note.updatedAt).toLocaleString('vi-VN', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
                       </span>
                       <div className="flex items-center gap-1 flex-wrap">
                         {note.tags.map((t, idx) => (
@@ -339,6 +440,41 @@ export const NotesView: React.FC<NotesViewProps> = ({
                     title="Xóa ghi chú"
                   >
                     <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Note Time Meta Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#0C0C0C] px-3 py-2 rounded-sm border border-[#2A2A2A] text-xs">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span className="font-semibold text-[#CCCCCC]">Thời gian ghi chú:</span>
+                  <input
+                    type="datetime-local"
+                    value={editorNoteDate}
+                    onChange={(e) => setEditorNoteDate(e.target.value)}
+                    className="bg-[#151515] border border-[#2A2A2A] rounded-sm px-2 py-1 text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditorNoteDate(getLocalIsoString(new Date()))}
+                    className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#1A1A1A] text-[#D4AF37] hover:bg-[#252525] border border-[#D4AF37]/30 transition-colors cursor-pointer"
+                    title="Đặt lại về thời điểm hiện tại"
+                  >
+                    Bây giờ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date();
+                      today.setHours(8, 0, 0, 0);
+                      setEditorNoteDate(getLocalIsoString(today));
+                    }}
+                    className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#1A1A1A] text-[#AAAAAA] hover:text-white hover:bg-[#252525] border border-[#2A2A2A] transition-colors cursor-pointer"
+                  >
+                    Hôm nay (08:00)
                   </button>
                 </div>
               </div>

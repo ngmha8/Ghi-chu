@@ -10,7 +10,7 @@ import {
   appendConversationTurn,
   clearConversationHistory,
 } from './firebaseDb.ts';
-import { safeGenerateContent } from './geminiHelper.ts';
+import { safeGenerateContent, safeGenerateContentStream } from './geminiHelper.ts';
 import { fetchLiveWeather } from './weatherService.ts';
 import { aiFunctionDeclarations, executeAiFunctionCall } from './aiTools.ts';
 import {
@@ -240,16 +240,16 @@ YÊU CẦU:
     try {
       const semanticMatches = await searchSemanticDocuments(message, {
         topK: 4,
-        threshold: 0.35,
+        threshold: 0.25,
       });
 
       if (semanticMatches.length > 0) {
-        semanticMatchesContext = '=== KẾT QUẢ TÌM KIẾM NGỮ NGHĨA VECTOR (SEMANTIC VECTOR RETRIEVAL) ===\n' +
-          '(Hệ thống Vector Embedding đã tự động trích xuất các đoạn tài liệu/ghi chú liên quan mật thiết nhất đến câu hỏi của người dùng, ngay cả khi từ khóa không khớp 100%):\n' +
+        semanticMatchesContext = '=== KẾT QUẢ TRUY XUẤT HYBRID RAG (DENSE gemini-embedding-2-preview + SPARSE BM25 + RRF) ===\n' +
+          '(Hệ thống Hybrid Search đã trích xuất các tài liệu/ghi chú liên quan mật thiết nhất bằng mô hình Vector Google kết hợp thuật toán BM25 và Reciprocal Rank Fusion):\n' +
           semanticMatches.map(m => {
             const typeLabel = m.type === 'note' ? 'GHI CHÚ' : 'TÀI LIỆU';
             const matchScore = Math.round(m.similarity * 100);
-            return `• [${typeLabel}: "${m.title}"] (Độ khớp ngữ nghĩa: ${matchScore}%)\n  - Nội dung/Trích đoạn: "${m.fullText.slice(0, 600)}"`;
+            return `• [${typeLabel}: "${m.title}"] (Độ khớp: ${matchScore}% | Phương thức: ${m.matchMethod?.toUpperCase() || 'HYBRID'})\n  - Đánh giá liên quan: ${m.relevanceExplanation || ''}\n  - Trích đoạn nội dung: "${m.fullText.slice(0, 700)}"`;
           }).join('\n\n');
       }
     } catch (semErr) {
@@ -510,3 +510,470 @@ NGUYÊN TẮC BẤT DI BẤT DỊCH VỀ PHẢN HỒI & CHUẨN XÁC THỜI GIAN
     };
   }
 }
+
+/**
+ * Real Native Streaming AI Chat Processing Engine with zero-latency token forwarding.
+ * Pipes chunks directly from gemini.models.generateContentStream to the onChunk callback.
+ */
+export async function processAiChatStream(
+  message: string,
+  enableSearch: boolean = true,
+  sessionId: string = 'default_session',
+  providedHistory: { role: string; content: string }[] = [],
+  onChunk: (text: string) => void
+): Promise<{
+  reply: string;
+  groundingSources: { title: string; url: string }[];
+  retrievedContext: any;
+}> {
+  const queryLower = message.toLowerCase().trim();
+
+  // Tier 1: Live Weather Check
+  if (
+    queryLower.includes('thời tiết') ||
+    queryLower.includes('thoi tiet') ||
+    queryLower.includes('dự báo thời tiết') ||
+    queryLower.includes('nhiệt độ') ||
+    queryLower.includes('nhiet do') ||
+    queryLower.includes('trời mưa') ||
+    queryLower.includes('có mưa không') ||
+    queryLower.includes('troi nang') ||
+    queryLower.startsWith('/weather')
+  ) {
+    const result = await processAiChat(message, enableSearch, sessionId, providedHistory);
+    onChunk(result.reply);
+    return result;
+  }
+
+  // Tier 2: Lunar Calendar Check
+  if (
+    queryLower.includes('lịch âm') ||
+    queryLower.includes('lich am') ||
+    queryLower.includes('âm lịch') ||
+    queryLower.includes('am lich') ||
+    queryLower.includes('ngày hoàng đạo') ||
+    queryLower.includes('giờ hoàng đạo')
+  ) {
+    const result = await processAiChat(message, enableSearch, sessionId, providedHistory);
+    onChunk(result.reply);
+    return result;
+  }
+
+  // Tier 3: Action Tool Intents (Create task, note, recall memory)
+  const isActionIntent =
+    queryLower.startsWith('thêm việc') ||
+    queryLower.startsWith('tạo việc') ||
+    queryLower.startsWith('tạo task') ||
+    queryLower.startsWith('nhắc tôi') ||
+    queryLower.startsWith('tạo ghi chú') ||
+    queryLower.startsWith('viết ghi chú') ||
+    queryLower.startsWith('lưu ghi chú') ||
+    queryLower.startsWith('them viec') ||
+    queryLower.startsWith('tao task') ||
+    queryLower.startsWith('luu') ||
+    queryLower.startsWith('ghi') ||
+    queryLower.includes('hãy nhớ') ||
+    queryLower.includes('nhớ rằng') ||
+    queryLower.includes('ghi nhớ') ||
+    queryLower.includes('từ nay') ||
+    queryLower.includes('quên') ||
+    queryLower.includes('xóa ký ức') ||
+    queryLower.includes('bộ nhớ');
+
+  if (isActionIntent) {
+    const result = await processAiChat(message, enableSearch, sessionId, providedHistory);
+    onChunk(result.reply);
+    return result;
+  }
+
+  // Tier 4: Native LLM Content Stream with Context & RAG
+  const tasks = await getDbTasks();
+  const notes = await getDbNotes();
+  const currentFiles = await getDbFiles();
+
+  const nowRef = new Date();
+  const vnDateNow = new Date(nowRef.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+  const weekdayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+  const currentVnDateStr = `${vnDateNow.getFullYear()}-${String(vnDateNow.getMonth() + 1).padStart(2, '0')}-${String(vnDateNow.getDate()).padStart(2, '0')}`;
+
+  const tasksContext = tasks.map(t => {
+    if (!t.deadline) {
+      return `- [ID: ${t.id}] [${t.status.toUpperCase()}] [ƯU TIÊN: ${t.priority.toUpperCase()}] "${t.title}" | Deadline: Không đặt hạn | Tags: ${(t.tags || []).join(', ')}`;
+    }
+    const tDate = new Date(t.deadline);
+    const tVn = new Date(tDate.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+    const tIso = `${tVn.getFullYear()}-${String(tVn.getMonth() + 1).padStart(2, '0')}-${String(tVn.getDate()).padStart(2, '0')}`;
+    const tWeekday = weekdayNames[tVn.getDay()];
+    const tTime = `${String(tVn.getHours()).padStart(2, '0')}:${String(tVn.getMinutes()).padStart(2, '0')}`;
+    const tFormatted = `${tTime} ${tWeekday}, ngày ${String(tVn.getDate()).padStart(2, '0')}/${String(tVn.getMonth() + 1).padStart(2, '0')}/${tVn.getFullYear()}`;
+
+    const diffMs = tDate.getTime() - nowRef.getTime();
+    const diffHours = Math.round(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    let timingLabel = '';
+    if (t.status === 'completed') {
+      timingLabel = 'ĐÃ HOÀN THÀNH ✅';
+    } else if (tIso === currentVnDateStr) {
+      timingLabel = diffHours >= 0
+        ? `HẾT HẠN HÔM NAY (${tTime} hôm nay - còn ${diffHours}h)`
+        : `ĐÃ QUÁ HẠN HÔM NAY (${tTime} hôm nay - quá hạn ${Math.abs(diffHours)}h)`;
+    } else {
+      const tomorrow = new Date(nowRef);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowVn = new Date(tomorrow.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+      const tomorrowIso = `${tomorrowVn.getFullYear()}-${String(tomorrowVn.getMonth() + 1).padStart(2, '0')}-${String(tomorrowVn.getDate()).padStart(2, '0')}`;
+
+      if (tIso === tomorrowIso) {
+        timingLabel = `HẾT HẠN NGÀY MAI (${tWeekday} ${String(tVn.getDate()).padStart(2, '0')}/${String(tVn.getMonth() + 1).padStart(2, '0')} lúc ${tTime})`;
+      } else if (diffMs < 0) {
+        timingLabel = `ĐÃ QUÁ HẠN ${Math.abs(diffDays)} NGÀY (Hạn cũ: ${tFormatted})`;
+      } else {
+        timingLabel = `HẠN CÒN ${diffDays} NGÀY NỮA (Hạn chính thức: ${tFormatted})`;
+      }
+    }
+
+    return `- [ID: ${t.id}] [${t.status.toUpperCase()}] [ƯU TIÊN: ${t.priority.toUpperCase()}] "${t.title}" | ⏰ ${timingLabel} (Hạn chính thức: ${tFormatted}) | Tags: ${(t.tags || []).join(', ')}`;
+  }).join('\n');
+
+  const notesContext = notes.map(n => `- [ID: ${n.id}] Ghi chú: "${n.title}" | Tags: ${(n.tags || []).join(', ')} | Nội dung: ${n.content.slice(0, 300)}...`).join('\n');
+  const filesContext = currentFiles.map(f => `- File: ${f.name} [Phân loại: ${f.classification || 'Chưa phân loại'}] [Định dạng: ${f.category}] | Link: ${f.webViewLink || 'Lưu cục bộ'}`).join('\n');
+
+  const storedHistory = getConversationHistory(sessionId);
+  const activeHistory = providedHistory.length > 0 ? providedHistory : storedHistory;
+  const historySnippet = activeHistory.length > 0
+    ? activeHistory.slice(-8).map(h => `${h.role === 'user' ? 'Người dùng' : 'Trợ lý AI'}: ${h.content}`).join('\n')
+    : '';
+
+  const learnedMemoryContext = await synthesizeLearnedPromptContext();
+
+  let semanticMatchesContext = '';
+  try {
+    const semanticMatches = await searchSemanticDocuments(message, {
+      topK: 4,
+      threshold: 0.25,
+    });
+
+    if (semanticMatches.length > 0) {
+      semanticMatchesContext = '=== KẾT QUẢ TRUY XUẤT HYBRID RAG (DENSE gemini-embedding-2-preview + SPARSE BM25 + RRF) ===\n' +
+        '(Hệ thống Hybrid Search đã trích xuất các tài liệu/ghi chú liên quan mật thiết nhất bằng mô hình Vector Google kết hợp thuật toán BM25 và Reciprocal Rank Fusion):\n' +
+        semanticMatches.map(m => {
+          const typeLabel = m.type === 'note' ? 'GHI CHÚ' : 'TÀI LIỆU';
+          const matchScore = Math.round(m.similarity * 100);
+          return `• [${typeLabel}: "${m.title}"] (Độ khớp: ${matchScore}% | Phương thức: ${m.matchMethod?.toUpperCase() || 'HYBRID'})\n  - Đánh giá liên quan: ${m.relevanceExplanation || ''}\n  - Trích đoạn nội dung: "${m.fullText.slice(0, 700)}"`;
+        }).join('\n\n');
+    }
+  } catch (semErr) {
+    console.warn('[Semantic Search Retrieval Error]:', semErr);
+  }
+
+  const systemInstruction = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp & Bạn Đồng Hành Trí Tuệ Tự Học (Senior AI Executive Companion & Thought Partner).
+Bạn sở hữu năng lực phân tích vượt trội của một chuyên gia công nghệ và quản trị hơn 20 năm kinh nghiệm, đồng thời mang trái tim thấu cảm, tinh tế, ấm áp và giàu lòng trắc ẩn (High IQ + High EQ).
+
+${learnedMemoryContext ? `${learnedMemoryContext}\n\n` : ''}=== BỐI CẢNH DỮ LIỆU THỰC TẾ TRỰC TIẾP TỪ FIRESTORE (LIVE FIRESTORE GROUNDING) ===
+- Thời gian hiện tại tại Việt Nam (UTC+7): ${vnDateNow.toLocaleTimeString('vi-VN')} ngày ${currentVnDateStr} (${weekdayNames[vnDateNow.getDay()]})
+- Số lượng công việc trong hệ thống: ${tasks.length}
+- Danh sách công việc chi tiết kèm hạn chót:
+${tasksContext || '(Chưa có công việc nào)'}
+
+- Danh sách ghi chú của người dùng:
+${notesContext || '(Chưa có ghi chú nào)'}
+
+- Danh sách tệp tài liệu:
+${filesContext || '(Chưa có tài liệu nào)'}
+
+${semanticMatchesContext ? `${semanticMatchesContext}\n\n` : ''}${historySnippet ? `=== LỊCH SỬ TRAO ĐỔI GẦN NHẤT ===\n${historySnippet}\n\n` : ''}=== NGUYÊN TẮC PHẢN HỒI (EXECUTIVE GUIDELINES) ===
+1. Danh xưng: Tuân thủ tuyệt đối danh xưng đã học trong ký ức. Nếu chưa có, gọi người dùng là "bạn" và tự xưng là "tôi" hoặc "em" một cách khiêm nhường, ấm áp và lịch thiệp.
+2. Trả lời trực tiếp, thông minh, sâu sắc, có cấu trúc rõ ràng. Sử dụng bullet points ngắn gọn khi phân tích.
+3. Không trả lời chung chung hoặc đưa ra lời khuyên sáo rỗng. Hãy bám sát thực tế các công việc, ghi chú và câu hỏi của người dùng.`;
+
+  try {
+    const ai = getGeminiClient();
+    const hasSearchQuery = queryLower.includes('tìm kiếm') || queryLower.includes('tin tức') || queryLower.includes('mới nhất') || queryLower.includes('giá') || queryLower.includes('search');
+
+    const { stream } = await safeGenerateContentStream({
+      gemini: ai,
+      contents: message,
+      config: {
+        systemInstruction,
+        ...(enableSearch && hasSearchQuery ? { tools: [{ googleSearch: {} }] } : {}),
+      },
+    });
+
+    let fullReply = '';
+    const groundingSources: { title: string; url: string }[] = [];
+
+    for await (const chunk of stream) {
+      const text = chunk.text;
+      if (text) {
+        fullReply += text;
+        onChunk(text);
+      }
+
+      if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+        for (const gc of chunk.candidates[0].groundingMetadata.groundingChunks) {
+          if (gc.web?.uri && gc.web?.title) {
+            groundingSources.push({
+              title: gc.web.title,
+              url: gc.web.uri,
+            });
+          }
+        }
+      }
+    }
+
+    if (!fullReply.trim()) {
+      const fallback = `Tôi đã lắng nghe chia sẻ của bạn: "${message}". Tôi luôn sẵn sàng hỗ trợ bạn quản lý công việc và tư vấn giải pháp hiệu quả nhất.`;
+      fullReply = fallback;
+      onChunk(fallback);
+    }
+
+    // Persist conversation turn
+    appendConversationTurn(sessionId, message, fullReply);
+
+    // Detached background passive learning
+    triggerPassiveLearningExtraction(message, fullReply, ai).catch(err => {
+      console.warn('[AI Self-Learning Async Error]:', err?.message);
+    });
+
+    return {
+      reply: fullReply,
+      groundingSources,
+      retrievedContext: {
+        tasksCount: tasks.length,
+        notesCount: notes.length,
+        filesCount: currentFiles.length,
+        isStreamed: true,
+      },
+    };
+  } catch (err: any) {
+    console.warn('[processAiChatStream fallback]:', err?.message);
+    const fallbackRes = await processAiChat(message, enableSearch, sessionId, providedHistory);
+    onChunk(fallbackRes.reply);
+    return fallbackRes;
+  }
+}
+
+export interface GeneratedTaskNote {
+  title: string;
+  content: string;
+  tags: string[];
+  category?: string;
+}
+
+/**
+ * Uses Gemini AI to analyze a completed task and draft an insightful knowledge note
+ * summarizing achievements, key metrics, takeaways, and lessons learned.
+ */
+export async function generateNoteFromCompletedTask(task: Partial<Task>): Promise<GeneratedTaskNote> {
+  const gemini = getGeminiClient();
+
+  const title = task.title || 'Công việc hoàn thành';
+  const desc = task.description || 'Không có mô tả chi tiết';
+  const category = (task as any).category || 'Công việc';
+  const priority = task.priority || 'medium';
+  const deadline = task.deadline ? new Date(task.deadline).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'Không có';
+  const tagsStr = (task.tags && task.tags.length > 0) ? task.tags.join(', ') : 'Không có';
+  const completionTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+
+  const prompt = `Bạn là Trợ lý AI Chuyên gia Quản trị Tri thức Cá nhân (Personal Knowledge Management & Executive Productivity).
+Người dùng vừa hoàn thành công việc sau trong hệ thống:
+- Tiêu đề công việc: "${title}"
+- Mô tả chi tiết: "${desc}"
+- Danh mục / Phân loại: ${category}
+- Mức độ ưu tiên: ${priority.toUpperCase()}
+- Hạn chót ban đầu: ${deadline}
+- Thẻ ban đầu: ${tagsStr}
+- Thời điểm hoàn thành: ${completionTime}
+
+Nhiệm vụ của bạn:
+Hãy phân tích dữ liệu trên và đúc kết thành một GHI CHÚ TRI THỨC (Knowledge & Retrospective Note) súc tích, chuyên nghiệp và có giá trị tham khảo lâu dài.
+Nội dung ghi chú cần được định dạng Markdown rõ ràng, gồm:
+1. 🎯 Mục tiêu & Kết quả hoàn thành (Tóm tắt ngắn gọn những gì đã hoàn tất).
+2. 📝 Nội dung & Điểm mấu chốt (Những lưu ý, thông số quan trọng cần ghi nhớ).
+3. 💡 Bài học kinh nghiệm & Đúc kết (Key Takeaways giúp tối ưu cho các công việc tương tự sau này).
+4. 🚀 Gợi ý bước tiếp theo (Hành động theo sau nếu có).
+
+QUY TẮC BẮT BUỘC:
+- Trả về DUY NHẤT một chuỗi JSON hợp lệ (không bao gồm markdown block \`\`\`json, không văn bản phụ trợ) theo cấu trúc:
+{
+  "title": "Tiêu đề ghi chú ngắn gọn, chuyên nghiệp (ví dụ: 'Tổng kết: ${title}' hoặc 'Đúc kết kinh nghiệm: ${title}')",
+  "content": "Nội dung ghi chú định dạng Markdown chi tiết như yêu cầu ở trên",
+  "tags": ["danh", "sach", "the", "phu", "hop", "tong_ket", "hoan_thanh"]
+}`;
+
+  try {
+    const aiResponse = await safeGenerateContent({
+      gemini,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.3,
+      },
+    });
+
+    const text = aiResponse.text || '';
+    const cleanJson = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleanJson);
+
+    return {
+      title: parsed.title || `Tổng kết: ${title}`,
+      content: parsed.content || `### 🎯 Kết quả hoàn thành\nĐã hoàn thành công việc: **${title}**\n\n### 📝 Chi tiết\n${desc}`,
+      tags: Array.isArray(parsed.tags) ? parsed.tags.map((t: string) => String(t).trim().toLowerCase()) : ['tong_ket', 'hoan_thanh'],
+      category: category,
+    };
+  } catch (error) {
+    console.warn('Gemini generateNoteFromCompletedTask fallback:', error);
+    return {
+      title: `Tổng kết: ${title}`,
+      content: `### 🎯 Mục tiêu & Kết quả hoàn thành\n- **Công việc:** ${title}\n- **Phân loại:** ${category}\n- **Thời gian hoàn thành:** ${completionTime}\n\n### 📝 Chi tiết thực hiện\n${desc}\n\n### 💡 Bài học kinh nghiệm & Đúc kết\n- Đã hoàn thành nhiệm vụ theo đúng kế hoạch đề ra.\n- Cần tiếp tục theo dõi hiệu quả và lưu trữ kết quả này để đối chiếu trong các dự án sau.`,
+      tags: ['tong_ket', 'hoan_thanh', ...(task.tags || [])],
+      category: category,
+    };
+  }
+}
+
+/**
+ * Uses Gemini AI to automatically analyze and evaluate a task in-depth without asking questions.
+ * Produces structured evaluation, complexity/urgency rating, key takeaways, and step-by-step action plan.
+ */
+export async function analyzeTaskDirectly(task: Partial<Task>): Promise<any> {
+  const gemini = getGeminiClient();
+
+  const title = task.title || 'Công việc không tên';
+  const desc = task.description || 'Không có mô tả chi tiết';
+  const priority = task.priority || 'medium';
+  const deadline = task.deadline ? new Date(task.deadline).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'Không có hạn chót cụ thể';
+  const tagsStr = (task.tags && task.tags.length > 0) ? task.tags.join(', ') : 'Không có';
+  const recurringStr = task.recurring && task.recurring.type !== 'none'
+    ? `Lặp định kỳ ${task.recurring.interval || 1} ${task.recurring.unit || task.recurring.type}`
+    : 'Không lặp';
+  const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+
+  const prompt = `Bạn là Chuyên gia Cố vấn Điều hành & Tối ưu Hiệu suất Công việc Cao cấp (Senior Executive Productivity & Workflow Specialist).
+Nhiệm vụ của bạn: Hãy phân tích và đánh giá toàn diện, sâu sắc, thực tế công việc dưới đây để người dùng có thể thực thi ngay mà TUYỆT ĐỐI KHÔNG CẦN BẠN HỎI NGƯỢC LẠI BẤT KỲ CÂU HỎI NÀO.
+
+Thông tin công việc:
+- Tiêu đề: "${title}"
+- Mô tả chi tiết: "${desc}"
+- Mức độ ưu tiên hệ thống: ${priority.toUpperCase()}
+- Hạn chót chính thức: ${deadline}
+- Chu kỳ lặp lại: ${recurringStr}
+- Thẻ: ${tagsStr}
+- Thời điểm hiện tại: ${now}
+
+YÊU CẦU ĐÁNH GIÁ & PHÂN TÍCH:
+1. Đánh giá tính khẩn cấp (urgency) và độ phức tạp (complexity) của công việc dựa trên thời gian còn lại đến hạn chót, tính chất lặp lại và nội dung công việc.
+2. Trích xuất chính xác các thông tin then chốt (Key Takeaways): như tên người nhận/người liên hệ, số điện thoại, địa chỉ, phương thức vận chuyển, chứng từ/thiết bị cần kiểm tra (ví dụ: liều kế cá nhân, kết quả đọc...), rủi ro nếu trễ hạn.
+3. Lập lộ trình thực hiện từng bước (Step-by-step Action Plan) chi tiết, thực tế, thứ tự rõ ràng từ khâu chuẩn bị, xác nhận thông tin, thực hiện đến nghiệm thu hoàn tất.
+4. Gợi ý khung giờ thực hiện tối ưu trước hạn chót để không bị động.
+5. Soạn thảo một bản báo cáo phân tích Markdown hoàn chỉnh, chuyên nghiệp, cấu trúc mạch lạc, dùng emoji trang nhã.
+
+QUY TẮC BẮT BUỘC:
+- Trả về DUY NHẤT một chuỗi JSON hợp lệ (không bao gồm markdown block \`\`\`json, không có văn bản phụ ngoài JSON) theo cấu trúc:
+{
+  "summary": "Tóm tắt ngắn gọn 1-2 câu về bản chất và mục tiêu cốt lõi của công việc",
+  "urgencyEvaluation": {
+    "level": "critical", // hoặc "high", "medium", "low"
+    "score": 80, // số nguyên từ 0 đến 100
+    "label": "Tên nhãn ngắn gọn (ví dụ: 'Ưu tiên cao - Cần giải quyết sớm')",
+    "explanation": "Đánh giá chi tiết vì sao có mức độ khẩn cấp này"
+  },
+  "complexityEvaluation": {
+    "level": "moderate", // hoặc "simple", "complex"
+    "label": "Tên nhãn (ví dụ: 'Độ phức tạp trung bình - Cần liên hệ đối tác')",
+    "explanation": "Đánh giá về số lượng đầu việc, con người hoặc quy trình liên quan"
+  },
+  "keyTakeaways": [
+    "Điểm then chốt 1",
+    "Điểm then chốt 2",
+    "Điểm then chốt 3"
+  ],
+  "actionPlan": [
+    {
+      "step": 1,
+      "title": "Tên bước 1",
+      "description": "Chi tiết thao tác cụ thể cần làm",
+      "estimatedMinutes": 15
+    },
+    {
+      "step": 2,
+      "title": "Tên bước 2",
+      "description": "Chi tiết thao tác cụ thể cần làm",
+      "estimatedMinutes": 30
+    }
+  ],
+  "suggestedCompletionWindow": "Gợi ý khung thời gian tối ưu cần hoàn thành",
+  "markdownReport": "Bản báo cáo Markdown chi tiết, rõ ràng từng đề mục với emoji"
+}`;
+
+  try {
+    const aiResponse = await safeGenerateContent({
+      gemini,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.25,
+      },
+    });
+
+    const text = aiResponse.text || '';
+    const cleanJson = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleanJson);
+
+    return {
+      summary: parsed.summary || `Phân tích chi tiết công việc: ${title}`,
+      urgencyEvaluation: parsed.urgencyEvaluation || {
+        level: priority === 'high' ? 'high' : priority === 'medium' ? 'medium' : 'low',
+        score: priority === 'high' ? 85 : priority === 'medium' ? 65 : 40,
+        label: priority === 'high' ? 'Ưu tiên cao' : priority === 'medium' ? 'Ưu tiên trung bình' : 'Tiêu chuẩn',
+        explanation: `Công việc có hạn chót vào ${deadline}.`,
+      },
+      complexityEvaluation: parsed.complexityEvaluation || {
+        level: 'moderate',
+        label: 'Độ phức tạp trung bình',
+        explanation: 'Yêu cầu các bước phối hợp thực hiện tuần tự.',
+      },
+      keyTakeaways: Array.isArray(parsed.keyTakeaways) ? parsed.keyTakeaways : [
+        `Nội dung: ${desc}`,
+        `Hạn chót chính thức: ${deadline}`,
+      ],
+      actionPlan: Array.isArray(parsed.actionPlan) ? parsed.actionPlan : [
+        { step: 1, title: 'Chuẩn bị thông tin', description: desc, estimatedMinutes: 15 },
+        { step: 2, title: 'Thực hiện nhiệm vụ', description: `Tiến hành triển khai theo yêu cầu của "${title}"`, estimatedMinutes: 30 },
+        { step: 3, title: 'Xác nhận hoàn tất', description: 'Kiểm tra kết quả và đánh dấu hoàn thành', estimatedMinutes: 10 },
+      ],
+      suggestedCompletionWindow: parsed.suggestedCompletionWindow || `Nên thực hiện trước hạn chót ${deadline}`,
+      markdownReport: parsed.markdownReport || `### 🎯 Đánh giá & Phân tích Công việc: ${title}\n\n**Mô tả:** ${desc}\n\n**Hạn chót:** ${deadline}\n\n**Mức độ:** ${priority.toUpperCase()}`,
+    };
+  } catch (error) {
+    console.warn('Gemini analyzeTaskDirectly fallback:', error);
+    return {
+      summary: `Phân tích công việc "${title}": Cần phối hợp thực hiện và đảm bảo tiến độ trước hạn chót.`,
+      urgencyEvaluation: {
+        level: priority === 'high' ? 'high' : priority === 'medium' ? 'medium' : 'low',
+        score: priority === 'high' ? 85 : priority === 'medium' ? 65 : 40,
+        label: priority === 'high' ? 'Ưu tiên cao' : 'Tiêu chuẩn',
+        explanation: `Hạn chót chính thức: ${deadline}. Cần sắp xếp thời gian hợp lý.`,
+      },
+      complexityEvaluation: {
+        level: 'moderate',
+        label: 'Độ phức tạp tiêu chuẩn',
+        explanation: 'Công việc đòi hỏi các thao tác chuẩn bị và bàn giao theo quy trình.',
+      },
+      keyTakeaways: [
+        `Nhiệm vụ: ${title}`,
+        `Chi tiết thông tin: ${desc}`,
+        `Hạn chót: ${deadline}`,
+      ],
+      actionPlan: [
+        { step: 1, title: 'Rà soát thông tin & vật phẩm liên quan', description: `Kiểm tra đầy đủ thông tin mô tả: ${desc}`, estimatedMinutes: 15 },
+        { step: 2, title: 'Tiến hành triển khai thực hiện', description: 'Liên hệ các bên liên quan và gửi/xử lý hồ sơ theo đúng địa chỉ', estimatedMinutes: 30 },
+        { step: 3, title: 'Lưu trữ biên nhận & Đánh dấu hoàn thành', description: 'Xác nhận người nhận đã tiếp nhận và cập nhật trạng thái trong hệ thống', estimatedMinutes: 10 },
+      ],
+      suggestedCompletionWindow: `Hoàn tất trước hạn chót ${deadline}`,
+      markdownReport: `### 🎯 Tổng quan nhiệm vụ: ${title}\n\n- **Nội dung:** ${desc}\n- **Hạn chót:** ${deadline}\n- **Ưu tiên:** ${priority.toUpperCase()}\n\n### 📋 Các bước đề xuất:\n1. Rà soát thông tin và liên hệ người phụ trách.\n2. Thực hiện đóng gói hoặc gửi theo địa chỉ trong mô tả.\n3. Lưu biên nhận và đánh dấu hoàn thành.`,
+    };
+  }
+}
+

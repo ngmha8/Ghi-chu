@@ -68,6 +68,19 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
     }
   }, [isOpen]);
 
+  // Automatically trigger message send if initialPrompt is provided when drawer opens
+  const lastExecutedPromptRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (isOpen && initialPrompt && initialPrompt.trim() && lastExecutedPromptRef.current !== initialPrompt) {
+      lastExecutedPromptRef.current = initialPrompt;
+      const promptToRun = initialPrompt.trim();
+      setIsLoading(true);
+      onSendMessage(promptToRun, enableSearch)
+        .catch(console.error)
+        .finally(() => setIsLoading(false));
+    }
+  }, [isOpen, initialPrompt]);
+
   const loadPersona = async () => {
     try {
       const p = await api.getAiPersonaConfig();
@@ -176,7 +189,7 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
             <h2 className="text-sm font-editorial-serif font-bold text-white flex items-center gap-2">
               <span>Senior AI Executive Companion</span>
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0C0C0C] text-[#D4AF37] border border-[#D4AF37]/40 font-mono tracking-wider">
-                Gemini 3.7
+                Gemini 3.8 Flash • Stream
               </span>
             </h2>
             <p className="text-[10px] text-[#888888] italic">
@@ -432,7 +445,14 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
                       : 'bg-[#151515] border border-[#2A2A2A] text-[#E0E0E0]'
                   }`}
                 >
-                  {msg.content}
+                  {msg.content ? (
+                    msg.content
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-[#D4AF37] italic py-0.5">
+                      <Sparkles className="w-3.5 h-3.5 animate-spin text-[#D4AF37]" />
+                      <span>Đang kết nối luồng AI...</span>
+                    </span>
+                  )}
                 </div>
 
                 {/* Grounding Sources */}
@@ -496,7 +516,7 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
           ))
         )}
 
-        {isLoading && (
+        {isLoading && (!messages.length || messages[messages.length - 1]?.role !== 'assistant') && (
           <div className="flex items-center gap-2.5 p-3 rounded-sm bg-[#151515] border border-[#2A2A2A] text-xs text-[#D4AF37] font-semibold animate-pulse">
             <Sparkles className="w-4 h-4 text-[#D4AF37]" />
             <span>AI Assistant đang xử lý ngữ cảnh & tạo phản hồi thông minh...</span>

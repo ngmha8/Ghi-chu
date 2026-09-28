@@ -13,6 +13,7 @@ import { syncAndVectorizeAllDocuments } from './embeddingService.ts';
 import {
   sendTelegramMessage,
   buildTaskReminderKeyboard,
+  buildOverdueReminderKeyboard,
   TelegramInlineKeyboard,
 } from './telegramHelper.ts';
 import type { Task, NotificationLog } from '../src/types/index.ts';
@@ -66,15 +67,15 @@ export async function runSchedulerCheck() {
   const notes = await getDbNotes();
   const newTriggeredAlerts: NotificationLog[] = [];
 
-  // A. Check Task Deadline Alerts (Standard exact deadline alert)
+  // A. Check Task Deadline Alerts & Overdue Recurring Follow-ups
   for (const t of tasks) {
     if (t.status === 'completed' || t.status === 'canceled') continue;
-    if (t.isNotified) continue;
 
     const deadlineTime = new Date(t.deadline).getTime();
     const diffMinutes = (deadlineTime - nowMs) / (1000 * 60);
 
-    if (diffMinutes > 0 && diffMinutes <= (t.reminderOffsetMinutes || telegramConfig.alertOffsetMinutes || 15)) {
+    // A1. Standard Pre-deadline Alert (Báo trước hạn)
+    if (!t.isNotified && diffMinutes > 0 && diffMinutes <= (t.reminderOffsetMinutes || telegramConfig.alertOffsetMinutes || 15)) {
       const updatedTask: Task = {
         ...t,
         isNotified: true,
@@ -103,6 +104,92 @@ export async function runSchedulerCheck() {
           alertText,
           buildTaskReminderKeyboard(t)
         ).catch(err => console.warn('Scheduler telegram push error:', err));
+      }
+      continue;
+    }
+
+    // A2. Overdue Recurring Reminders (Gửi nhắc lại khi đã đến hạn / quá hạn mà chưa hoàn thành hoặc gia hạn)
+    if (telegramConfig.enableOverdueReminders !== false && !t.stopOverdueReminders && diffMinutes <= 0) {
+      const overdueIntervalMins = telegramConfig.overdueReminderIntervalMinutes || 30;
+      const maxNag = telegramConfig.maxOverdueReminders ?? 5;
+      const nagCount = t.overdueReminderCount || 0;
+
+      // Check if max allowed nag count is reached (0 means unlimited nag until completed/snoozed)
+      if (maxNag === 0 || nagCount < maxNag) {
+        let shouldTriggerNag = false;
+
+        if (nagCount === 0) {
+          // First overdue notification: trigger if past deadline and at least 5 mins have passed since pre-deadline alert
+          const lastNotifiedMs = t.lastNotifiedAt ? new Date(t.lastNotifiedAt).getTime() : 0;
+          const minsSinceLastNotification = (nowMs - lastNotifiedMs) / (1000 * 60);
+          if (!t.lastNotifiedAt || minsSinceLastNotification >= Math.min(5, overdueIntervalMins)) {
+            shouldTriggerNag = true;
+          }
+        } else {
+          // Subsequent nag: trigger if user-configured interval has passed since previous nag
+          const lastOverdueMs = t.lastOverdueNotifiedAt ? new Date(t.lastOverdueNotifiedAt).getTime() : 0;
+          const minsSinceLastOverdue = (nowMs - lastOverdueMs) / (1000 * 60);
+          if (minsSinceLastOverdue >= overdueIntervalMins) {
+            shouldTriggerNag = true;
+          }
+        }
+
+        if (shouldTriggerNag) {
+          const newNagCount = nagCount + 1;
+          const overdueMinutesTotal = Math.max(1, Math.round((nowMs - deadlineTime) / (1000 * 60)));
+          const overdueTimeStr = overdueMinutesTotal < 60
+            ? `${overdueMinutesTotal} phút`
+            : `${Math.floor(overdueMinutesTotal / 60)} giờ ${overdueMinutesTotal % 60 > 0 ? (overdueMinutesTotal % 60) + ' phút' : ''}`.trim();
+
+          const updatedTask: Task = {
+            ...t,
+            isNotified: true,
+            overdueReminderCount: newNagCount,
+            lastOverdueNotifiedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await saveDbTask(updatedTask);
+
+          // AI Escalation: Adjust Header, Status, and Actionable Coaching according to nag count
+          let escalationTitle = `⚠️ Nhắc lại quá hạn (${newNagCount}${maxNag > 0 ? '/' + maxNag : ''}): ${t.title}`;
+          let telegramHeader = `⚠️ *DEADLINE ĐÃ QUA - CHƯA XÁC NHẬN HOÀN THÀNH*`;
+          let aiAdvice = `💡 *Gợi ý:* Nếu đã làm xong hãy bấm *Hoàn thành ngay*, hoặc chọn *Gia hạn (+30p, +2h)* để dời lịch hẹn.`;
+
+          if (telegramConfig.escalateOverdueTone !== false) {
+            if (newNagCount === 2) {
+              escalationTitle = `🚨 Cảnh báo trễ hạn lần 2: ${t.title}`;
+              telegramHeader = `🚨 *CẢNH BÁO TIẾN ĐỘ: CHƯA HOÀN THÀNH HOẶC GIA HẠN*`;
+              aiAdvice = `🧠 *Phân tích rủi ro AI:* Công việc ưu tiên [${t.priority.toUpperCase()}] trễ ${overdueTimeStr} có thể làm dồn ứ các mục tiêu tiếp theo. Cập nhật tiến độ ngay để giải tỏa sự chú ý!`;
+            } else if (newNagCount >= 3) {
+              escalationTitle = `🔴 Báo động khẩn cấp trễ hạn (Lần ${newNagCount}): ${t.title}`;
+              telegramHeader = `🔴 *BÁO ĐỘNG KHẨN CẤP: NGUY CƠ TỒN ĐỌNG CÔNG VIỆC*`;
+              aiAdvice = `🛡️ *Khuyến nghị AI Copilot:* Công việc đã quá hạn ${overdueTimeStr}. Nếu đang gặp điểm nghẽn hoặc quá tải, bạn nên chọn *Dời sang mai* để sắp xếp lại sự ưu tiên.`;
+            }
+          }
+
+          const alertLog: NotificationLog = {
+            id: `notif-overdue-${Date.now()}-${t.id}`,
+            title: escalationTitle,
+            message: `Công việc "${t.title}" đã quá hạn ${overdueTimeStr} mà chưa hoàn thành hoặc gia hạn (Lần nhắc ${newNagCount}${maxNag > 0 ? '/' + maxNag : ''}).`,
+            channel: 'telegram',
+            status: 'sent',
+            timestamp: new Date().toISOString(),
+            taskId: t.id,
+          };
+          await addDbNotificationLog(alertLog);
+          newTriggeredAlerts.push(alertLog);
+
+          if (telegramConfig.botToken && telegramConfig.chatId && telegramConfig.enabled !== false) {
+            const nagMessage = `${telegramHeader}\n\n📌 Công việc: *${t.title}*\n⏳ Hạn chót ban đầu: *${new Date(t.deadline).toLocaleString('vi-VN', { timeZone })}*\n⏱️ Trạng thái: *ĐÃ TRỄ ${overdueTimeStr.toUpperCase()}*\n🔔 Lần nhắc: *${newNagCount}${maxNag > 0 ? '/' + maxNag : ''}* (chu kỳ nhắc lại mỗi ${overdueIntervalMins} phút)\n🎯 Mức độ ưu tiên: *${t.priority.toUpperCase()}*\n\n${aiAdvice}\n\n👇 *Bấm nút bên dưới để xử lý nhanh trực tiếp:*`;
+
+            sendTelegramMessage(
+              telegramConfig.botToken,
+              telegramConfig.chatId,
+              nagMessage,
+              buildOverdueReminderKeyboard(t, newNagCount)
+            ).catch(err => console.warn('Scheduler overdue telegram push error:', err));
+          }
+        }
       }
     }
   }

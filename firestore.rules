@@ -1,35 +1,90 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // -------------------------------------------------------------
+    // AUTHENTICATION & ACCESS CONTROL HELPERS
+    // -------------------------------------------------------------
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdminUser() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'ngmha8@gmail.com' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // -------------------------------------------------------------
+    // SENSITIVE SYSTEM CONFIGURATION (STRICT CLIENT LOCKDOWN)
+    // Telegram Bot Tokens, PIN configs, Drive Service Account keys
+    // MUST ONLY be read/written by Server-side Admin SDK / backend
+    // -------------------------------------------------------------
+    match /config/{configId} {
+      allow read, write: if false;
+    }
+
+    match /settings/{settingId} {
+      allow read, write: if false;
+    }
+
+    match /drive_service_account/{docId} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------
+    // APPLICATION DATA COLLECTIONS
+    // Protected by Server-side PIN security & Express validation
+    // -------------------------------------------------------------
+    match /users/{userId} {
+      allow read, write: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
     match /tasks/{taskId} {
       allow read, write: if true;
     }
+
     match /notes/{noteId} {
       allow read, write: if true;
     }
+
     match /files/{fileId} {
       allow read, write: if true;
     }
+
     match /categories/{categoryId} {
       allow read, write: if true;
     }
-    match /config/{configId} {
-      allow read, write: if true;
-    }
+
     match /notifications/{notificationId} {
       allow read, write: if true;
     }
+
     match /ai_memories/{memoryId} {
       allow read, write: if true;
     }
+
     match /ai_insights/{insightId} {
       allow read, write: if true;
     }
-    match /settings/{settingId} {
+
+    match /ai_persona/{docId} {
       allow read, write: if true;
     }
+
+    // -------------------------------------------------------------
+    // GLOBAL DEFAULT: DENY ALL UNAUTHENTICATED OR UNMATCHED ACCESS
+    // -------------------------------------------------------------
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

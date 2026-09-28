@@ -26,12 +26,14 @@ import {
 } from 'lucide-react';
 import { AiMemoryFact, AiLearningInsight, AiLearningStats, AiMemoryCategory, AiPersonaConfig, AiCommunicationStyle } from '../types/index.ts';
 import { api } from '../services/api.ts';
+import { useAiLearningStore } from '../stores/useAiLearningStore.js';
+import { useSystemStore } from '../stores/useSystemStore.js';
 
-interface AiLearningViewProps {
-  memories: AiMemoryFact[];
-  insights: AiLearningInsight[];
-  stats: AiLearningStats | null;
-  onRefresh: () => void;
+export interface AiLearningViewProps {
+  memories?: AiMemoryFact[];
+  insights?: AiLearningInsight[];
+  stats?: AiLearningStats | null;
+  onRefresh?: () => void;
   onOpenAiDrawerWithPrompt?: (prompt: string) => void;
 }
 
@@ -72,12 +74,23 @@ const COMMUNICATION_STYLES: { id: AiCommunicationStyle; label: string; desc: str
 ];
 
 export const AiLearningView: React.FC<AiLearningViewProps> = ({
-  memories,
-  insights,
-  stats,
-  onRefresh,
-  onOpenAiDrawerWithPrompt,
+  memories: propMemories,
+  insights: propInsights,
+  stats: propStats,
+  onRefresh: propOnRefresh,
+  onOpenAiDrawerWithPrompt: propOnOpenDrawer,
 }) => {
+  const storeMemories = useAiLearningStore(s => s.aiMemories);
+  const storeInsights = useAiLearningStore(s => s.aiInsights);
+  const storeStats = useAiLearningStore(s => s.aiStats);
+  const storeRefresh = useAiLearningStore(s => s.refreshAiLearningData);
+  const storeOpenDrawer = useSystemStore(s => s.openAiDrawer);
+
+  const memories = propMemories ?? storeMemories;
+  const insights = propInsights ?? storeInsights;
+  const stats = propStats ?? storeStats;
+  const onRefresh = propOnRefresh ?? storeRefresh;
+  const onOpenAiDrawerWithPrompt = propOnOpenDrawer ?? storeOpenDrawer;
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isReflecting, setIsReflecting] = useState(false);
   const [reflectMessage, setReflectMessage] = useState<string | null>(null);

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { GlobalSearchInput } from './GlobalSearchInput.js';
-import { Task, Note, DriveFile } from '../types/index.js';
+import { Task, Note, DriveFile, AppTheme } from '../types/index.js';
 import {
   CheckSquare,
   FileText,
@@ -15,20 +15,26 @@ import {
   Lock,
   Brain,
   ChevronDown,
-  Mic
+  Mic,
+  Sun,
+  Moon
 } from 'lucide-react';
+import { useSystemStore, AppTab } from '../stores/useSystemStore.js';
+import { useTaskStore } from '../stores/useTaskStore.js';
+import { useNoteStore } from '../stores/useNoteStore.js';
+import { useFileStore } from '../stores/useFileStore.js';
 
-interface HeaderProps {
-  activeTab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'ai-learning' | 'settings' | 'architecture';
-  setActiveTab: (tab: 'dashboard' | 'tasks' | 'notes' | 'files' | 'telegram' | 'ai-learning' | 'settings' | 'architecture') => void;
-  openNewTaskModal: () => void;
-  openNewNoteModal: () => void;
-  isAiDrawerOpen: boolean;
-  setIsAiDrawerOpen: (open: boolean) => void;
+export interface HeaderProps {
+  activeTab?: AppTab;
+  setActiveTab?: (tab: AppTab) => void;
+  openNewTaskModal?: () => void;
+  openNewNoteModal?: () => void;
+  isAiDrawerOpen?: boolean;
+  setIsAiDrawerOpen?: (open: boolean) => void;
   onOpenVoiceFocus?: () => void;
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
-  unreadNotifsCount: number;
+  searchQuery?: string;
+  setSearchQuery?: (q: string) => void;
+  unreadNotifsCount?: number;
   availableTags?: string[];
   tasks?: Task[];
   notes?: Note[];
@@ -37,28 +43,81 @@ interface HeaderProps {
   onSelectNote?: (note: Note) => void;
   onSelectFile?: (file: DriveFile) => void;
   onLockApp?: () => void;
+  theme?: AppTheme;
+  onToggleTheme?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  activeTab,
-  setActiveTab,
-  openNewTaskModal,
-  openNewNoteModal,
-  isAiDrawerOpen,
-  setIsAiDrawerOpen,
-  onOpenVoiceFocus = () => {},
-  searchQuery,
-  setSearchQuery,
-  unreadNotifsCount,
+  activeTab: propActiveTab,
+  setActiveTab: propSetActiveTab,
+  openNewTaskModal: propOpenNewTaskModal,
+  openNewNoteModal: propOpenNewNoteModal,
+  isAiDrawerOpen: propIsAiDrawerOpen,
+  setIsAiDrawerOpen: propSetIsAiDrawerOpen,
+  onOpenVoiceFocus: propOnOpenVoiceFocus,
+  searchQuery: propSearchQuery,
+  setSearchQuery: propSetSearchQuery,
+  unreadNotifsCount: propUnreadNotifsCount,
   availableTags = ['Công việc', 'Báo cáo', 'Tài chính', 'Kế hoạch', 'Dự án', 'Architecture', 'AI'],
-  tasks = [],
-  notes = [],
-  files = [],
-  onSelectTask = () => {},
-  onSelectNote = () => {},
-  onSelectFile = () => {},
-  onLockApp = () => {},
+  tasks: propTasks,
+  notes: propNotes,
+  files: propFiles,
+  onSelectTask: propOnSelectTask,
+  onSelectNote: propOnSelectNote,
+  onSelectFile: propOnSelectFile,
+  onLockApp: propOnLockApp,
+  theme: propTheme,
+  onToggleTheme: propOnToggleTheme,
 }) => {
+  // Store slices
+  const storeTheme = useSystemStore(s => s.theme);
+  const storeToggleTheme = useSystemStore(s => s.toggleTheme);
+  const storeActiveTab = useSystemStore(s => s.activeTab);
+  const storeSetActiveTab = useSystemStore(s => s.setActiveTab);
+  const storeIsAiDrawerOpen = useSystemStore(s => s.isAiDrawerOpen);
+  const storeOpenAiDrawer = useSystemStore(s => s.openAiDrawer);
+  const storeCloseAiDrawer = useSystemStore(s => s.closeAiDrawer);
+  const storeOpenVoiceFocus = useSystemStore(s => s.openVoiceFocus);
+  const storeSearchQuery = useSystemStore(s => s.searchQuery);
+  const storeSetSearchQuery = useSystemStore(s => s.setSearchQuery);
+  const storeNotifsCount = useSystemStore(s => s.notificationLogs.length);
+  const storeLockApp = useSystemStore(s => s.lockApp);
+
+  const storeTasks = useTaskStore(s => s.tasks);
+  const storeOpenTaskModal = useTaskStore(s => s.openTaskModal);
+  const storeNotes = useNoteStore(s => s.notes);
+  const storeOpenNoteModal = useNoteStore(s => s.openNoteModal);
+  const storeFiles = useFileStore(s => s.files);
+
+  // Resolved effective values (props take precedence if supplied)
+  const activeTab = propActiveTab ?? storeActiveTab;
+  const setActiveTab = propSetActiveTab ?? storeSetActiveTab;
+  const openNewTaskModal = propOpenNewTaskModal ?? (() => storeOpenTaskModal(null));
+  const openNewNoteModal = propOpenNewNoteModal ?? storeOpenNoteModal;
+  const isAiDrawerOpen = propIsAiDrawerOpen ?? storeIsAiDrawerOpen;
+  const setIsAiDrawerOpen = propSetIsAiDrawerOpen ?? ((open: boolean) => open ? storeOpenAiDrawer() : storeCloseAiDrawer());
+  const onOpenVoiceFocus = propOnOpenVoiceFocus ?? storeOpenVoiceFocus;
+  const searchQuery = propSearchQuery ?? storeSearchQuery;
+  const setSearchQuery = propSetSearchQuery ?? storeSetSearchQuery;
+  const unreadNotifsCount = propUnreadNotifsCount ?? storeNotifsCount;
+  const tasks = propTasks ?? storeTasks;
+  const notes = propNotes ?? storeNotes;
+  const files = propFiles ?? storeFiles;
+  const onLockApp = propOnLockApp ?? storeLockApp;
+  const theme = propTheme ?? storeTheme;
+  const onToggleTheme = propOnToggleTheme ?? storeToggleTheme;
+
+  const onSelectTask = propOnSelectTask ?? ((task: Task) => {
+    storeOpenTaskModal(task);
+    setActiveTab('tasks');
+  });
+  const onSelectNote = propOnSelectNote ?? ((_note: Note) => {
+    setActiveTab('notes');
+  });
+  const onSelectFile = propOnSelectFile ?? ((_file: DriveFile) => {
+    setActiveTab('files');
+  });
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -164,6 +223,26 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           </div>
+
+          {/* Quick Theme Switcher Button (Chuyển đổi Sáng / Tối) */}
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className="px-2.5 sm:px-3 py-2 rounded-sm bg-[#151515] hover:bg-[#202020] text-[#D4AF37] border border-[#2A2A2A] hover:border-[#D4AF37]/50 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-xs"
+            title={theme === 'light' ? 'Chuyển sang Chủ đề Tối (Gold & Obsidian)' : 'Chuyển sang Chủ đề Sáng (Xanh & Trắng Sang Trọng)'}
+          >
+            {theme === 'light' ? (
+              <>
+                <Moon className="w-3.5 h-3.5 text-[#0F52BA]" />
+                <span className="text-xs font-bold text-[#0F52BA] hidden lg:inline">Chủ Đề Tối</span>
+              </>
+            ) : (
+              <>
+                <Sun className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span className="text-xs font-bold text-[#D4AF37] hidden lg:inline">Chủ Đề Sáng</span>
+              </>
+            )}
+          </button>
 
           {/* Quick Lock PIN Button - guaranteed visible */}
           <button
@@ -326,6 +405,32 @@ export const Header: React.FC<HeaderProps> = ({
                       </div>
                     </div>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1A1A1A] border border-[#333333] text-[#D4AF37] font-mono">Mic</span>
+                  </button>
+
+                  {/* Theme Switcher in Dropdown */}
+                  <button
+                    onClick={() => {
+                      onToggleTheme();
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer text-[#CCCCCC] hover:text-[#D4AF37] hover:bg-[#1E1E1E]"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-md bg-[#D4AF37]/15 text-[#D4AF37]">
+                        {theme === 'light' ? <Moon className="w-4 h-4 text-[#0F52BA]" /> : <Sun className="w-4 h-4 text-[#D4AF37]" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                          {theme === 'light' ? 'Chuyển sang Chủ Đề Tối' : 'Chuyển sang Chủ Đề Sáng'}
+                        </div>
+                        <div className="text-[10px] text-[#777777]">
+                          {theme === 'light' ? 'Obsidian & Gold sang trọng' : 'Xanh Sapphire & Trắng hiện đại'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1A1A1A] border border-[#333333] text-[#D4AF37] font-mono">
+                      {theme === 'light' ? 'Sáng ☀️' : 'Tối 🌙'}
+                    </span>
                   </button>
 
                   {/* 1. Telegram Bot */}

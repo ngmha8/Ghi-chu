@@ -26,7 +26,14 @@ export function isTelegramBotTokenValid(token?: string | null): boolean {
 }
 
 /**
- * Resilient wrapper for all Telegram API requests with IPv4 priority, AbortController timeouts, and error shielding
+ * Masks bot tokens in endpoint strings to prevent accidental token exposure in logs
+ */
+function maskTelegramEndpoint(endpoint: string): string {
+  return endpoint.replace(/bot\d+:[A-Za-z0-9_-]+/g, 'bot[REDACTED]');
+}
+
+/**
+ * Resilient wrapper for all Telegram API requests with IPv4 priority, AbortController timeouts, automatic retries, and error shielding
  */
 export async function telegramApiFetch(
   endpoint: string,
@@ -35,47 +42,83 @@ export async function telegramApiFetch(
     headers?: Record<string, string>;
     body?: any;
     timeoutMs?: number;
+    retries?: number;
+    silent?: boolean;
   } = {}
 ): Promise<{ ok: boolean; result?: any; description?: string; error?: any }> {
   const timeoutMs = options.timeoutMs || 10000;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const maxRetries = options.retries ?? 1;
+  const maskedEp = maskTelegramEndpoint(endpoint);
 
-  try {
-    const fetchOptions: RequestInit = {
-      method: options.method || 'GET',
-      headers: { ...(options.headers || {}) },
-      signal: controller.signal,
-    };
+  let lastError: any = null;
 
-    if (options.body) {
-      if (typeof options.body === 'string') {
-        fetchOptions.body = options.body;
-      } else {
-        fetchOptions.body = JSON.stringify(options.body);
-        (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json';
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const fetchHeaders: Record<string, string> = { ...(options.headers || {}) };
+      if (attempt > 0) {
+        // On retry, force fresh connection to avoid reusing broken sockets
+        fetchHeaders['Connection'] = 'close';
       }
-    }
 
-    const url = endpoint.startsWith('http') ? endpoint : `https://api.telegram.org/${endpoint}`;
-    const res = await fetch(url, fetchOptions);
-    clearTimeout(timer);
+      const fetchOptions: RequestInit = {
+        method: options.method || 'GET',
+        headers: fetchHeaders,
+        signal: controller.signal,
+      };
 
-    const data: any = await res.json().catch(() => null);
-    if (!data) {
-      return { ok: false, description: `HTTP ${res.status} ${res.statusText}` };
+      if (options.body) {
+        if (typeof options.body === 'string') {
+          fetchOptions.body = options.body;
+        } else {
+          fetchOptions.body = JSON.stringify(options.body);
+          fetchHeaders['Content-Type'] = 'application/json';
+        }
+      }
+
+      const url = endpoint.startsWith('http') ? endpoint : `https://api.telegram.org/${endpoint}`;
+      const res = await fetch(url, fetchOptions);
+      clearTimeout(timer);
+
+      const data: any = await res.json().catch(() => null);
+      if (!data) {
+        return { ok: false, description: `HTTP ${res.status} ${res.statusText}` };
+      }
+      return data;
+    } catch (err: any) {
+      clearTimeout(timer);
+      lastError = err;
+      const isTimeout = err?.name === 'AbortError' || err?.code === 'ETIMEDOUT' || err?.message?.includes('timeout');
+
+      // If retries remain, wait briefly with backoff
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+        continue;
+      }
+
+      if (!options.silent) {
+        if (isTimeout) {
+          console.warn(`[Telegram API Timeout]: Request to ${maskedEp} timed out after ${timeoutMs}ms`);
+        } else {
+          console.warn(`[Telegram Network Notice]: Request to ${maskedEp} failed:`, err?.cause?.message || err?.message || err);
+        }
+      }
+
+      return {
+        ok: false,
+        error: err?.cause?.message || err?.message || 'Network request failed',
+        description: err?.message,
+      };
     }
-    return data;
-  } catch (err: any) {
-    clearTimeout(timer);
-    const isTimeout = err?.name === 'AbortError' || err?.code === 'ETIMEDOUT' || err?.message?.includes('timeout');
-    if (isTimeout) {
-      console.warn(`[Telegram API Timeout]: Request to ${endpoint} timed out after ${timeoutMs}ms`);
-    } else {
-      console.warn(`[Telegram Network Notice]: Request to ${endpoint} failed:`, err?.message || err);
-    }
-    return { ok: false, error: err?.message || 'Network request failed', description: err?.message };
   }
+
+  return {
+    ok: false,
+    error: lastError?.message || 'Network request failed after retries',
+    description: lastError?.message,
+  };
 }
 
 /**
@@ -487,6 +530,7 @@ export async function getTelegramWebhookInfo(botToken: string): Promise<any> {
     const data = await telegramApiFetch(`bot${botToken}/getWebhookInfo`, {
       method: 'GET',
       timeoutMs: 8000,
+      retries: 2,
     });
     return data.result || null;
   } catch (err) {
@@ -507,6 +551,27 @@ export function buildTaskReminderKeyboard(task: Task): TelegramInlineKeyboard {
     [
       { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
       { text: '🗑️ Xóa việc này', callback_data: `del:${task.id}` },
+    ]
+  ];
+}
+
+/**
+ * Build inline keyboard specifically designed for Overdue Reminders (Nagging)
+ * Gives instant 1-tap options to Complete, Extend (Gia hạn), or Mute reminders
+ */
+export function buildOverdueReminderKeyboard(task: Task, nagCount: number = 1): TelegramInlineKeyboard {
+  return [
+    [
+      { text: '✅ Hoàn thành ngay', callback_data: `done:${task.id}` },
+      { text: '⏰ +30p', callback_data: `snooze:${task.id}:30` },
+      { text: '⏰ +2h', callback_data: `snooze:${task.id}:120` },
+    ],
+    [
+      { text: '📅 Dời sang mai', callback_data: `snooze_tomorrow:${task.id}` },
+      { text: '🔕 Tắt nhắc lại việc này', callback_data: `stop_nag:${task.id}` },
+    ],
+    [
+      { text: '📋 Xem việc hôm nay', callback_data: 'cmd:today' },
     ]
   ];
 }

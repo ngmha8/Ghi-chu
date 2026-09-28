@@ -1,0 +1,145 @@
+[
+  {
+    "fact": "Người dùng đánh giá cao phong cách giao tiếp súc tích, trực diện, luận điểm có cấu trúc gạch đầu dòng rõ ràng và giải pháp có tính hành động cao.",
+    "confidence": 0.95,
+    "id": "mem-1",
+    "updatedAt": "2026-08-25T15:31:34.709Z",
+    "source": "reflection",
+    "occurrences": 4,
+    "category": "preference",
+    "isActive": true,
+    "createdAt": "2026-08-25T15:31:34.709Z"
+  },
+  {
+    "isActive": true,
+    "source": "chat",
+    "createdAt": "2026-08-26T05:16:36.821Z",
+    "occurrences": 1,
+    "id": "mem-1787721396821-si6t",
+    "fact": "Người dùng sống tại Bắc Giang.",
+    "updatedAt": "2026-08-26T05:16:36.821Z",
+    "category": "identity",
+    "confidence": 0.95
+  },
+  {
+    "updatedAt": "2026-08-26T14:33:19.461Z",
+    "id": "mem-1787754799461-lyqj",
+    "isActive": true,
+    "category": "identity",
+    "createdAt": "2026-08-26T14:33:19.461Z",
+    "confidence": 0.95,
+    "fact": "Người dùng mới được kết nạp vào Đảng Cộng sản Việt Nam (trở thành Đảng viên).",
+    "source": "chat",
+    "occurrences": 1
+  },
+  {
+    "confidence": 0.95,
+    "fact": "Người dùng đang sinh sống và làm việc tại tỉnh Bắc Giang.",
+    "occurrences": 1,
+    "id": "mem-1787818555339-besj",
+    "category": "identity",
+    "createdAt": "2026-08-27T08:15:55.339Z",
+    "source": "chat",
+    "updatedAt": "2026-08-27T08:15:55.339Z",
+    "isActive": true
+  },
+  {
+    "updatedAt": "2026-08-27T08:29:25.935Z",
+    "confidence": 0.9,
+    "isActive": true,
+    "fact": "Người dùng làm việc trong lĩnh vực liên quan đến an toàn bức xạ hoặc đang chuẩn bị hồ sơ để trở thành nhân viên bức xạ.",
+    "source": "chat",
+    "occurrences": 1,
+    "id": "mem-1787819365935-xp2f",
+    "category": "identity",
+    "createdAt": "2026-08-27T08:29:25.935Z"
+  },
+  {
+    "updatedAt": "2026-08-27T15:00:31.237Z",
+    "id": "mem-1787842831237-g8w1",
+    "confidence": 0.85,
+    "source": "chat",
+    "category": "workflow",
+    "occurrences": 1,
+    "isActive": true,
+    "createdAt": "2026-08-27T15:00:31.237Z",
+    "fact": "Người dùng muốn trợ lý đóng vai trò là trợ lý quản lý tài liệu thông minh, tạo các chú thích tóm tắt ngắn gọn (1-2 câu, khoảng 15-30 từ) cho các tài liệu để hỗ trợ tra cứu nhanh chóng."
+  },
+  {
+    "occurrences": 1,
+    "confidence": 0.85,
+    "source": "chat",
+    "category": "identity",
+    "updatedAt": "2026-08-27T23:50:26.895Z",
+    "createdAt": "2026-08-27T23:50:26.895Z",
+    "fact": "Người dùng làm việc hoặc sinh sống tại Bắc Giang.",
+    "id": "mem-1787874626895-ftae",
+    "isActive": true
+  },
+  {
+    "isActive": true,
+    "source": "chat",
+    "confidence": 0.9,
+    "occurrences": 1,
+    "fact": "Khi quản lý tài liệu, người dùng có thói quen tạo chú thích tóm tắt ngắn gọn (1-2 câu, khoảng 15-30 từ) để hỗ trợ tra cứu nhanh chóng mà không phụ thuộc hoàn toàn vào tên tệp.",
+    "updatedAt": "2026-08-28T11:07:05.746Z",
+    "createdAt": "2026-08-28T11:07:05.746Z",
+    "id": "mem-1787915225746-h3ks",
+    "category": "workflow"
+  },
+  {
+    "fact": "Người dùng quản lý tài liệu bằng cách tạo các chú thích tóm tắt ngắn gọn (1-2 câu, khoảng 15-30 từ) để hỗ trợ tra cứu nhanh chóng mà không bị phụ thuộc hoàn toàn vào tên tệp.",
+    "occurrences": 1,
+    "confidence": 0.9,
+    "updatedAt": "2026-08-28T11:24:07.930Z",
+    "category": "workflow",
+    "source": "chat",
+    "isActive": true,
+    "createdAt": "2026-08-28T11:24:07.930Z",
+    "id": "mem-1787916247930-n5r9"
+  },
+  {
+    "isActive": true,
+    "createdAt": "2026-08-28T12:32:35.167Z",
+    "fact": "Người dùng làm việc hoặc hoạt động trong lĩnh vực liên quan đến an toàn bức xạ và đang thực hiện thủ tục cấp chứng chỉ nhân viên bức xạ.",
+    "occurrences": 1,
+    "id": "mem-1787920355167-25ta",
+    "category": "identity",
+    "source": "chat",
+    "updatedAt": "2026-08-28T12:32:35.167Z",
+    "confidence": 0.9
+  },
+  {
+    "fact": "Người dùng quan tâm đến thông tin địa lý, quy hoạch hành chính và sự phát triển đô thị của thành phố Bắc Ninh.",
+    "isActive": true,
+    "source": "chat",
+    "occurrences": 1,
+    "createdAt": "2026-09-18T14:09:56.129Z",
+    "updatedAt": "2026-09-18T14:09:56.129Z",
+    "confidence": 0.8,
+    "category": "domain_knowledge",
+    "id": "mem-1789740596129-s0lf"
+  },
+  {
+    "fact": "Lĩnh vực công tác và quan tâm chính: Phát triển ứng dụng Web hiệu năng cao, Trí tuệ nhân tạo, Tự động hóa quy trình và Quản trị năng suất cá nhân.",
+    "occurrences": 3,
+    "source": "reflection",
+    "createdAt": "2026-08-25T15:31:34.709Z",
+    "confidence": 0.92,
+    "isActive": true,
+    "updatedAt": "2026-08-25T15:31:34.709Z",
+    "category": "domain_knowledge",
+    "id": "mem-3"
+  },
+  {
+    "createdAt": "2026-08-25T15:31:34.709Z",
+    "occurrences": 3,
+    "category": "workflow",
+    "id": "mem-4",
+    "source": "task_pattern",
+    "fact": "Khi tiếp nhận yêu cầu có yếu tố gấp/khẩn cấp, tự động gán độ ưu tiên High và thiết lập thông báo Telegram trước thời hạn 15-30 phút.",
+    "confidence": 0.9,
+    "isActive": true,
+    "updatedAt": "2026-08-25T15:31:34.709Z"
+  }
+]

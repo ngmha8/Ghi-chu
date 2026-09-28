@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { DriveFile, Task, Note, DriveServiceAccountConfig, DocumentCategory } from '../types/index.js';
 import { TagSearchInput } from './TagSearchInput.js';
 import { api } from '../services/api.js';
+import { useFileStore } from '../stores/useFileStore.js';
+import { useTaskStore } from '../stores/useTaskStore.js';
+import { useNoteStore } from '../stores/useNoteStore.js';
+import { useSystemStore } from '../stores/useSystemStore.js';
 import {
   initGoogleAuth,
   signInWithGoogleWorkspace,
@@ -10,6 +14,11 @@ import {
   GoogleOAuthUser
 } from '../services/googleAuth.js';
 import { uploadLocalFileToUserGoogleDrive } from '../services/googleDriveUpload.js';
+import {
+  uploadFileToStorage,
+  isCloudStorageConfigured,
+  deleteFileFromStorage,
+} from '../services/storage.js';
 import {
   FolderSync,
   UploadCloud,
@@ -75,42 +84,69 @@ import {
 } from '../services/docClassification.js';
 import { ManageCategoriesModal, renderCategoryIcon } from './ManageCategoriesModal.js';
 
-interface FilesViewProps {
-  files: DriveFile[];
-  tasks: Task[];
-  notes: Note[];
+export interface FilesViewProps {
+  files?: DriveFile[];
+  tasks?: Task[];
+  notes?: Note[];
   categories?: DocumentCategory[];
   onSaveCategories?: (newCategories: DocumentCategory[]) => void;
-  onFileUpload: (fileData: Partial<DriveFile>) => Promise<DriveFile | null> | void;
-  onFileDelete: (id: string) => void;
+  onFileUpload?: (fileData: Partial<DriveFile>) => Promise<DriveFile | null> | void;
+  onFileDelete?: (id: string) => void;
   onFileUpdate?: (id: string, fileData: Partial<DriveFile>) => void;
-  openAiChatWithPrompt: (prompt: string) => void;
+  openAiChatWithPrompt?: (prompt: string) => void;
   onNavigateToSettings?: () => void;
 }
 
 export const FilesView: React.FC<FilesViewProps> = ({
-  files,
-  tasks,
-  notes,
+  files: propFiles,
+  tasks: propTasks,
+  notes: propNotes,
   categories: propCategories,
   onSaveCategories: propOnSaveCategories,
-  onFileUpload,
-  onFileDelete,
-  onFileUpdate,
-  openAiChatWithPrompt,
-  onNavigateToSettings
+  onFileUpload: propOnFileUpload,
+  onFileDelete: propOnFileDelete,
+  onFileUpdate: propOnFileUpdate,
+  openAiChatWithPrompt: propOpenAiChatWithPrompt,
+  onNavigateToSettings: propOnNavigateToSettings,
 }) => {
+  // Store slices
+  const storeFiles = useFileStore(s => s.files);
+  const storeCategories = useFileStore(s => s.categories);
+  const storeSaveCategories = useFileStore(s => s.saveCategories);
+  const storeUploadFile = useFileStore(s => s.uploadFile);
+  const storeDeleteFile = useFileStore(s => s.deleteFile);
+  const storeUpdateFile = useFileStore(s => s.updateFile);
+
+  const storeTasks = useTaskStore(s => s.tasks);
+  const storeNotes = useNoteStore(s => s.notes);
+  const storeOpenAiDrawer = useSystemStore(s => s.openAiDrawer);
+  const storeSetActiveTab = useSystemStore(s => s.setActiveTab);
+
+  // Resolved values
+  const files = propFiles ?? storeFiles;
+  const tasks = propTasks ?? storeTasks;
+  const notes = propNotes ?? storeNotes;
+  const onSaveCategories = propOnSaveCategories ?? storeSaveCategories;
+  const onFileUpload = propOnFileUpload ?? storeUploadFile;
+  const onFileDelete = propOnFileDelete ?? storeDeleteFile;
+  const onFileUpdate = propOnFileUpdate ?? storeUpdateFile;
+  const openAiChatWithPrompt = propOpenAiChatWithPrompt ?? storeOpenAiDrawer;
+  const onNavigateToSettings = propOnNavigateToSettings ?? (() => storeSetActiveTab('settings'));
+
   const [search, setSearch] = useState('');
   
   // Document Classification state (Công việc, Cá nhân, Mẫu giấy tờ, Tài chính...)
-  const [internalCategories, setInternalCategories] = useState<DocumentCategory[]>(() => propCategories || getStoredCategories());
-  const categories = propCategories || internalCategories;
+  const effectiveCategorySource = propCategories || storeCategories;
+  const [internalCategories, setInternalCategories] = useState<DocumentCategory[]>(() => effectiveCategorySource || getStoredCategories());
+  const categories = propCategories || (storeCategories.length > 0 ? storeCategories : internalCategories);
 
   useEffect(() => {
     if (propCategories && propCategories.length > 0) {
       setInternalCategories(propCategories);
+    } else if (storeCategories && storeCategories.length > 0) {
+      setInternalCategories(storeCategories);
     }
-  }, [propCategories]);
+  }, [propCategories, storeCategories]);
 
   const [selectedClassification, setSelectedClassification] = useState<string>('all');
   const [isManagingCategories, setIsManagingCategories] = useState(false);
@@ -645,26 +681,57 @@ export const FilesView: React.FC<FilesViewProps> = ({
     // Assign classification based on currently selected filter, or fallback to 'unclassified' (Chưa xác định)
     const targetClassification = selectedClassification !== 'all' ? selectedClassification : 'unclassified';
 
-    setUploadProgress({
-      active: true,
-      fileName: rawFile.name,
-      progress: 30,
-      statusText: 'Đang chuẩn bị tệp và mã hóa dữ liệu...'
-    });
-
+    let gcsResult: any = null;
     let base64Data = '';
-    try {
-      base64Data = await fileToBase64(rawFile);
-    } catch (e) {}
+
+    // 1. Direct upload to Google Cloud Storage (GCS) using Firebase storage bucket
+    if (isCloudStorageConfigured()) {
+      try {
+        setUploadProgress({
+          active: true,
+          fileName: rawFile.name,
+          progress: 25,
+          statusText: 'Đang tải trực tiếp lên Google Cloud Storage (GCS)...'
+        });
+
+        gcsResult = await uploadFileToStorage(rawFile, {
+          folder: 'documents',
+          customFileName: `${fileId}_${rawFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+          onProgress: (percent) => {
+            setUploadProgress({
+              active: true,
+              fileName: rawFile.name,
+              progress: Math.min(25 + Math.round(percent * 0.45), 70),
+              statusText: `Đang tải lên Google Cloud Storage (${percent}%)...`
+            });
+          }
+        });
+      } catch (gcsErr) {
+        console.warn('[GCS Storage] Direct upload notice, falling back to server vault:', gcsErr);
+      }
+    }
+
+    if (!gcsResult) {
+      setUploadProgress({
+        active: true,
+        fileName: rawFile.name,
+        progress: 40,
+        statusText: 'Đang chuẩn bị tệp và mã hóa dữ liệu...'
+      });
+
+      try {
+        base64Data = await fileToBase64(rawFile);
+      } catch (e) {}
+    }
 
     setUploadProgress({
       active: true,
       fileName: rawFile.name,
-      progress: 70,
-      statusText: 'Đang lưu trữ và đồng bộ Google Drive...'
+      progress: 75,
+      statusText: 'Đang lưu trữ dữ liệu và đồng bộ hóa...'
     });
 
-    const filePayload: Partial<DriveFile> & { base64Data?: string } = {
+    const filePayload: Partial<DriveFile> & { base64Data?: string; storagePath?: string } = {
       id: fileId,
       name: rawFile.name,
       mimeType: rawFile.type || 'application/octet-stream',
@@ -673,10 +740,13 @@ export const FilesView: React.FC<FilesViewProps> = ({
       classification: targetClassification,
       tags: [],
       isSyncedToDrive: false,
-      syncStatus: 'local_only',
-      downloadUrl: `/api/files/download/${fileId}`,
+      syncStatus: gcsResult ? 'synced' : 'local_only',
+      storageType: gcsResult ? 'gcs' : undefined,
+      storagePath: gcsResult?.storagePath,
+      downloadUrl: gcsResult?.downloadUrl || `/api/files/download/${fileId}`,
+      previewUrl: gcsResult?.downloadUrl || `/api/files/preview/${fileId}`,
       uploadedAt: new Date().toISOString(),
-      base64Data: base64Data,
+      base64Data: base64Data || undefined,
     };
 
     const created = await onFileUpload(filePayload);
@@ -708,6 +778,13 @@ export const FilesView: React.FC<FilesViewProps> = ({
         progress: 100,
         statusText: '✅ Đã tải lên và lưu trữ Google Drive thành công!'
       });
+    } else if (gcsResult?.downloadUrl) {
+      setUploadProgress({
+        active: true,
+        fileName: rawFile.name,
+        progress: 100,
+        statusText: '✅ Đã lưu trữ vĩnh viễn trên Google Cloud Storage (GCS)!'
+      });
     } else {
       setUploadProgress({
         active: true,
@@ -736,6 +813,9 @@ export const FilesView: React.FC<FilesViewProps> = ({
     if (!fileToDelete) return;
     const targetFile = fileToDelete;
     setFileToDelete(null);
+    if (targetFile.storagePath) {
+      deleteFileFromStorage(targetFile.storagePath).catch(() => {});
+    }
     onFileDelete(targetFile.id);
   };
 
@@ -1547,11 +1627,19 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
 
                       {/* Storage Sync Badge */}
                       {isSynced ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono" title="Đã lưu trữ vĩnh viễn trên Google Drive">
                           <CheckCircle2 className="w-3 h-3" /> Drive
                         </span>
+                      ) : file.storageType === 'gcs' ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-cyan-400 font-mono" title="Lưu trữ trực tiếp trên Google Cloud Storage (GCS)">
+                          <Cloud className="w-3 h-3" /> GCS Cloud
+                        </span>
+                      ) : file.storageType === 'firestore_vault' || file.hasBinary ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-sky-400 font-mono" title="Lưu trữ an toàn vĩnh viễn trên Cloud Vault">
+                          <Cloud className="w-3 h-3" /> Cloud Vault
+                        </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-mono">
+                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-mono" title="Lưu trữ cục bộ">
                           <CloudOff className="w-3 h-3" /> Cục bộ
                         </span>
                       )}

@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import { Task, Note, DriveFile, TelegramConfig, NotificationLog } from '../src/types/index.ts';
+import { processTaskRecurrenceOnComplete, formatRecurringLabel } from './recurringEngine.ts';
 import {
   getDbTasks,
   saveDbTask,
@@ -34,9 +35,22 @@ import {
 } from './telegramHelper.ts';
 import { transcribeTelegramVoice } from './voiceTranscriber.ts';
 import { generateDailyBriefing } from './dailyBriefing.ts';
+import { generateNoteFromCompletedTask } from './aiService.ts';
+import { savePersistentBinary } from './storageService.ts';
 
 // Track recent update IDs to prevent duplicate processing on Telegram webhook retries
 const processedUpdateMap = new Map<number, number>();
+
+interface PendingTelegramNoteDraft {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  title: string;
+  content: string;
+  tags: string[];
+  createdAt: number;
+}
+const pendingNoteDrafts = new Map<string, PendingTelegramNoteDraft>();
 
 function isDuplicateTelegramUpdate(updateId?: number): boolean {
   if (!updateId) return false;
@@ -147,33 +161,73 @@ export async function processTelegramUpdate(
       );
 
       if (target) {
-        target.status = 'completed';
-        target.updatedAt = new Date().toISOString();
-        await saveDbTask(target);
-        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `✅ Đã hoàn thành: ${target.title}`);
-        
-        // Log to notification audit trail
-        await addDbNotificationLog({
-          id: `notif-done-${Date.now()}`,
-          title: `✅ Hoàn thành qua Telegram: ${target.title}`,
-          message: `Người dùng đã nhấn xác nhận hoàn thành công việc "${target.title}" trực tiếp từ Telegram Bot.`,
-          channel: 'telegram',
-          status: 'sent',
-          timestamp: new Date().toISOString(),
-          taskId: target.id,
-        });
+        const recResult = processTaskRecurrenceOnComplete(target);
 
-        await sendTelegramMessage(
-          telegramConfig.botToken,
-          chatId,
-          `🎉 *ĐÃ HOÀN THÀNH CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\nTrạng thái: *Đã hoàn thành (Completed)* ✅\n\n_Dữ liệu đã được lưu trữ & đồng bộ tự động vào Firestore._`,
-          [
+        if (recResult.isRecurring) {
+          await saveDbTask(recResult.updatedTask);
+          await answerCallbackQuery(
+            telegramConfig.botToken,
+            callbackQueryId,
+            `🔁 Hoàn thành chu kỳ! Dời sang ${recResult.formattedNextDate}`
+          );
+
+          await addDbNotificationLog({
+            id: `notif-done-${Date.now()}`,
+            title: `🔁 Hoàn thành chu kỳ & lặp lại: ${target.title}`,
+            message: `Người dùng xác nhận hoàn thành công việc lặp lại "${target.title}". Hệ thống đã tự động dời sang chu kỳ mới: ${recResult.formattedNextDate}.`,
+            channel: 'telegram',
+            status: 'sent',
+            timestamp: new Date().toISOString(),
+            taskId: target.id,
+          });
+
+          await sendTelegramMessage(
+            telegramConfig.botToken,
+            chatId,
+            `🎉 *ĐÃ HOÀN THÀNH CHU KỲ CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\n🔄 Cấu hình: *${formatRecurringLabel(target.recurring)}*\n➡️ Hạn chót mới: *${recResult.formattedNextDate}*\n🔔 Cảnh báo Telegram: *Tự động kích hoạt lại theo lịch mới* ✅\n\n_Dữ liệu đã được tự động lưu và đồng bộ lên Cloud Firestore._`,
             [
-              { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
-              { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }
+              [
+                { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
+                { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }
+              ]
             ]
-          ]
-        );
+          );
+        } else {
+          target.status = 'completed';
+          target.isNotified = false;
+          target.overdueReminderCount = 0;
+          target.lastOverdueNotifiedAt = undefined;
+          target.updatedAt = new Date().toISOString();
+          await saveDbTask(target);
+          await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, `✅ Đã hoàn thành: ${target.title}`);
+          
+          // Log to notification audit trail
+          await addDbNotificationLog({
+            id: `notif-done-${Date.now()}`,
+            title: `✅ Hoàn thành qua Telegram: ${target.title}`,
+            message: `Người dùng đã nhấn xác nhận hoàn thành công việc "${target.title}" trực tiếp từ Telegram Bot.`,
+            channel: 'telegram',
+            status: 'sent',
+            timestamp: new Date().toISOString(),
+            taskId: target.id,
+          });
+
+          await sendTelegramMessage(
+            telegramConfig.botToken,
+            chatId,
+            `🎉 *ĐÃ HOÀN THÀNH CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\nTrạng thái: *Đã hoàn thành (Completed)* ✅\n\n💡 *Bạn có muốn AI đúc kết thông tin công việc này để lưu vào Ghi Chú không?*`,
+            [
+              [
+                { text: '✨ Có, AI tạo ghi chú', callback_data: `task:note_ai:${target.id}` },
+                { text: '⏩ Bỏ qua', callback_data: `task:note_skip:${target.id}` }
+              ],
+              [
+                { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
+                { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }
+              ]
+            ]
+          );
+        }
       } else {
         await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này trong hệ thống.');
       }
@@ -221,6 +275,9 @@ export async function processTelegramUpdate(
         const newDeadline = new Date(referenceTime + mins * 60 * 1000).toISOString();
         target.deadline = newDeadline;
         target.isNotified = false; // reset reminder so user gets reminded before new deadline
+        target.overdueReminderCount = 0; // reset overdue nag counter
+        target.lastOverdueNotifiedAt = undefined;
+        target.stopOverdueReminders = false;
         target.updatedAt = new Date().toISOString();
         await saveDbTask(target);
 
@@ -240,13 +297,105 @@ export async function processTelegramUpdate(
         await sendTelegramMessage(
           telegramConfig.botToken,
           chatId,
-          `⏰ *ĐÃ GIA HẠN DEADLINE THÀNH CÔNG*\n\n📌 Công việc: *${target.title}*\n⏳ Hạn chót mới: *${new Date(newDeadline).toLocaleString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh' })}* (+${durationText})\n🎯 Mức độ: *${target.priority.toUpperCase()}*`,
+          `⏰ *ĐÃ GIA HẠN DEADLINE THÀNH CÔNG*\n\n📌 Công việc: *${target.title}*\n⏳ Hạn chót mới: *${new Date(newDeadline).toLocaleString('vi-VN', { timeZone: telegramConfig.timezone || 'Asia/Ho_Chi_Minh' })}* (+${durationText})\n🎯 Mức độ: *${target.priority.toUpperCase()}*\n\n_Chu kỳ nhắc nhở đã được thiết lập lại cho hạn mới._`,
           buildTaskReminderKeyboard(target)
         );
       } else {
         await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này.');
       }
       return { success: true, action: 'snooze', chatId };
+    }
+
+    // B2. Snooze to tomorrow (Dời sang ngày mai)
+    if (data.startsWith('snooze_tomorrow:') || data.startsWith('task:snooze_tomorrow:')) {
+      const taskId = data.replace(/^task:snooze_tomorrow:|^snooze_tomorrow:/, '').trim();
+      const currentTasks = await getDbTasks();
+      const target = currentTasks.find(
+        t => t.id === taskId || t.id.toLowerCase() === taskId.toLowerCase() || (taskId && t.id.includes(taskId))
+      );
+
+      if (target) {
+        // Calculate tomorrow 09:00 AM in user's timezone or +24 hours
+        const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        tomorrow.setHours(9, 0, 0, 0);
+        const newDeadline = tomorrow.toISOString();
+
+        target.deadline = newDeadline;
+        target.isNotified = false;
+        target.overdueReminderCount = 0;
+        target.lastOverdueNotifiedAt = undefined;
+        target.stopOverdueReminders = false;
+        target.updatedAt = new Date().toISOString();
+        await saveDbTask(target);
+
+        const timeZone = telegramConfig.timezone || 'Asia/Ho_Chi_Minh';
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '📅 Đã dời hạn sang 09:00 sáng mai!');
+
+        await addDbNotificationLog({
+          id: `notif-snooze-tmr-${Date.now()}`,
+          title: `📅 Dời việc sang mai: ${target.title}`,
+          message: `Đã dời hạn chót đến 09:00 sáng mai (${new Date(newDeadline).toLocaleString('vi-VN', { timeZone })})`,
+          channel: 'telegram',
+          status: 'sent',
+          timestamp: new Date().toISOString(),
+          taskId: target.id,
+        });
+
+        await sendTelegramMessage(
+          telegramConfig.botToken,
+          chatId,
+          `📅 *ĐÃ DỜI HẠN CHÓT SANG NGÀY MAI*\n\n📌 Công việc: *${target.title}*\n⏳ Hạn mới: *${new Date(newDeadline).toLocaleString('vi-VN', { timeZone })}*\n\n_Hệ thống sẽ nhắc bạn trước deadline mới theo lịch hẹn._`,
+          buildTaskReminderKeyboard(target)
+        );
+      } else {
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này.');
+      }
+      return { success: true, action: 'snooze_tomorrow', chatId };
+    }
+
+    // B3. Stop Overdue Nagging (Tắt nhắc nhở quá hạn cho riêng task này)
+    if (data.startsWith('stop_nag:') || data.startsWith('task:stop_nag:') || data.startsWith('mute_nag:')) {
+      const taskId = data.replace(/^task:stop_nag:|^stop_nag:|^mute_nag:/, '').trim();
+      const currentTasks = await getDbTasks();
+      const target = currentTasks.find(
+        t => t.id === taskId || t.id.toLowerCase() === taskId.toLowerCase() || (taskId && t.id.includes(taskId))
+      );
+
+      if (target) {
+        target.stopOverdueReminders = true;
+        target.updatedAt = new Date().toISOString();
+        await saveDbTask(target);
+
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '🔕 Đã tắt nhắc nhở quá hạn cho việc này!');
+
+        await addDbNotificationLog({
+          id: `notif-stopnag-${Date.now()}`,
+          title: `🔕 Tắt nhắc nhở quá hạn: ${target.title}`,
+          message: `Người dùng đã tắt tính năng gửi nhắc lại quá hạn cho công việc "${target.title}".`,
+          channel: 'telegram',
+          status: 'sent',
+          timestamp: new Date().toISOString(),
+          taskId: target.id,
+        });
+
+        await sendTelegramMessage(
+          telegramConfig.botToken,
+          chatId,
+          `🔕 *ĐÃ TẮT NHẮC LẠI KHI QUÁ HẠN*\n\n📌 Công việc: *${target.title}*\n\n_Hệ thống sẽ không gửi thêm thông báo nhắc lại cho công việc này. Bạn có thể hoàn thành hoặc dời hạn bất cứ lúc nào trên ứng dụng._`,
+          [
+            [
+              { text: '✅ Đã hoàn thành', callback_data: `done:${target.id}` },
+              { text: '⏰ Gia hạn +1h', callback_data: `snooze:${target.id}:60` }
+            ],
+            [
+              { text: '📋 Danh sách việc hôm nay', callback_data: 'cmd:today' }
+            ]
+          ]
+        );
+      } else {
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc này.');
+      }
+      return { success: true, action: 'stop_nag', chatId };
     }
 
     // C. Delete task
@@ -387,6 +536,155 @@ export async function processTelegramUpdate(
       return { success: true, action: 'evening', chatId };
     }
 
+    // =========================================================
+    // D1. Generate AI Note from Completed Task (Ask Confirmation)
+    // =========================================================
+    if (data.startsWith('task:note_ai:') || data.startsWith('note_ai:')) {
+      const taskId = data.replace(/^task:note_ai:|^note_ai:/, '').trim();
+      const currentTasks = await getDbTasks();
+      const target = currentTasks.find(t => t.id === taskId);
+
+      if (!target) {
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Không tìm thấy công việc.');
+        return { success: false, action: 'note_ai_not_found', chatId };
+      }
+
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '🤖 AI đang phân tích dữ liệu & đúc kết ghi chú...');
+      await sendTelegramChatAction(telegramConfig.botToken, chatId, 'typing');
+
+      try {
+        const generated = await generateNoteFromCompletedTask(target);
+        const draftId = `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        
+        pendingNoteDrafts.set(draftId, {
+          id: draftId,
+          taskId: target.id,
+          taskTitle: target.title,
+          title: generated.title,
+          content: generated.content,
+          tags: generated.tags,
+          createdAt: Date.now(),
+        });
+
+        const draftPreview =
+          `📋 *BẢN NHÁP GHI CHÚ ĐÚC KẾT BỞI AI*\n\n` +
+          `📌 *Tiêu đề:* ${generated.title}\n` +
+          `🏷️ *Thẻ:* ${generated.tags.map(t => '#' + t).join(' ')}\n\n` +
+          `📝 *Nội dung đúc kết:*\n${generated.content}\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `👉 *Bạn có xác nhận lưu ghi chú này vào hệ thống Ghi Chú không?*`;
+
+        await sendTelegramMessage(
+          telegramConfig.botToken,
+          chatId,
+          draftPreview,
+          [
+            [
+              { text: '💾 Xác nhận tạo ghi chú', callback_data: `note:confirm:${draftId}` },
+              { text: '❌ Hủy bỏ', callback_data: `note:cancel:${draftId}` }
+            ],
+            [
+              { text: '📋 Việc hôm nay', callback_data: 'cmd:today' }
+            ]
+          ]
+        );
+      } catch (err: any) {
+        console.error('Error generating AI note on Telegram:', err);
+        await sendTelegramMessage(
+          telegramConfig.botToken,
+          chatId,
+          `⚠️ Không thể tạo ghi chú tự động bằng AI: ${err?.message || 'Lỗi xử lý'}`,
+          [[{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }]]
+        );
+      }
+      return { success: true, action: 'note_ai_generated', chatId };
+    }
+
+    // =========================================================
+    // D2. Confirm Save AI Note to Database
+    // =========================================================
+    if (data.startsWith('note:confirm:') || data.startsWith('note_confirm:')) {
+      const draftId = data.replace(/^note:confirm:|^note_confirm:/, '').trim();
+      const draft = pendingNoteDrafts.get(draftId);
+
+      if (!draft) {
+        await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '⚠️ Bản nháp đã hết hạn hoặc không tìm thấy.');
+        return { success: false, action: 'draft_not_found', chatId };
+      }
+
+      const newNote: Note = {
+        id: `note-${Date.now()}`,
+        title: draft.title,
+        content: draft.content,
+        tags: draft.tags,
+        linkedTaskIds: draft.taskId ? [draft.taskId] : [],
+        attachedFileIds: [],
+        isPinned: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await saveDbNote(newNote);
+      pendingNoteDrafts.delete(draftId);
+
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, '✅ Đã lưu ghi chú thành công!');
+
+      await addDbNotificationLog({
+        id: `notif-note-saved-${Date.now()}`,
+        title: `📝 Tạo ghi chú từ Task: ${draft.title}`,
+        message: `Đã lưu thành công ghi chú đúc kết cho công việc "${draft.taskTitle}" qua Telegram Bot.`,
+        channel: 'telegram',
+        status: 'sent',
+        timestamp: new Date().toISOString(),
+      });
+
+      await sendTelegramMessage(
+        telegramConfig.botToken,
+        chatId,
+        `🎉 *ĐÃ LƯU GHI CHÚ THÀNH CÔNG VÀO HỆ THỐNG!*\n\n` +
+        `📌 *Tiêu đề:* ${newNote.title}\n` +
+        `🏷️ *Thẻ:* ${newNote.tags.map(t => '#' + t).join(' ')}\n\n` +
+        `_Dữ liệu đã được lưu trữ vĩnh viễn trên Cloud Firestore và đồng bộ về Web App. Bạn có thể mở mục Ghi Chú để tra cứu bất cứ lúc nào._ ✅`,
+        [
+          [
+            { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
+            { text: '📋 Tất cả việc', callback_data: 'cmd:tasks' }
+          ]
+        ]
+      );
+      return { success: true, action: 'note_confirmed', chatId };
+    }
+
+    // =========================================================
+    // D3. Cancel / Skip Note Creation
+    // =========================================================
+    if (data.startsWith('note:cancel:') || data.startsWith('note_cancel:')) {
+      const draftId = data.replace(/^note:cancel:|^note_cancel:/, '').trim();
+      const draft = pendingNoteDrafts.get(draftId);
+      if (draft) {
+        pendingNoteDrafts.delete(draftId);
+      }
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, 'Đã hủy lưu ghi chú.');
+      await sendTelegramMessage(
+        telegramConfig.botToken,
+        chatId,
+        `❌ *ĐÃ HỦY TẠO GHI CHÚ*\n\nCông việc vẫn được lưu ở trạng thái *Đã hoàn thành*. Bạn có thể tự tạo ghi chú thủ công trên Web App khi cần.`,
+        [[{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }]]
+      );
+      return { success: true, action: 'note_canceled', chatId };
+    }
+
+    if (data.startsWith('task:note_skip:') || data.startsWith('note_skip:')) {
+      await answerCallbackQuery(telegramConfig.botToken, callbackQueryId, 'Đã bỏ qua tạo ghi chú.');
+      await sendTelegramMessage(
+        telegramConfig.botToken,
+        chatId,
+        `👌 *ĐÃ GHI NHẬN HOÀN THÀNH*\n\nBỏ qua lưu ghi chú. Chúc bạn tiếp tục hoàn thành xuất sắc các mục tiêu tiếp theo!`,
+        [[{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }]]
+      );
+      return { success: true, action: 'note_skipped', chatId };
+    }
+
     await answerCallbackQuery(telegramConfig.botToken, callbackQueryId);
     return { success: true, action: 'unknown', chatId };
   }
@@ -518,14 +816,20 @@ export async function processTelegramUpdate(
       const fileMeta: any = await fileMetaRes.json();
 
       const localFileId = `file-tg-${Date.now()}`;
+      let persistRes: any = null;
 
       if (fileMeta.ok && fileMeta.result?.file_path) {
         const downloadUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${fileMeta.result.file_path}`;
         const binaryRes = await fetch(downloadUrl);
         if (binaryRes.ok) {
           const buffer = Buffer.from(await binaryRes.arrayBuffer());
-          const savePath = path.join(context.uploadsDir, `${localFileId}_${path.basename(fileName)}`);
-          fs.writeFileSync(savePath, buffer);
+          persistRes = await savePersistentBinary({
+            fileId: localFileId,
+            fileName: fileName,
+            mimeType: mimeType,
+            buffer: buffer,
+            tryDriveSync: true,
+          });
         }
       }
 
@@ -537,6 +841,7 @@ export async function processTelegramUpdate(
       else if (['pptx', 'ppt'].includes(ext)) category = 'presentation';
       else if (['png', 'jpg', 'jpeg', 'webp'].includes(ext) || mimeType.startsWith('image/')) category = 'image';
 
+      const isSynced = !!(persistRes?.isSyncedToDrive && persistRes?.driveFileId);
       const newDriveFile: DriveFile = {
         id: localFileId,
         name: fileName,
@@ -544,21 +849,29 @@ export async function processTelegramUpdate(
         size: fileSize,
         category: category,
         classification: 'unclassified',
-        isSyncedToDrive: false,
-        syncStatus: 'local_only',
+        isSyncedToDrive: isSynced,
+        driveFileId: persistRes?.driveFileId,
+        webViewLink: persistRes?.webViewLink,
+        syncStatus: isSynced ? 'synced' : 'local_only',
         downloadUrl: `/api/files/download/${localFileId}`,
-        previewUrl: `/api/files/preview/${localFileId}`,
+        previewUrl: persistRes?.webViewLink || `/api/files/preview/${localFileId}`,
+        storageType: persistRes?.storageType || 'firestore_vault',
+        hasBinary: true,
         uploadedAt: new Date().toISOString(),
       };
 
       await saveDbFile(newDriveFile);
 
+      const statusNote = isSynced
+        ? `🟢 *Đã lưu trữ Google Drive & Cloud Vault*`
+        : `☁️ *Lưu trữ an toàn vĩnh viễn trên Cloud Vault*`;
+
       botReply = `📄 *ĐÃ LƯU TRỮ TÀI LIỆU TỪ TELEGRAM*\n\n` +
         `• **Tên tệp:** \`${fileName}\`\n` +
         `• **Dung lượng:** \`${(fileSize / (1024 * 1024)).toFixed(2)} MB\`\n` +
         `• **Phân loại:** \`${category.toUpperCase()}\`\n` +
-        `• **Trạng thái:** 🟡 *Lưu trữ an toàn trong Vault*\n\n` +
-        `💡 _Tệp đã sẵn sàng trong Web App. Bạn có thể mở web để xem trước hoặc 1-Click đồng bộ lên Google Drive._`;
+        `• **Trạng thái:** ${statusNote}\n\n` +
+        `💡 _Tệp đã được lưu trữ vĩnh viễn trên đám mây và đồng bộ ngay vào Web App._`;
 
       replyKeyboard = [
         [
@@ -619,11 +932,26 @@ export async function processTelegramUpdate(
           const currentTasks = await getDbTasks();
           const target = currentTasks.find(t => t.title.toLowerCase().includes(taskTitle.toLowerCase()));
           if (target) {
-            target.status = 'completed';
-            target.updatedAt = new Date().toISOString();
-            await saveDbTask(target);
-            botReply = `🎉 *ĐÃ HOÀN THÀNH CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\n✅ Đã cập nhật trạng thái vào Firestore!`;
-            replyKeyboard = [[{ text: '📋 Việc hôm nay', callback_data: 'cmd:today' }]];
+            const recResult = processTaskRecurrenceOnComplete(target);
+            if (recResult.isRecurring) {
+              await saveDbTask(recResult.updatedTask);
+              botReply = `🎉 *ĐÃ HOÀN THÀNH CHU KỲ CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\n🔄 Cấu hình: *${formatRecurringLabel(target.recurring)}*\n➡️ Hạn chót mới: *${recResult.formattedNextDate}*\n🔔 Cảnh báo Telegram: *Tự động kích hoạt lại theo lịch mới* ✅\n\n_Hệ thống đã tự động dời chu kỳ và lưu vào Firestore._`;
+            } else {
+              target.status = 'completed';
+              target.updatedAt = new Date().toISOString();
+              await saveDbTask(target);
+              botReply = `🎉 *ĐÃ HOÀN THÀNH CÔNG VIỆC*\n\n📌 Công việc: *${target.title}*\n✅ Đã cập nhật trạng thái vào Firestore!\n\n💡 *Bạn có muốn AI đúc kết thông tin công việc này để lưu vào Ghi Chú không?*`;
+              replyKeyboard = [
+                [
+                  { text: '✨ Có, AI tạo ghi chú', callback_data: `task:note_ai:${target.id}` },
+                  { text: '⏩ Bỏ qua', callback_data: `task:note_skip:${target.id}` }
+                ],
+                [
+                  { text: '📋 Việc hôm nay', callback_data: 'cmd:today' },
+                  { text: '📋 Danh sách việc', callback_data: 'cmd:tasks' }
+                ]
+              ];
+            }
           }
         }
       }
@@ -825,6 +1153,9 @@ export async function startTelegramPollingDaemon(context: TelegramEngineContext)
   console.log('🤖 [Telegram Polling Daemon] Background runner started...');
 
   const runPollLoop = async () => {
+    let lastWebhookCheckTime = 0;
+    let cachedWebhookActive = false;
+
     while (pollingRunning) {
       try {
         const currentConfig = await getDbTelegramConfig();
@@ -833,11 +1164,22 @@ export async function startTelegramPollingDaemon(context: TelegramEngineContext)
           continue;
         }
 
-        // Check if a Webhook is already actively registered with Telegram
-        const webhookInfo = await getTelegramWebhookInfo(currentConfig.botToken);
-        if (webhookInfo && webhookInfo.url && webhookInfo.url.trim().length > 0) {
-          // Webhook is active, sleep longer so polling does not conflict with Webhook
-          await new Promise(r => setTimeout(r, 15000));
+        // Check if a Webhook is actively registered with Telegram (cached for 5 minutes)
+        const now = Date.now();
+        if (now - lastWebhookCheckTime > 5 * 60 * 1000) {
+          try {
+            const webhookInfo = await getTelegramWebhookInfo(currentConfig.botToken);
+            cachedWebhookActive = Boolean(webhookInfo && webhookInfo.url && webhookInfo.url.trim().length > 0);
+            lastWebhookCheckTime = now;
+          } catch (wErr) {
+            // Keep previous status on temporary check failure
+          }
+        }
+
+        // If Webhook is active, Telegram rejects getUpdates calls with 409 Conflict.
+        // Therefore, pause polling loop peacefully without spamming Telegram getWebhookInfo.
+        if (cachedWebhookActive) {
+          await new Promise(r => setTimeout(r, 30000));
           continue;
         }
 
@@ -854,8 +1196,8 @@ export async function startTelegramPollingDaemon(context: TelegramEngineContext)
           }
         }
       } catch (err: any) {
-        console.warn('[Telegram Polling] Loop exception, retrying in 4s:', err?.message || err);
-        await new Promise(r => setTimeout(r, 4000));
+        console.warn('[Telegram Polling] Loop exception, retrying in 5s:', err?.message || err);
+        await new Promise(r => setTimeout(r, 5000));
       }
     }
   };

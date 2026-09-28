@@ -97,6 +97,10 @@ export const initialTelegramConfig: TelegramConfig = {
   eveningBriefingMinute: 0,
   enableMorningBriefing: true,
   enableEveningBriefing: true,
+  enableOverdueReminders: true,
+  overdueReminderIntervalMinutes: 30, // Nhắc lại mỗi 30 phút khi quá hạn
+  maxOverdueReminders: 5, // Tối đa 5 lần gửi nhắc nhở
+  escalateOverdueTone: true, // Tự động tăng mức độ cảnh báo và đề xuất AI
 };
 
 export const initialNotificationLogs: NotificationLog[] = [];

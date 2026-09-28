@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { TelegramConfig, DriveFile, DriveServiceAccountConfig } from '../types/index.js';
+import { TelegramConfig, DriveFile, DriveServiceAccountConfig, AppTheme } from '../types/index.js';
 import { api } from '../services/api.js';
+import { useSystemStore } from '../stores/useSystemStore.js';
+import { useFileStore } from '../stores/useFileStore.js';
 import {
   initGoogleAuth,
   signInWithGoogleWorkspace,
@@ -41,9 +43,15 @@ import {
   Key,
   Sun,
   Moon,
+  Palette,
   Lock,
   Unlock,
-  ShieldAlert
+  ShieldAlert,
+  BellRing,
+  Timer,
+  RotateCcw,
+  Bell,
+  Calendar
 } from 'lucide-react';
 import {
   getPinSettings,
@@ -58,24 +66,46 @@ import {
   PinSettings
 } from '../services/pinSecurity.js';
 
-interface SettingsViewProps {
-  telegramConfig: TelegramConfig;
-  onUpdateTelegramConfig: (config: Partial<TelegramConfig>) => void;
-  onSendTestTelegramMessage: (message?: string) => void;
-  files: DriveFile[];
+export interface SettingsViewProps {
+  telegramConfig?: TelegramConfig;
+  onUpdateTelegramConfig?: (config: Partial<TelegramConfig>) => void;
+  onSendTestTelegramMessage?: (message?: string) => void;
+  files?: DriveFile[];
   onFileUpdate?: (id: string, fileData: Partial<DriveFile>) => void;
   onLockApp?: () => void;
+  theme?: AppTheme;
+  onSetTheme?: (theme: AppTheme) => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
-  telegramConfig,
-  onUpdateTelegramConfig,
-  onSendTestTelegramMessage,
-  files,
-  onFileUpdate,
-  onLockApp
+  telegramConfig: propConfig,
+  onUpdateTelegramConfig: propOnUpdateConfig,
+  onSendTestTelegramMessage: propOnSendTestMessage,
+  files: propFiles,
+  onFileUpdate: propOnFileUpdate,
+  onLockApp: propOnLockApp,
+  theme: propTheme,
+  onSetTheme: propOnSetTheme,
 }) => {
-  const [activeSection, setActiveSection] = useState<'all' | 'telegram' | 'drive' | 'security' | 'system'>('all');
+  const storeConfig = useSystemStore(s => s.telegramConfig);
+  const storeUpdateConfig = useSystemStore(s => s.updateTelegramConfig);
+  const storeSendTestMessage = useSystemStore(s => s.sendTestTelegramMessage);
+  const storeLockApp = useSystemStore(s => s.lockApp);
+  const storeTheme = useSystemStore(s => s.theme);
+  const storeSetTheme = useSystemStore(s => s.setTheme);
+
+  const storeFiles = useFileStore(s => s.files);
+  const storeUpdateFile = useFileStore(s => s.updateFile);
+
+  const telegramConfig = propConfig ?? storeConfig;
+  const onUpdateTelegramConfig = propOnUpdateConfig ?? storeUpdateConfig;
+  const onSendTestTelegramMessage = propOnSendTestMessage ?? storeSendTestMessage;
+  const files = propFiles ?? storeFiles;
+  const onFileUpdate = propOnFileUpdate ?? storeUpdateFile;
+  const onLockApp = propOnLockApp ?? storeLockApp;
+  const theme = propTheme ?? storeTheme;
+  const onSetTheme = propOnSetTheme ?? storeSetTheme;
+  const [activeSection, setActiveSection] = useState<'all' | 'theme' | 'telegram' | 'drive' | 'security' | 'system'>('all');
 
   // --- PIN Security State ---
   const [pinSettings, setPinSettingsState] = useState<PinSettings>(() => getPinSettings());
@@ -102,6 +132,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [tokenInput, setTokenInput] = useState(telegramConfig.botToken || '');
   const [chatIdInput, setChatIdInput] = useState(telegramConfig.chatId || '');
   const [alertOffset, setAlertOffset] = useState(telegramConfig.alertOffsetMinutes || 15);
+  const [alertOffsetUnit, setAlertOffsetUnit] = useState<'day' | 'hour' | 'minute'>('minute');
+  const [alertOffsetValue, setAlertOffsetValue] = useState<number>(15);
   const [timezone, setTimezone] = useState(telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
   const [morningHour, setMorningHour] = useState(telegramConfig.morningBriefingHour ?? 7);
   const [morningMinute, setMorningMinute] = useState(telegramConfig.morningBriefingMinute ?? 0);
@@ -109,6 +141,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [eveningMinute, setEveningMinute] = useState(telegramConfig.eveningBriefingMinute ?? 0);
   const [enableMorningBriefing, setEnableMorningBriefing] = useState(telegramConfig.enableMorningBriefing !== false);
   const [enableEveningBriefing, setEnableEveningBriefing] = useState(telegramConfig.enableEveningBriefing !== false);
+
+  // Overdue Recurring Reminder / Nagging State
+  const [enableOverdueReminders, setEnableOverdueReminders] = useState(telegramConfig.enableOverdueReminders !== false);
+  const [overdueInterval, setOverdueInterval] = useState(telegramConfig.overdueReminderIntervalMinutes || 30);
+  const [maxOverdueReminders, setMaxOverdueReminders] = useState(telegramConfig.maxOverdueReminders ?? 5);
+  const [escalateOverdueTone, setEscalateOverdueTone] = useState(telegramConfig.escalateOverdueTone !== false);
+  const [isSendingTestOverdue, setIsSendingTestOverdue] = useState(false);
+  const [testOverdueStatus, setTestOverdueStatus] = useState<string | null>(null);
+
   const [showToken, setShowToken] = useState(false);
   const [testMessageText, setTestMessageText] = useState('Xin chào! Đây là thông báo kiểm tra từ mục Cài Đặt của AI Assistant.');
   const [webhookStatus, setWebhookStatus] = useState<string | null>(null);
@@ -138,7 +179,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   useEffect(() => {
     setTokenInput(telegramConfig.botToken || '');
     setChatIdInput(telegramConfig.chatId || '');
-    setAlertOffset(telegramConfig.alertOffsetMinutes || 15);
+    const offset = telegramConfig.alertOffsetMinutes || 15;
+    setAlertOffset(offset);
+    if (offset >= 1440 && offset % 1440 === 0) {
+      setAlertOffsetUnit('day');
+      setAlertOffsetValue(Math.max(1, offset / 1440));
+    } else if (offset >= 60 && offset % 60 === 0) {
+      setAlertOffsetUnit('hour');
+      setAlertOffsetValue(Math.max(1, offset / 60));
+    } else {
+      setAlertOffsetUnit('minute');
+      setAlertOffsetValue(Math.max(1, offset));
+    }
     setTimezone(telegramConfig.timezone || 'Asia/Ho_Chi_Minh');
     setMorningHour(telegramConfig.morningBriefingHour ?? 7);
     setMorningMinute(telegramConfig.morningBriefingMinute ?? 0);
@@ -146,7 +198,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setEveningMinute(telegramConfig.eveningBriefingMinute ?? 0);
     setEnableMorningBriefing(telegramConfig.enableMorningBriefing !== false);
     setEnableEveningBriefing(telegramConfig.enableEveningBriefing !== false);
+    setEnableOverdueReminders(telegramConfig.enableOverdueReminders !== false);
+    setOverdueInterval(telegramConfig.overdueReminderIntervalMinutes || 30);
+    setMaxOverdueReminders(telegramConfig.maxOverdueReminders ?? 5);
+    setEscalateOverdueTone(telegramConfig.escalateOverdueTone !== false);
   }, [telegramConfig]);
+
+  const handleSwitchAlertOffsetUnit = (newUnit: 'day' | 'hour' | 'minute') => {
+    if (newUnit === alertOffsetUnit) return;
+    const currentMins = alertOffset;
+    setAlertOffsetUnit(newUnit);
+
+    let newVal = 1;
+    if (newUnit === 'day') {
+      newVal = Math.max(1, Math.round(currentMins / 1440));
+      setAlertOffsetValue(newVal);
+      setAlertOffset(newVal * 1440);
+    } else if (newUnit === 'hour') {
+      newVal = Math.max(1, Math.round(currentMins / 60));
+      setAlertOffsetValue(newVal);
+      setAlertOffset(newVal * 60);
+    } else {
+      newVal = Math.max(1, Math.min(currentMins, 1440));
+      setAlertOffsetValue(newVal);
+      setAlertOffset(newVal);
+    }
+  };
+
+  const handleUpdateAlertOffsetValue = (val: number) => {
+    const safeVal = Math.max(1, val);
+    setAlertOffsetValue(safeVal);
+    if (alertOffsetUnit === 'day') {
+      setAlertOffset(safeVal * 1440);
+    } else if (alertOffsetUnit === 'hour') {
+      setAlertOffset(safeVal * 60);
+    } else {
+      setAlertOffset(safeVal);
+    }
+  };
 
   const webhookUrl = `${window.location.origin}/api/telegram/webhook`;
 
@@ -258,6 +347,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       eveningBriefingMinute: Number(eveningMinute),
       enableMorningBriefing,
       enableEveningBriefing,
+      enableOverdueReminders,
+      overdueReminderIntervalMinutes: Number(overdueInterval),
+      maxOverdueReminders: Number(maxOverdueReminders),
+      escalateOverdueTone,
     });
 
     setTelegramSavedSuccess(true);
@@ -265,6 +358,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     if (tokenInput.trim()) {
       await handleSetWebhook();
+    }
+  };
+
+  const handleSendTestOverdue = async () => {
+    setIsSendingTestOverdue(true);
+    setTestOverdueStatus(null);
+    try {
+      const res = await fetch('/api/telegram/test-overdue', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setTestOverdueStatus('✅ Đã bắn thông báo nhắc lại quá hạn thử nghiệm lên Telegram thành công!');
+      } else {
+        setTestOverdueStatus('❌ ' + (data.error || 'Lỗi khi gửi thông báo'));
+      }
+    } catch (err: any) {
+      setTestOverdueStatus('❌ Lỗi kết nối: ' + err.message);
+    } finally {
+      setIsSendingTestOverdue(false);
     }
   };
 
@@ -490,6 +601,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             Tất Cả
           </button>
           <button
+            onClick={() => setActiveSection('theme')}
+            className={`px-3 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSection === 'theme' ? 'bg-[#D4AF37] text-black shadow' : 'text-[#888888] hover:text-white'
+            }`}
+          >
+            <Palette className="w-3.5 h-3.5" />
+            <span>Chủ Đề & Giao Diện</span>
+          </button>
+          <button
             onClick={() => setActiveSection('telegram')}
             className={`px-3 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
               activeSection === 'telegram' ? 'bg-[#D4AF37] text-black shadow' : 'text-[#888888] hover:text-white'
@@ -527,6 +647,184 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* SECTION: THEME & VISUAL ARCHITECTURE */}
+      {/* ======================================================== */}
+      {(activeSection === 'all' || activeSection === 'theme') && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
+            <div className="flex items-center gap-2 text-[#D4AF37]">
+              <Palette className="w-5 h-5" />
+              <h2 className="text-base font-editorial-serif font-bold text-white tracking-wide">
+                Chủ Đề & Trải Nghiệm Thị Giác (Theme & Visual Experience)
+              </h2>
+            </div>
+            <span className="text-[11px] text-[#D4AF37] font-mono flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5" />
+              Kiến Trúc Màu Sắc Tối Ưu WCAG AAA
+            </span>
+          </div>
+
+          <div className="bg-[#151515] border border-[#2A2A2A] p-5 rounded-sm space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[#222222] pb-4">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Tùy Chọn Không Gian Màu (Color Palette Selection)</span>
+                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-[#222222] text-[#D4AF37] border border-[#D4AF37]/30">
+                    Đang hoạt động: {theme === 'light' ? 'Chủ Đề Sáng (Xanh & Trắng)' : 'Chủ Đề Tối (Gold & Obsidian)'}
+                  </span>
+                </h3>
+                <p className="text-xs text-[#888888] mt-1">
+                  Chuyển đổi linh hoạt giữa giao diện Tối sang trọng và giao diện Sáng công sở hiện đại với hai tông màu chủ đạo Xanh & Trắng
+                </p>
+              </div>
+            </div>
+
+            {/* Visual Theme Selection Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Dark Theme Card */}
+              <div
+                onClick={() => onSetTheme('dark')}
+                className={`relative p-5 rounded-md border-2 cursor-pointer transition-all duration-200 flex flex-col justify-between ${
+                  theme === 'dark'
+                    ? 'border-[#D4AF37] bg-[#1A1A1A] shadow-lg shadow-[#D4AF37]/10'
+                    : 'border-[#2A2A2A] bg-[#121212] hover:border-[#444444]'
+                }`}
+              >
+                {theme === 'dark' && (
+                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-[#D4AF37] text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    <Check className="w-3 h-3" />
+                    <span>Đang sử dụng</span>
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="p-2 rounded bg-black/60 border border-[#333333] text-[#D4AF37]">
+                      <Moon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Chủ Đề Tối (Obsidian & Luxury Gold)</h4>
+                      <span className="text-[11px] text-[#A0A0A0]">Nghệ thuật, đẳng cấp & giảm mỏi mắt ban đêm</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-[#999999] leading-relaxed mb-4">
+                    Tông nền đen Obsidian sâu lắng kết hợp điểm nhấn ánh vàng hoàng gia (Royal Gold #D4AF37). Giúp tập trung cao độ, bảo vệ thị lực trong môi trường làm việc ban đêm.
+                  </p>
+
+                  {/* Swatch Preview */}
+                  <div className="flex items-center gap-2 p-2.5 rounded bg-[#0A0A0A] border border-[#222222] mb-4">
+                    <div className="w-6 h-6 rounded bg-[#0F0F0F] border border-[#333333]" title="#0F0F0F Obsidian" />
+                    <div className="w-6 h-6 rounded bg-[#151515] border border-[#333333]" title="#151515 Card Surface" />
+                    <div className="w-6 h-6 rounded bg-[#D4AF37]" title="#D4AF37 Royal Gold" />
+                    <div className="w-6 h-6 rounded bg-[#10B981]" title="#10B981 Emerald" />
+                    <span className="text-[11px] text-[#777777] font-mono ml-auto">#0F0F0F / #D4AF37</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSetTheme('dark');
+                  }}
+                  className={`w-full py-2 px-3 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    theme === 'dark'
+                      ? 'bg-[#D4AF37] text-black shadow'
+                      : 'bg-[#222222] text-[#CCCCCC] hover:bg-[#333333]'
+                  }`}
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                  <span>{theme === 'dark' ? '✓ Đang kích hoạt' : 'Chọn Chủ Đề Tối'}</span>
+                </button>
+              </div>
+
+              {/* Light Theme Card */}
+              <div
+                onClick={() => onSetTheme('light')}
+                className={`relative p-5 rounded-md border-2 cursor-pointer transition-all duration-200 flex flex-col justify-between ${
+                  theme === 'light'
+                    ? 'border-[#0F52BA] bg-[#1E293B]/20 shadow-lg shadow-[#0F52BA]/20'
+                    : 'border-[#2A2A2A] bg-[#121212] hover:border-[#444444]'
+                }`}
+              >
+                {theme === 'light' && (
+                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-[#0F52BA] text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    <Check className="w-3 h-3" />
+                    <span>Đang sử dụng</span>
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="p-2 rounded bg-[#0F52BA]/20 border border-[#0F52BA]/40 text-[#3B82F6]">
+                      <Sun className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <span>Chủ Đề Sáng (Sapphire Blue & White)</span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">Mới</span>
+                      </h4>
+                      <span className="text-[11px] text-[#A0A0A0]">Chuyên nghiệp, sang trọng & hiện đại</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-[#999999] leading-relaxed mb-4">
+                    Hai tông màu chủ đạo: Xanh Sapphire (#0F52BA) và Trắng sương Alabaster (#F4F7FC / #FFFFFF). Chuẩn mực điều hành doanh nghiệp, thanh lịch và tràn đầy năng lượng.
+                  </p>
+
+                  {/* Swatch Preview */}
+                  <div className="flex items-center gap-2 p-2.5 rounded bg-[#0A0A0A] border border-[#222222] mb-4">
+                    <div className="w-6 h-6 rounded bg-[#F4F7FC] border border-[#CBD5E1]" title="#F4F7FC Alabaster Ice" />
+                    <div className="w-6 h-6 rounded bg-[#FFFFFF] border border-[#CBD5E1]" title="#FFFFFF Pure White" />
+                    <div className="w-6 h-6 rounded bg-[#0F52BA]" title="#0F52BA Sapphire Blue" />
+                    <div className="w-6 h-6 rounded bg-[#1E293B]" title="#1E293B Deep Navy Slate" />
+                    <span className="text-[11px] text-[#777777] font-mono ml-auto">#F4F7FC / #0F52BA</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSetTheme('light');
+                  }}
+                  className={`w-full py-2 px-3 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    theme === 'light'
+                      ? 'bg-[#0F52BA] text-white shadow'
+                      : 'bg-[#222222] text-[#CCCCCC] hover:bg-[#333333]'
+                  }`}
+                >
+                  <Sun className="w-3.5 h-3.5" />
+                  <span>{theme === 'light' ? '✓ Đang kích hoạt' : 'Chọn Chủ Đề Sáng (Xanh & Trắng)'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Design & Engineering Highlights */}
+            <div className="p-4 rounded-md bg-[#0D0D0D] border border-[#222222] space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#D4AF37] uppercase tracking-wider">
+                <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
+                <span>Tiêu chuẩn Thiết kế & Kỹ thuật Hệ thống (Web Architecture & AI Engineer Specs)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-[#A0A0A0] pt-1">
+                <div className="p-2.5 rounded bg-[#141414] border border-[#262626]">
+                  <div className="font-bold text-white mb-0.5">🔹 Phối Màu Xanh - Trắng</div>
+                  <div>Tông Sapphire Blue (#0F52BA) quý phái kết hợp bề mặt Alabaster White (#F4F7FC) tinh khôi, hiện đại.</div>
+                </div>
+                <div className="p-2.5 rounded bg-[#141414] border border-[#262626]">
+                  <div className="font-bold text-white mb-0.5">🔹 Tương Phản WCAG AAA</div>
+                  <div>Độ tương phản văn bản chữ đậm & tiêu đề đạt trên 7:1, rõ nét từng chi tiết, chống lóa và chống nhức mắt.</div>
+                </div>
+                <div className="p-2.5 rounded bg-[#141414] border border-[#262626]">
+                  <div className="font-bold text-white mb-0.5">🔹 Zero-Flicker Persistence</div>
+                  <div>Đồng bộ tức thì vào LocalStorage và thuộc tính `html.theme-light`, không giật lag khi chuyển đổi.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ======================================================== */}
       {/* SECTION 1: TELEGRAM BOT CONFIGURATION */}
@@ -769,22 +1067,249 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                 </div>
 
-                {/* Reminder Timing */}
-                <div>
-                  <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] mb-1">
-                    Cảnh Báo Trước Deadline (Phút)
-                  </label>
-                  <select
-                    value={alertOffset}
-                    onChange={(e) => setAlertOffset(Number(e.target.value))}
-                    className="w-full p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
-                  >
-                    <option value={10}>10 phút trước deadline</option>
-                    <option value={15}>15 phút trước deadline (Khuyên dùng)</option>
-                    <option value={30}>30 phút trước deadline</option>
-                    <option value={60}>1 giờ trước deadline</option>
-                    <option value={120}>2 giờ trước deadline</option>
-                  </select>
+                {/* Pre-deadline Reminder Timing (Linh hoạt: Ngày / Giờ / Phút) */}
+                <div className="bg-[#111111] border border-[#2A2A2A] p-3.5 rounded-sm space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <label className="block text-[#AAAAAA] font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <Bell className="w-3.5 h-3.5 text-[#D4AF37]" />
+                        <span>1. Cảnh Báo Mặc Định Trước Deadline</span>
+                      </label>
+                      <p className="text-[11px] text-[#777777] mt-0.5">
+                        Áp dụng làm mốc nhắc nhở mặc định cho các công việc mới tạo
+                      </p>
+                    </div>
+
+                    {/* Bộ chuyển đổi đơn vị linh hoạt: Theo Ngày / Theo Giờ / Theo Phút */}
+                    <div className="flex items-center gap-1 bg-[#181818] p-0.5 rounded-sm border border-[#2E2E2E]">
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchAlertOffsetUnit('day')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-xs transition-colors cursor-pointer flex items-center gap-1 ${
+                          alertOffsetUnit === 'day'
+                            ? 'bg-[#D4AF37] text-black shadow-xs font-bold'
+                            : 'text-[#888888] hover:text-white'
+                        }`}
+                        title="Chọn báo trước theo số ngày"
+                      >
+                        <Calendar className="w-3 h-3" />
+                        <span>Theo Ngày</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchAlertOffsetUnit('hour')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-xs transition-colors cursor-pointer flex items-center gap-1 ${
+                          alertOffsetUnit === 'hour'
+                            ? 'bg-[#D4AF37] text-black shadow-xs font-bold'
+                            : 'text-[#888888] hover:text-white'
+                        }`}
+                        title="Chọn báo trước theo số giờ"
+                      >
+                        <Clock className="w-3 h-3" />
+                        <span>Theo Giờ</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchAlertOffsetUnit('minute')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-xs transition-colors cursor-pointer flex items-center gap-1 ${
+                          alertOffsetUnit === 'minute'
+                            ? 'bg-[#D4AF37] text-black shadow-xs font-bold'
+                            : 'text-[#888888] hover:text-white'
+                        }`}
+                        title="Chọn báo trước theo số phút"
+                      >
+                        <span>Theo Phút</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Input số lượng & Dropdown đơn vị */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                    <div className="sm:col-span-2 relative">
+                      <input
+                        type="number"
+                        min={1}
+                        max={alertOffsetUnit === 'day' ? 365 : alertOffsetUnit === 'hour' ? 8760 : 525600}
+                        value={alertOffsetValue}
+                        onChange={(e) => handleUpdateAlertOffsetValue(parseInt(e.target.value) || 1)}
+                        className="w-full p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs font-mono font-bold focus:outline-none focus:border-[#D4AF37]"
+                        placeholder={`Nhập số ${alertOffsetUnit === 'day' ? 'ngày' : alertOffsetUnit === 'hour' ? 'giờ' : 'phút'}...`}
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-[#888888] font-medium pointer-events-none">
+                        {alertOffsetUnit === 'day' ? 'ngày trước' : alertOffsetUnit === 'hour' ? 'giờ trước' : 'phút trước'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <select
+                        value={alertOffsetUnit}
+                        onChange={(e) => handleSwitchAlertOffsetUnit(e.target.value as any)}
+                        className="w-full p-2 bg-[#181818] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs font-semibold focus:outline-none focus:border-[#D4AF37] cursor-pointer"
+                      >
+                        <option value="day" className="bg-[#1A1A1A]">Đơn vị: Ngày</option>
+                        <option value="hour" className="bg-[#1A1A1A]">Đơn vị: Giờ</option>
+                        <option value="minute" className="bg-[#1A1A1A]">Đơn vị: Phút</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Mốc chọn nhanh */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span className="text-[10px] text-[#777777] font-medium shrink-0">Mốc nhanh:</span>
+                    {alertOffsetUnit === 'day' && (
+                      <>
+                        {[1, 2, 3, 5, 7, 14, 30].map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => handleUpdateAlertOffsetValue(d)}
+                            className={`px-2 py-0.5 text-[10px] font-medium rounded-xs border transition-colors cursor-pointer ${
+                              alertOffsetValue === d
+                                ? 'bg-[#D4AF37] text-black border-[#D4AF37] font-bold'
+                                : 'bg-[#181818] border-[#2A2A2A] text-zinc-300 hover:text-white hover:border-[#444]'
+                            }`}
+                          >
+                            {d} ngày
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {alertOffsetUnit === 'hour' && (
+                      <>
+                        {[1, 2, 3, 6, 12, 24, 48].map((h) => (
+                          <button
+                            key={h}
+                            type="button"
+                            onClick={() => handleUpdateAlertOffsetValue(h)}
+                            className={`px-2 py-0.5 text-[10px] font-medium rounded-xs border transition-colors cursor-pointer ${
+                              alertOffsetValue === h
+                                ? 'bg-[#D4AF37] text-black border-[#D4AF37] font-bold'
+                                : 'bg-[#181818] border-[#2A2A2A] text-zinc-300 hover:text-white hover:border-[#444]'
+                            }`}
+                          >
+                            {h} giờ
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {alertOffsetUnit === 'minute' && (
+                      <>
+                        {[10, 15, 30, 45, 60, 90, 120].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => handleUpdateAlertOffsetValue(m)}
+                            className={`px-2 py-0.5 text-[10px] font-medium rounded-xs border transition-colors cursor-pointer ${
+                              alertOffsetValue === m
+                                ? 'bg-[#D4AF37] text-black border-[#D4AF37] font-bold'
+                                : 'bg-[#181818] border-[#2A2A2A] text-zinc-300 hover:text-white hover:border-[#444]'
+                            }`}
+                          >
+                            {m} phút
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="p-2 bg-[#0C0C0C] border border-[#222222] rounded-xs text-[11px] text-[#A0A0A0] flex items-center justify-between">
+                    <span>
+                      Thời gian kích hoạt gửi thông báo: <strong className="text-white font-mono">{alertOffset} phút</strong> trước hạn chót.
+                    </span>
+                    <span className="text-[#D4AF37] font-semibold">
+                      (= {alertOffsetUnit === 'day' ? `${alertOffsetValue} ngày` : alertOffsetUnit === 'hour' ? `${alertOffsetValue} giờ` : `${alertOffsetValue} phút`})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Overdue Follow-up Nagging Configuration */}
+                <div className="bg-[#111111] border border-[#2A2A2A] p-3.5 rounded-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <BellRing className="w-4 h-4 text-[#D4AF37]" />
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">
+                        2. Nhắc Lại Khi Đến Hạn & Chưa Hoàn Thành / Gia Hạn
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={enableOverdueReminders}
+                        onChange={(e) => setEnableOverdueReminders(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-[#2A2A2A] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#D4AF37]"></div>
+                    </label>
+                  </div>
+
+                  <p className="text-[11px] text-[#888888] leading-relaxed">
+                    Tự động gửi thông báo Telegram định kỳ nhắc nhở người dùng khi công việc đã đến giờ hoặc quá hạn mà chưa nhấn <strong>Hoàn thành</strong> hoặc <strong>Gia hạn</strong>.
+                  </p>
+
+                  {enableOverdueReminders && (
+                    <div className="space-y-3 pt-1 border-t border-[#222222]">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {/* Overdue Interval */}
+                        <div>
+                          <label className="block text-[#AAAAAA] font-bold text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1">
+                            <Timer className="w-3 h-3 text-[#D4AF37]" />
+                            Khoảng Cách Nhắc Lại
+                          </label>
+                          <select
+                            value={overdueInterval}
+                            onChange={(e) => setOverdueInterval(Number(e.target.value))}
+                            className="w-full p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
+                          >
+                            <option value={10}>10 phút / lần</option>
+                            <option value={15}>15 phút / lần</option>
+                            <option value={30}>30 phút / lần (Khuyên dùng)</option>
+                            <option value={45}>45 phút / lần</option>
+                            <option value={60}>60 phút (1 giờ) / lần</option>
+                            <option value={120}>120 phút (2 giờ) / lần</option>
+                            <option value={240}>240 phút (4 giờ) / lần</option>
+                          </select>
+                        </div>
+
+                        {/* Max Overdue Reminders */}
+                        <div>
+                          <label className="block text-[#AAAAAA] font-bold text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1">
+                            <RotateCcw className="w-3 h-3 text-[#D4AF37]" />
+                            Số Lần Nhắc Tối Đa
+                          </label>
+                          <select
+                            value={maxOverdueReminders}
+                            onChange={(e) => setMaxOverdueReminders(Number(e.target.value))}
+                            className="w-full p-2 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
+                          >
+                            <option value={1}>1 lần (khi vừa chạm hạn)</option>
+                            <option value={3}>3 lần</option>
+                            <option value={5}>5 lần (Tiêu chuẩn)</option>
+                            <option value={10}>10 lần</option>
+                            <option value={0}>Không giới hạn (nhắc đến khi xử lý)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* AI Escalation Toggle */}
+                      <div className="flex items-start justify-between gap-3 p-2 bg-[#0C0C0C] rounded-sm border border-[#222222]">
+                        <div className="space-y-0.5">
+                          <span className="text-xs font-bold text-[#E0E0E0] flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                            Cơ Chế Leo Thang Cảnh Báo AI (Urgency Escalation)
+                          </span>
+                          <p className="text-[10px] text-[#777777]">
+                            Tự động tăng cấp độ cảnh báo theo số lần trễ (Nhắc việc nhẹ nhàng → Cảnh báo nguy cơ dồn ứ → Báo động khẩn cấp & AI tư vấn dời việc sang mai).
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={escalateOverdueTone}
+                          onChange={(e) => setEscalateOverdueTone(e.target.checked)}
+                          className="mt-1 accent-[#D4AF37] cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2 flex items-center justify-between">
@@ -922,6 +1447,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <Send className="w-3.5 h-3.5" />
                     <span>Bắn Tin Thử Tới Telegram</span>
                   </button>
+
+                  <div className="pt-2 border-t border-[#2A2A2A]">
+                    <button
+                      type="button"
+                      onClick={handleSendTestOverdue}
+                      disabled={isSendingTestOverdue}
+                      className="w-full py-2 px-3 rounded-sm bg-[#1F1607] hover:bg-[#D4AF37] hover:text-black text-amber-300 border border-amber-500/40 font-bold uppercase tracking-wider text-[11px] flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <BellRing className="w-3.5 h-3.5" />
+                      <span>{isSendingTestOverdue ? 'Đang bắn tin nhắc lại...' : 'Bắn Thử Nhắc Lại Quá Hạn (Test Nag)'}</span>
+                    </button>
+                    {testOverdueStatus && (
+                      <p className="mt-1.5 text-[11px] p-2 bg-[#0C0C0C] rounded border border-[#2A2A2A] text-amber-200">
+                        {testOverdueStatus}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

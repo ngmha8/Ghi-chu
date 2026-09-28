@@ -5,7 +5,9 @@ import {
   deleteDbNote,
   queryDbNotes,
   getDbNoteById,
+  sortNotesByRecent,
 } from '../firebaseDb.ts';
+import { syncAndVectorizeAllDocuments } from '../embeddingService.ts';
 import type { Note } from '../../src/types/index.ts';
 
 const router = Router();
@@ -20,7 +22,7 @@ router.get('/', async (req: Request, res: Response) => {
         tag: tag as string,
         search: search as string,
       });
-      return res.json(filtered);
+      return res.json(sortNotesByRecent(filtered));
     }
     const notes = await getDbNotes();
     res.json(notes);
@@ -53,10 +55,12 @@ router.post('/', async (req: Request, res: Response) => {
       linkedTaskIds: req.body.linkedTaskIds || [],
       attachedFileIds: req.body.attachedFileIds || [],
       isPinned: req.body.isPinned || false,
-      createdAt: req.body.createdAt || new Date().toISOString(),
+      noteDate: req.body.noteDate || req.body.createdAt || new Date().toISOString(),
+      createdAt: req.body.noteDate || req.body.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     const saved = await saveDbNote(newNote);
+    syncAndVectorizeAllDocuments().catch(() => {});
     res.status(201).json(saved);
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Error creating note' });
@@ -78,6 +82,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       updatedAt: new Date().toISOString(),
     };
     const saved = await saveDbNote(updatedNote);
+    syncAndVectorizeAllDocuments().catch(() => {});
     res.json(saved);
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Error updating note' });
@@ -89,6 +94,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const noteId = req.params.id;
     await deleteDbNote(noteId);
+    syncAndVectorizeAllDocuments().catch(() => {});
     res.json({ success: true, id: noteId });
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Error deleting note' });

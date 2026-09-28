@@ -13,7 +13,7 @@ import {
   getDbAiInsights,
   clearConversationHistory,
 } from '../firebaseDb.ts';
-import { getGeminiClient, processAiChat } from '../aiService.ts';
+import { getGeminiClient, processAiChat, processAiChatStream, generateNoteFromCompletedTask, analyzeTaskDirectly } from '../aiService.ts';
 import { generateDailyBriefing } from '../dailyBriefing.ts';
 import { transcribeAudioBuffer } from '../voiceTranscriber.ts';
 import { runAutonomousCognitiveReflection } from '../aiLearningEngine.ts';
@@ -34,7 +34,7 @@ router.post('/chat', async (req: Request, res: Response) => {
   res.json(result);
 });
 
-// POST /api/chat/stream (SSE Streaming)
+// POST /api/chat/stream (Real-Time Native SSE Streaming)
 router.post('/chat/stream', async (req: Request, res: Response) => {
   const { message, enableSearch, sessionId = 'web_user_session', history = [] } = req.body;
   if (!message || typeof message !== 'string') {
@@ -42,7 +42,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
@@ -52,15 +52,15 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
   };
 
   try {
-    const result = await processAiChat(message, enableSearch, sessionId, history);
-    const reply = result.reply || '';
-
-    const chunkSize = 24;
-    for (let i = 0; i < reply.length; i += chunkSize) {
-      const piece = reply.slice(i, i + chunkSize);
-      sendSse('chunk', { text: piece });
-      await new Promise(r => setTimeout(r, 15));
-    }
+    const result = await processAiChatStream(
+      message,
+      enableSearch,
+      sessionId,
+      history,
+      (token: string) => {
+        sendSse('chunk', { text: token });
+      }
+    );
 
     sendSse('done', {
       reply: result.reply,
@@ -338,6 +338,58 @@ router.post('/ai/vector-sync', async (req: Request, res: Response) => {
     const totalVectors = await syncAndVectorizeAllDocuments();
     res.json({ success: true, totalVectors });
   } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ai/generate-note-from-task
+router.post('/ai/generate-note-from-task', async (req: Request, res: Response) => {
+  try {
+    const { taskId, task: rawTask } = req.body;
+    let targetTask = rawTask;
+
+    if (!targetTask && taskId) {
+      const allTasks = await getDbTasks();
+      targetTask = allTasks.find(t => t.id === taskId);
+    }
+
+    if (!targetTask) {
+      return res.status(400).json({ success: false, error: 'Không tìm thấy thông tin công việc.' });
+    }
+
+    const generatedNote = await generateNoteFromCompletedTask(targetTask);
+    res.json({
+      success: true,
+      note: generatedNote,
+    });
+  } catch (error: any) {
+    console.error('Error generating note from task:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ai/analyze-task (Direct, comprehensive AI task analysis without questions)
+router.post('/ai/analyze-task', async (req: Request, res: Response) => {
+  try {
+    const { taskId, task: rawTask } = req.body;
+    let targetTask = rawTask;
+
+    if (!targetTask && taskId) {
+      const allTasks = await getDbTasks();
+      targetTask = allTasks.find(t => t.id === taskId);
+    }
+
+    if (!targetTask) {
+      return res.status(400).json({ success: false, error: 'Không tìm thấy thông tin công việc.' });
+    }
+
+    const analysis = await analyzeTaskDirectly(targetTask);
+    res.json({
+      success: true,
+      analysis,
+    });
+  } catch (error: any) {
+    console.error('Error analyzing task with AI:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
