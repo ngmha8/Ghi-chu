@@ -39,6 +39,19 @@ body {
   background: #D4AF37;
 }
 
+html.theme-light ::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+html.theme-light ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 2px;
+}
+
+html.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: #0F52BA;
+}
+
 /* ==========================================================================
    ARCHITECT.OS — SAPPHIRE EXECUTIVE LIGHT THEME (XANH & TRẮNG CHUYÊN NGHIỆP)
    Designed from a Web Architecture & AI Engineering perspective:

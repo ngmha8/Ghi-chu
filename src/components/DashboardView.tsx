@@ -1379,7 +1379,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* ============================================================== */}
         {/* LEFT COLUMN (2/3): ALL VISUAL ANALYTICS & INTELLIGENCE CHARTS */}
         {/* ============================================================== */}
-        <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+        <div 
+          className="lg:col-span-7 xl:col-span-8 space-y-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto overscroll-contain pr-1 lg:pr-2.5 pb-12"
+          style={{ scrollbarGutter: 'stable' }}
+        >
 
           {/* 1. Task Status Distribution & Lifecycle Overview Donut Card */}
           <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-5 sm:p-6 space-y-5">
@@ -3434,7 +3437,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     {/* ============================================================== */}
     {/* RIGHT COLUMN (1/3): WORK & RESOURCE ACTION FEED               */}
     {/* ============================================================== */}
-    <div className="lg:col-span-5 xl:col-span-4 space-y-6 lg:sticky lg:top-6">
+    <div 
+      className="lg:col-span-5 xl:col-span-4 space-y-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto overscroll-contain pr-1 lg:pr-2.5 pb-12"
+      style={{ scrollbarGutter: 'stable' }}
+    >
       
       {/* Widget 1: Công việc ưu tiên & Deadline */}
       <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-4 sm:p-5 space-y-4">
@@ -3548,8 +3554,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Task list container with custom scrollbar */}
-          <div className="space-y-2.5 max-h-[580px] overflow-y-auto pr-1">
+          {/* Task list container */}
+          <div className="space-y-2.5">
             {filteredPriorityTasks.length === 0 ? (
               <div className="p-6 text-center bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
                 <CheckCircle2 className="w-7 h-7 text-[#555555] mx-auto" />
