@@ -67,7 +67,7 @@ export function getDeadlineStatusInfo(
       isOverdue: false,
       isToday: false,
       isTomorrow: false,
-      badgeClass: 'bg-emerald-950/40 text-emerald-300 border-emerald-800/50',
+      badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50',
       remainingText: 'Đã xong',
     };
   }
@@ -78,7 +78,7 @@ export function getDeadlineStatusInfo(
       isOverdue: false,
       isToday: false,
       isTomorrow: false,
-      badgeClass: 'bg-zinc-900 text-zinc-500 border-zinc-800',
+      badgeClass: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-zinc-900 dark:text-zinc-500 dark:border-zinc-800',
       remainingText: 'Đã hủy',
     };
   }
@@ -108,7 +108,7 @@ export function getDeadlineStatusInfo(
       isOverdue: true,
       isToday,
       isTomorrow: false,
-      badgeClass: 'bg-rose-950/60 text-rose-300 border-rose-800/60',
+      badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/60',
       remainingText: text,
     };
   }
@@ -120,7 +120,7 @@ export function getDeadlineStatusInfo(
       isOverdue: false,
       isToday: true,
       isTomorrow: false,
-      badgeClass: 'bg-amber-950/60 text-amber-300 border-amber-800/60',
+      badgeClass: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60',
       remainingText: text,
     };
   }
@@ -131,7 +131,7 @@ export function getDeadlineStatusInfo(
       isOverdue: false,
       isToday: false,
       isTomorrow: true,
-      badgeClass: 'bg-sky-950/50 text-sky-300 border-sky-800/50',
+      badgeClass: 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800/50',
       remainingText: 'Hết hạn ngày mai',
     };
   }
@@ -141,7 +141,7 @@ export function getDeadlineStatusInfo(
     isOverdue: false,
     isToday: false,
     isTomorrow: false,
-    badgeClass: 'bg-zinc-800/80 text-zinc-300 border-zinc-700/60',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/60',
     remainingText: `Còn ${diffDays} ngày`,
   };
 }

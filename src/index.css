@@ -320,6 +320,44 @@ html.theme-light .bg-rose-500\/20 {
   color: #BE123C !important;
 }
 
+/* Deadline & Countdown Status Badges in Light Mode (Fix dark-on-dark button issue) */
+html.theme-light .bg-zinc-800\/80,
+html.theme-light .bg-zinc-800,
+html.theme-light .bg-zinc-900 {
+  background-color: #F1F5F9 !important;
+  color: #334155 !important;
+  border-color: #CBD5E1 !important;
+}
+
+html.theme-light .bg-rose-950\/60,
+html.theme-light .bg-rose-950\/20,
+html.theme-light .bg-rose-950 {
+  background-color: #FFF1F2 !important;
+  color: #BE123C !important;
+  border-color: #FECDD3 !important;
+}
+
+html.theme-light .bg-amber-950\/60,
+html.theme-light .bg-amber-950 {
+  background-color: #FFFBEB !important;
+  color: #B45309 !important;
+  border-color: #FDE68A !important;
+}
+
+html.theme-light .bg-sky-950\/50,
+html.theme-light .bg-sky-950 {
+  background-color: #F0F9FF !important;
+  color: #0369A1 !important;
+  border-color: #BAE6FD !important;
+}
+
+html.theme-light .bg-emerald-950\/40,
+html.theme-light .bg-emerald-950 {
+  background-color: #ECFDF5 !important;
+  color: #047857 !important;
+  border-color: #A7F3D0 !important;
+}
+
 /* Recharts Tooltip in Light Mode */
 html.theme-light .recharts-default-tooltip,
 html.theme-light .recharts-tooltip-wrapper .bg-\[\#181818\] {

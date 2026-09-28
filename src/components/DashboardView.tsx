@@ -37,7 +37,11 @@ import {
   AlertCircle,
   ArrowUpRight,
   Eye,
-  ShieldAlert
+  ShieldAlert,
+  MoreVertical,
+  Trash2,
+  XCircle,
+  Edit3
 } from 'lucide-react';
 import {
   PieChart as RechartsPieChart,
@@ -68,6 +72,7 @@ export interface DashboardViewProps {
   files?: DriveFile[];
   notificationLogs?: NotificationLog[];
   onTaskStatusChange?: (taskId: string, newStatus: Task['status']) => void;
+  onDeleteTask?: (taskId: string) => void;
   onReorderTasks?: (tasks: Task[]) => void;
   setActiveTab?: (tab: AppTab) => void;
   openAiChatWithPrompt?: (prompt: string) => void;
@@ -85,6 +90,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   files: propFiles,
   notificationLogs: propNotificationLogs,
   onTaskStatusChange: propOnTaskStatusChange,
+  onDeleteTask: propOnDeleteTask,
   onReorderTasks: propOnReorderTasks,
   setActiveTab: propSetActiveTab,
   openAiChatWithPrompt: propOpenAiChatWithPrompt,
@@ -96,6 +102,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Store slices
   const storeTasks = useTaskStore(s => s.tasks);
   const storeUpdateTask = useTaskStore(s => s.updateTask);
+  const storeDeleteTask = useTaskStore(s => s.deleteTask);
   const storeReorderTasks = useTaskStore(s => s.reorderTasks);
   const storeOpenTaskModal = useTaskStore(s => s.openTaskModal);
   const storeSetAnalyzingTask = useTaskStore(s => s.setAnalyzingTask);
@@ -116,6 +123,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const files = propFiles ?? storeFiles;
   const notificationLogs = propNotificationLogs ?? storeNotificationLogs;
   const onTaskStatusChange = propOnTaskStatusChange ?? ((taskId: string, newStatus: Task['status']) => storeUpdateTask(taskId, { status: newStatus }));
+  const onDeleteTask = propOnDeleteTask ?? storeDeleteTask;
   const onReorderTasks = propOnReorderTasks ?? storeReorderTasks;
   const setActiveTab = propSetActiveTab ?? storeSetActiveTab;
   const openAiChatWithPrompt = propOpenAiChatWithPrompt ?? storeOpenAiDrawer;
@@ -123,6 +131,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const openNewTaskModal = propOpenNewTaskModal ?? (() => storeOpenTaskModal(null));
   const openNewNoteModal = propOpenNewNoteModal ?? storeOpenNoteModal;
   const onAnalyzeTask = propOnAnalyzeTask ?? storeSetAnalyzingTask;
+
+  // Quick Action menu state
+  const [quickActionTaskId, setQuickActionTaskId] = useState<string | null>(null);
+  const [confirmDeleteTaskId, setConfirmDeleteTaskId] = useState<string | null>(null);
   const [productivityInsightsChartType, setProductivityInsightsChartType] = useState<'composed' | 'dual_bar' | 'area_stacked'>('composed');
   const [productivityInsightsFilter, setProductivityInsightsFilter] = useState<'all' | 'tasks' | 'notes'>('all');
   const [taskQuickFilter, setTaskQuickFilter] = useState<QuickFilter>('all');
@@ -3634,20 +3646,185 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </span>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          if (onAnalyzeTask) {
-                            onAnalyzeTask(task);
-                          } else {
-                            openAiChatWithPrompt(`Hãy phân tích và đánh giá toàn diện công việc: "${task.title}". Nội dung: ${task.description}. Không hỏi ngược lại người dùng.`);
-                          }
-                        }}
-                        className="px-2 py-0.5 text-[10px] font-semibold rounded-xs bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 hover:bg-[#D4AF37] hover:text-black transition-colors cursor-pointer flex items-center gap-1"
-                        title="Tự động phân tích và đánh giá công việc bằng AI"
-                      >
-                        <Sparkles className="w-2.5 h-2.5" />
-                        <span>Phân tích AI</span>
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0 relative">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onAnalyzeTask) {
+                              onAnalyzeTask(task);
+                            } else {
+                              openAiChatWithPrompt(`Hãy phân tích và đánh giá toàn diện công việc: "${task.title}". Nội dung: ${task.description}. Không hỏi ngược lại người dùng.`);
+                            }
+                          }}
+                          className="px-2 py-0.5 text-[10px] font-semibold rounded-xs bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 hover:bg-[#D4AF37] hover:text-black transition-colors cursor-pointer flex items-center gap-1"
+                          title="Tự động phân tích và đánh giá công việc bằng AI"
+                        >
+                          <Sparkles className="w-2.5 h-2.5" />
+                          <span>Phân tích AI</span>
+                        </button>
+
+                        {/* Quick Action 3-Dots Menu Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeleteTaskId(null);
+                            setQuickActionTaskId(quickActionTaskId === task.id ? null : task.id);
+                          }}
+                          className={`p-1 rounded-xs transition-colors cursor-pointer ${
+                            quickActionTaskId === task.id
+                              ? 'bg-[#D4AF37] text-black shadow-xs'
+                              : 'text-[#888888] hover:text-white hover:bg-[#222222]'
+                          }`}
+                          title="Thao tác nhanh (Chuyển trạng thái / Xóa)"
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Quick Action Dropdown Popup */}
+                        {quickActionTaskId === task.id && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-30"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickActionTaskId(null);
+                                setConfirmDeleteTaskId(null);
+                              }}
+                            />
+                            <div
+                              className="absolute right-0 top-full mt-1.5 z-40 w-48 bg-[#181818] border border-[#333333] rounded-sm shadow-2xl py-1.5 text-xs animate-in fade-in zoom-in-95 duration-150 space-y-0.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="px-2.5 py-1 text-[9px] uppercase tracking-wider font-bold text-[#888888] border-b border-[#252525]">
+                                Chuyển trạng thái
+                              </div>
+
+                              {/* Status Option: Todo */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onTaskStatusChange(task.id, 'todo');
+                                  setQuickActionTaskId(null);
+                                }}
+                                className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between transition-colors cursor-pointer ${
+                                  task.status === 'todo'
+                                    ? 'bg-amber-500/15 text-amber-300 font-bold'
+                                    : 'text-[#CCCCCC] hover:bg-[#252525] hover:text-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Chờ làm (Todo)</span>
+                                </div>
+                                {task.status === 'todo' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                              </button>
+
+                              {/* Status Option: In Progress */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onTaskStatusChange(task.id, 'in_progress');
+                                  setQuickActionTaskId(null);
+                                }}
+                                className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between transition-colors cursor-pointer ${
+                                  task.status === 'in_progress'
+                                    ? 'bg-sky-500/15 text-sky-300 font-bold'
+                                    : 'text-[#CCCCCC] hover:bg-[#252525] hover:text-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                                  <span>Đang làm (In Progress)</span>
+                                </div>
+                                {task.status === 'in_progress' && <Check className="w-3.5 h-3.5 text-sky-400" />}
+                              </button>
+
+                              {/* Status Option: Completed */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onTaskStatusChange(task.id, 'completed');
+                                  setQuickActionTaskId(null);
+                                }}
+                                className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between transition-colors cursor-pointer ${
+                                  task.status === 'completed'
+                                    ? 'bg-emerald-500/15 text-emerald-300 font-bold'
+                                    : 'text-[#CCCCCC] hover:bg-[#252525] hover:text-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>Hoàn thành (Done)</span>
+                                </div>
+                                {task.status === 'completed' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                              </button>
+
+                              {/* Status Option: Canceled */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onTaskStatusChange(task.id, 'canceled');
+                                  setQuickActionTaskId(null);
+                                }}
+                                className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between transition-colors cursor-pointer ${
+                                  task.status === 'canceled'
+                                    ? 'bg-rose-500/15 text-rose-300 font-bold'
+                                    : 'text-[#CCCCCC] hover:bg-[#252525] hover:text-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                                  <span>Đã hủy (Canceled)</span>
+                                </div>
+                                {task.status === 'canceled' && <Check className="w-3.5 h-3.5 text-rose-400" />}
+                              </button>
+
+                              <div className="my-1 border-t border-[#252525]" />
+
+                              {/* Action: Edit in Modal */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  storeOpenTaskModal(task);
+                                  setQuickActionTaskId(null);
+                                }}
+                                className="w-full px-2.5 py-1.5 text-left flex items-center gap-2 text-[#CCCCCC] hover:bg-[#252525] hover:text-white transition-colors cursor-pointer"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-[#D4AF37]" />
+                                <span>Sửa chi tiết task</span>
+                              </button>
+
+                              {/* Action: Delete Task (with 2-step safe inline confirmation) */}
+                              {confirmDeleteTaskId === task.id ? (
+                                <div className="px-2 pt-1 pb-1">
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await onDeleteTask(task.id);
+                                      setConfirmDeleteTaskId(null);
+                                      setQuickActionTaskId(null);
+                                    }}
+                                    className="w-full px-2 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs animate-in zoom-in-95 cursor-pointer text-xs"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Xác nhận xóa ngay</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteTaskId(task.id)}
+                                  className="w-full px-2.5 py-1.5 text-left flex items-center gap-2 text-rose-400 hover:bg-rose-950/30 hover:text-rose-300 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Xóa nhiệm vụ</span>
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     {/* Task Title & Fast Action */}
