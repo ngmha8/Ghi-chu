@@ -229,12 +229,12 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onToggleTheme}
             className="px-2.5 sm:px-3 py-2 rounded-sm bg-[#151515] hover:bg-[#202020] text-[#D4AF37] border border-[#2A2A2A] hover:border-[#D4AF37]/50 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-xs"
-            title={theme === 'light' ? 'Chuyển sang Chủ đề Tối (Gold & Obsidian)' : 'Chuyển sang Chủ đề Sáng (Xanh & Trắng Sang Trọng)'}
+            title={theme === 'light' ? 'Chuyển sang Chủ đề Tối (Gold & Obsidian)' : 'Chuyển sang Chủ đề Sáng (Hiện đại & Dịu mắt)'}
           >
             {theme === 'light' ? (
               <>
-                <Moon className="w-3.5 h-3.5 text-[#0F52BA]" />
-                <span className="text-xs font-bold text-[#0F52BA] hidden lg:inline">Chủ Đề Tối</span>
+                <Moon className="w-3.5 h-3.5 text-[#2563EB]" />
+                <span className="text-xs font-bold text-[#2563EB] hidden lg:inline">Chủ Đề Tối</span>
               </>
             ) : (
               <>
@@ -417,14 +417,14 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="p-1.5 rounded-md bg-[#D4AF37]/15 text-[#D4AF37]">
-                        {theme === 'light' ? <Moon className="w-4 h-4 text-[#0F52BA]" /> : <Sun className="w-4 h-4 text-[#D4AF37]" />}
+                        {theme === 'light' ? <Moon className="w-4 h-4 text-[#2563EB]" /> : <Sun className="w-4 h-4 text-[#D4AF37]" />}
                       </div>
                       <div>
                         <div className="text-xs font-semibold text-white flex items-center gap-1.5">
                           {theme === 'light' ? 'Chuyển sang Chủ Đề Tối' : 'Chuyển sang Chủ Đề Sáng'}
                         </div>
                         <div className="text-[10px] text-[#777777]">
-                          {theme === 'light' ? 'Obsidian & Gold sang trọng' : 'Xanh Sapphire & Trắng hiện đại'}
+                          {theme === 'light' ? 'Obsidian & Gold sang trọng' : 'Hiện đại, thanh lịch & dịu mắt'}
                         </div>
                       </div>
                     </div>

@@ -41,7 +41,10 @@ import {
   MoreVertical,
   Trash2,
   XCircle,
-  Edit3
+  Edit3,
+  ExternalLink,
+  X,
+  HardDrive
 } from 'lucide-react';
 import {
   PieChart as RechartsPieChart,
@@ -144,12 +147,137 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [monthlyChartType, setMonthlyChartType] = useState<'area' | 'bar'>('area');
   const [showMovingAverage, setShowMovingAverage] = useState<boolean>(true);
   const [eisenhowerFilter, setEisenhowerFilter] = useState<'all' | 'q1' | 'q2' | 'q3' | 'q4'>('all');
-  const [eisenhowerViewMode, setEisenhowerViewMode] = useState<'matrix' | 'cards'>('matrix');
+  const [eisenhowerViewMode, setEisenhowerViewMode] = useState<'matrix' | 'cards'>('cards');
   const [selectedEisenhowerTaskId, setSelectedEisenhowerTaskId] = useState<string | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<'before' | 'after' | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<Task['status'] | null>(null);
+
+  // Miniature Modal Preview state for Google Drive files
+  const [previewDriveFile, setPreviewDriveFile] = useState<DriveFile | null>(null);
+
+  const formatFileSize = (bytes: number): string => {
+    if (!bytes || bytes === 0) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const getFileDirectLink = (file: DriveFile): string | null => {
+    if (file.webViewLink && file.webViewLink.trim()) return file.webViewLink.trim();
+    if (file.driveFileId && file.driveFileId.trim()) {
+      return `https://drive.google.com/file/d/${file.driveFileId.trim()}/view`;
+    }
+    if (file.previewUrl && file.previewUrl.trim()) return file.previewUrl.trim();
+    if (file.downloadUrl && file.downloadUrl.trim()) return file.downloadUrl.trim();
+    return null;
+  };
+
+  const getCategoryBadgeClass = (category: string) => {
+    switch (category) {
+      case 'pdf':
+        return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/60';
+      case 'document':
+        return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/60';
+      case 'spreadsheet':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60';
+      case 'presentation':
+        return 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60';
+      case 'image':
+        return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/60';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-[#1A1A1A] dark:text-[#CCCCCC] dark:border-[#2A2A2A]';
+    }
+  };
+
+  // Quick Move Task to a different Eisenhower Quadrant
+  const handleMoveTaskQuadrant = async (taskId: string, targetQuadrant: 'q1' | 'q2' | 'q3' | 'q4') => {
+    const today = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const formatDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    let updates: Partial<Task> = {};
+    if (targetQuadrant === 'q1') {
+      const todayStr = formatDate(today);
+      updates = {
+        priority: 'high',
+        deadline: `${todayStr}T18:00:00`,
+      };
+    } else if (targetQuadrant === 'q2') {
+      const q2Date = new Date(today.getTime() + 5 * 24 * 3600 * 1000);
+      const q2DateStr = formatDate(q2Date);
+      updates = {
+        priority: 'high',
+        deadline: `${q2DateStr}T17:00:00`,
+      };
+    } else if (targetQuadrant === 'q3') {
+      const tomorrow = new Date(today.getTime() + 1 * 24 * 3600 * 1000);
+      const tomorrowStr = formatDate(tomorrow);
+      updates = {
+        priority: 'medium',
+        deadline: `${tomorrowStr}T12:00:00`,
+      };
+    } else {
+      const q4Date = new Date(today.getTime() + 14 * 24 * 3600 * 1000);
+      const q4DateStr = formatDate(q4Date);
+      updates = {
+        priority: 'low',
+        deadline: `${q4DateStr}T23:59:00`,
+      };
+    }
+    await storeUpdateTask(taskId, updates);
+  };
+
+  // Add new task preconfigured for a specific Eisenhower Quadrant
+  const handleAddNewTaskInQuadrant = (quadrant: 'q1' | 'q2' | 'q3' | 'q4') => {
+    const today = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const formatDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    let template: Partial<Task> = {};
+    if (quadrant === 'q1') {
+      const todayStr = formatDate(today);
+      template = {
+        title: '',
+        priority: 'high',
+        deadline: `${todayStr}T18:00:00`,
+        status: 'todo',
+        tags: ['Khẩn cấp', 'Q1-DoFirst'],
+      };
+    } else if (quadrant === 'q2') {
+      const q2Date = new Date(today.getTime() + 5 * 24 * 3600 * 1000);
+      const q2DateStr = formatDate(q2Date);
+      template = {
+        title: '',
+        priority: 'high',
+        deadline: `${q2DateStr}T17:00:00`,
+        status: 'todo',
+        tags: ['Chiến lược', 'Q2-Schedule'],
+      };
+    } else if (quadrant === 'q3') {
+      const tomorrow = new Date(today.getTime() + 1 * 24 * 3600 * 1000);
+      const tomorrowStr = formatDate(tomorrow);
+      template = {
+        title: '',
+        priority: 'medium',
+        deadline: `${tomorrowStr}T12:00:00`,
+        status: 'todo',
+        tags: ['Ủy quyền', 'Q3-Delegate'],
+      };
+    } else {
+      const q4Date = new Date(today.getTime() + 14 * 24 * 3600 * 1000);
+      const q4DateStr = formatDate(q4Date);
+      template = {
+        title: '',
+        priority: 'low',
+        deadline: `${q4DateStr}T23:59:00`,
+        status: 'todo',
+        tags: ['Cân nhắc bỏ', 'Q4-Eliminate'],
+      };
+    }
+    storeOpenTaskModal(template as any);
+  };
 
   const resetDragState = () => {
     setDraggedTaskId(null);
@@ -1372,17 +1500,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* 2-COLUMN COCKPIT LAYOUT: 2/3 CHARTS (LEFT) & 1/3 WORK FEED (RIGHT) */}
+      {/* 2-COLUMN COCKPIT LAYOUT: 66% CHARTS (LEFT) & 33% WIDGETS (RIGHT) */}
       {/* ============================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start transition-all duration-300 ease-in-out">
         
         {/* ============================================================== */}
-        {/* LEFT COLUMN (2/3): ALL VISUAL ANALYTICS & INTELLIGENCE CHARTS */}
+        {/* LEFT COLUMN (66% / 8 cols): PRODUCTIVITY & ANALYTICS CHARTS    */}
         {/* ============================================================== */}
-        <div 
-          className="lg:col-span-7 xl:col-span-8 space-y-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto overscroll-contain pr-1 lg:pr-2.5 pb-12"
-          style={{ scrollbarGutter: 'stable' }}
-        >
+        <div className="lg:col-span-8 w-full min-w-0 space-y-6 transition-all duration-300 ease-in-out">
 
           {/* 1. Task Status Distribution & Lifecycle Overview Donut Card */}
           <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-5 sm:p-6 space-y-5">
@@ -1900,30 +2025,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Legend & Synthesis Takeaways Strip */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#222222] text-xs">
+        <div className="bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner">
           {/* Legend Items */}
-          <div className="flex items-center gap-4 flex-wrap text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-xs bg-[#D4AF37]" />
-              <span className="text-[#CCCCCC]">Task hoàn thành ({productivityInsights30d.totalTasksCompleted})</span>
+          <div className="flex items-center gap-3.5 flex-wrap text-[11px]">
+            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
+              CHÚ THÍCH:
+            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40">
+              <span className="w-2.5 h-2.5 rounded-xs bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
+              <span className="text-white font-bold">Task hoàn thành ({productivityInsights30d.totalTasksCompleted})</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-xs bg-sky-400" />
-              <span className="text-[#CCCCCC]">Ghi chú đúc kết ({productivityInsights30d.totalNotesCreated})</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0B1520] border border-sky-500/40">
+              <span className="w-2.5 h-2.5 rounded-xs bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
+              <span className="text-white font-bold">Ghi chú đúc kết ({productivityInsights30d.totalNotesCreated})</span>
             </div>
             {productivityInsightsFilter === 'all' && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-xs bg-[#0E1712] border border-emerald-500/40">
                 <span className="w-3 h-0.5 border-t border-dashed border-emerald-400" />
-                <span className="text-[#AAAAAA]">Tổng hoạt động ngày</span>
+                <span className="text-emerald-300 font-semibold">Tổng hoạt động ngày</span>
               </div>
             )}
           </div>
 
           {/* Automated Synthesis Reflection Pill */}
-          <div className="flex items-center gap-1.5 text-[#D4AF37] font-mono text-[11px]">
-            <Zap className="w-3.5 h-3.5 shrink-0" />
-            <span>
-              Độ đều đặn 30 ngày: <strong>{productivityInsights30d.consistencyPercent}%</strong> số ngày có hoạt động ghi nhận.
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E] text-amber-300 font-mono text-[11px]">
+            <Zap className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+            <span className="text-[#F7D070] font-medium">
+              Độ đều đặn 30 ngày: <strong className="text-white font-bold">{productivityInsights30d.consistencyPercent}%</strong> số ngày có hoạt động.
             </span>
           </div>
         </div>
@@ -2239,32 +2367,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Chart Legend & Takeaway Insight */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#222222] text-xs">
+        <div className="bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner">
           {/* Legend Items */}
-          <div className="flex items-center gap-4 flex-wrap text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-              <span className="text-[#CCCCCC]">Đã hoàn thành</span>
+          <div className="flex items-center gap-3.5 flex-wrap text-[11px]">
+            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
+              CHÚ THÍCH:
+            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0E1712] border border-emerald-500/40">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
+              <span className="text-white font-bold">Đã hoàn thành</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-              <span className="text-[#CCCCCC]">Tạo mới</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0B1520] border border-blue-500/40">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.7)]" />
+              <span className="text-white font-bold">Tạo mới</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37]" />
-              <span className="text-[#CCCCCC]">Tích lũy / Năng suất</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
+              <span className="text-white font-bold">Tích lũy / Năng suất</span>
             </div>
           </div>
 
           {/* Smart Productivity Takeaway */}
-          <div className="flex items-center gap-2 text-[#888888] font-mono text-[11px]">
+          <div className="flex items-center gap-2 text-zinc-300 font-mono text-[11px] px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E]">
             {trendAnalytics.peakPoint ? (
-              <span className="text-[#D4AF37] flex items-center gap-1">
-                <Zap className="w-3 h-3" />
-                <span>Đỉnh năng suất: <strong>{trendAnalytics.peakPoint.label}</strong> ({trendAnalytics.peakPoint.completed} việc hoàn thành)</span>
+              <span className="text-[#F7D070] flex items-center gap-1 font-medium">
+                <Zap className="w-3 h-3 text-[#D4AF37]" />
+                <span>Đỉnh năng suất: <strong className="text-white font-bold">{trendAnalytics.peakPoint.label}</strong> ({trendAnalytics.peakPoint.completed} việc hoàn thành)</span>
               </span>
             ) : (
-              <span>Chưa phát hiện đỉnh hoàn thành trong kỳ</span>
+              <span className="text-zinc-400">Chưa phát hiện đỉnh hoàn thành trong kỳ</span>
             )}
           </div>
         </div>
@@ -2510,25 +2641,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Legend & AI Productivity Rhythm Insight */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#222222] text-xs">
-          <div className="flex items-center gap-4 flex-wrap text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-xs bg-emerald-400" />
-              <span className="text-[#CCCCCC]">Tỷ lệ hoàn thành (%) - Trục trái</span>
+        <div className="bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner">
+          <div className="flex items-center gap-3.5 flex-wrap text-[11px]">
+            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
+              CHÚ THÍCH:
+            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0E1712] border border-emerald-500/40">
+              <span className="w-2.5 h-2.5 rounded-xs bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
+              <span className="text-white font-bold">Tỷ lệ hoàn thành (%) - Trục trái</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37]" />
-              <span className="text-[#CCCCCC]">Giờ tập trung AI (h) - Trục phải</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
+              <span className="text-white font-bold">Giờ tập trung AI (h) - Trục phải</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 border-t border-dashed border-[#888888]" />
-              <span className="text-[#888888]">Mốc chuẩn đề xuất</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#161616] border border-[#333333]">
+              <span className="w-3 h-0.5 border-t border-dashed border-[#AAAAAA]" />
+              <span className="text-zinc-300 font-medium">Mốc chuẩn đề xuất</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[#D4AF37] font-mono text-[11px]">
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>Tương quan AI: Các ngày đạt từ 4.0h tập trung sâu ghi nhận tỷ lệ hoàn thành cao hơn 32%.</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E] text-[#F7D070] font-mono text-[11px]">
+            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+            <span className="font-medium">Tương quan AI: Các ngày đạt từ 4.0h tập trung sâu ghi nhận tỷ lệ hoàn thành cao hơn 32%.</span>
           </div>
         </div>
       </div>
@@ -2809,27 +2943,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Legend & 30-Day Retrospective Insight */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#222222] text-xs">
-          <div className="flex items-center gap-4 flex-wrap text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-xs bg-[#D4AF37]" />
-              <span className="text-[#CCCCCC]">Điểm năng suất ngày (0 - 100)</span>
+        <div className="bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner">
+          <div className="flex items-center gap-3.5 flex-wrap text-[11px]">
+            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
+              CHÚ THÍCH:
+            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40">
+              <span className="w-2.5 h-2.5 rounded-xs bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
+              <span className="text-white font-bold">Điểm năng suất ngày (0 - 100)</span>
             </div>
             {showMovingAverage && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0B1520] border border-sky-500/40">
                 <span className="w-3 h-0.5 border-t border-dashed border-sky-400" />
-                <span className="text-sky-300">Đường TB động 7 ngày</span>
+                <span className="text-sky-200 font-bold">Đường TB động 7 ngày</span>
               </div>
             )}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0E1712] border border-emerald-500/40">
               <span className="w-3 h-0.5 border-t border-dashed border-emerald-400" />
-              <span className="text-[#888888]">Mục tiêu 80+</span>
+              <span className="text-emerald-300 font-semibold">Mục tiêu 80+</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[#D4AF37] font-mono text-[11px]">
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>Tổng kết 30 ngày: {monthlyTrendAnalytics.highQualityRatio}% số ngày đạt chuẩn hiệu suất cao.</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E] text-[#F7D070] font-mono text-[11px]">
+            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+            <span className="font-medium">Tổng kết 30 ngày: {monthlyTrendAnalytics.highQualityRatio}% số ngày đạt chuẩn hiệu suất cao.</span>
           </div>
         </div>
       </div>
@@ -2854,8 +2991,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* View Switcher: Matrix vs Cards */}
+            {/* View Switcher: Matrix vs Scatter */}
             <div className="flex items-center bg-[#0C0C0C] p-0.5 rounded-sm border border-[#2A2A2A] text-[11px] font-bold">
+              <button
+                onClick={() => setEisenhowerViewMode('cards')}
+                className={`px-3 py-1.5 rounded-sm cursor-pointer transition-all flex items-center gap-1.5 ${
+                  eisenhowerViewMode === 'cards'
+                    ? 'bg-[#D4AF37] text-black shadow-xs font-bold'
+                    : 'text-[#888888] hover:text-white'
+                }`}
+                title="Xem dạng bảng 4 góc phần tư ma trận Eisenhower"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Bảng 4 Góc (Ma Trận)</span>
+              </button>
               <button
                 onClick={() => setEisenhowerViewMode('matrix')}
                 className={`px-3 py-1.5 rounded-sm cursor-pointer transition-all flex items-center gap-1.5 ${
@@ -2867,18 +3016,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               >
                 <Activity className="w-3.5 h-3.5" />
                 <span>Đồ thị 2D (Scatter)</span>
-              </button>
-              <button
-                onClick={() => setEisenhowerViewMode('cards')}
-                className={`px-3 py-1.5 rounded-sm cursor-pointer transition-all flex items-center gap-1.5 ${
-                  eisenhowerViewMode === 'cards'
-                    ? 'bg-[#D4AF37] text-black shadow-xs font-bold'
-                    : 'text-[#888888] hover:text-white'
-                }`}
-                title="Xem dạng 4 góc phần tư thẻ nhiệm vụ"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Bảng 4 góc (Cards)</span>
               </button>
             </div>
 
@@ -3131,26 +3268,489 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         ) : (
           <div>
-            {/* VIEW MODE 1: 2D SCATTER CHART VISUALIZATION */}
+            {/* VIEW MODE 1: FOUR-QUADRANT EISENHOWER MATRIX (2x2 GRID) */}
+            {eisenhowerViewMode === 'cards' && (
+              <div className="space-y-4">
+                {/* Visual Axis Indicator Bar: URGENT vs NOT URGENT */}
+                <div className="hidden md:grid grid-cols-2 gap-4 text-center font-mono text-xs">
+                  <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-t bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold border border-b-0 border-rose-500/30">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="tracking-wider">🔥 KHẨN CẤP (URGENT)</span>
+                    <span className="text-[10px] font-normal opacity-80">• Cần xử lý ngay</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-t bg-amber-500/10 dark:bg-[#D4AF37]/10 text-amber-700 dark:text-[#D4AF37] font-bold border border-b-0 border-amber-500/30 dark:border-[#D4AF37]/30">
+                    <Clock className="w-4 h-4" />
+                    <span className="tracking-wider">⏳ KHÔNG KHẨN CẤP (NOT URGENT)</span>
+                    <span className="text-[10px] font-normal opacity-80">• Chủ động lên lịch</span>
+                  </div>
+                </div>
+
+                {/* 2x2 Matrix Board */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* ============================================================== */}
+                  {/* ROW 1: IMPORTANT (QUAN TRỌNG)                                  */}
+                  {/* ============================================================== */}
+
+                  {/* Q1: DO FIRST (Làm Ngay) */}
+                  <div className="p-4 sm:p-5 bg-[#0C0C0C] border border-rose-900/60 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-rose-500/60">
+                    <div className="flex items-center justify-between border-b border-[#222222] pb-2.5">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
+                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-white">
+                            Q1 • Làm Ngay (Do First)
+                          </h4>
+                        </div>
+                        <p className="text-[10px] text-rose-300 font-medium">
+                          Khẩn cấp & Quan trọng • Khủng hoảng, deadline cận kề
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-mono text-rose-300 bg-rose-950/60 px-2 py-0.5 rounded-xs border border-rose-500/40 font-bold">
+                          {eisenhowerData.q1Tasks.length} ({eisenhowerData.q1Percent}%)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleAddNewTaskInQuadrant('q1')}
+                          className="px-2 py-1 rounded bg-rose-950/50 hover:bg-rose-900/70 text-rose-200 border border-rose-700/60 text-[10px] font-bold transition-colors cursor-pointer"
+                          title="Thêm nhiệm vụ mới vào Q1 (Do First)"
+                        >
+                          + Việc Q1
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Task List Q1 */}
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {eisenhowerData.q1Tasks.length === 0 ? (
+                        <div className="py-4 text-center space-y-1">
+                          <p className="text-[11px] text-zinc-400 italic">
+                            Không có nhiệm vụ khẩn cấp & quan trọng tồn đọng.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleAddNewTaskInQuadrant('q1')}
+                            className="text-[10px] text-rose-400 font-semibold hover:underline cursor-pointer"
+                          >
+                            + Thêm việc khẩn cấp
+                          </button>
+                        </div>
+                      ) : (
+                        eisenhowerData.q1Tasks.map(t => (
+                          <div
+                            key={t.id}
+                            onClick={() => setSelectedEisenhowerTaskId(t.id)}
+                            className={`p-2.5 rounded-sm border transition-all cursor-pointer flex items-center justify-between gap-2.5 text-xs group/item ${
+                              selectedEisenhowerTaskId === t.id
+                                ? 'bg-rose-950/80 border-rose-500 text-white shadow-xs'
+                                : 'bg-[#141414] hover:bg-[#1A1A1A] border-[#222222] hover:border-rose-500/50 text-white'
+                            }`}
+                          >
+                            <div className="truncate flex-1 min-w-0">
+                              <span className="font-semibold truncate block text-white">{t.title}</span>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-xs font-semibold ${t.isOverdue ? 'text-rose-300 bg-rose-950/80 border border-rose-500/40' : 'text-zinc-400'}`}>
+                                  {t.dueLabel}
+                                </span>
+                                <span className="text-[9px] uppercase px-1 rounded bg-rose-950/80 text-rose-200 border border-rose-800/60 font-bold">
+                                  {t.priority}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Quick Actions */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {/* Move dropdown */}
+                              <div className="relative group/move" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  className="p-1 hover:bg-[#2A2A2A] text-[#888888] hover:text-[#D4AF37] rounded transition-colors text-[10px]"
+                                  title="Chuyển sang góc phần tư khác"
+                                >
+                                  <ArrowUpDown className="w-3 h-3" />
+                                </button>
+                                <div className="absolute right-0 top-full mt-1 hidden group-hover/move:flex flex-col bg-[#1A1A1A] border border-[#333333] rounded shadow-xl py-1 z-30 min-w-32 animate-in fade-in text-[10px]">
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q2')} className="px-2.5 py-1 text-left hover:bg-amber-950/40 text-amber-300 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" /> Chuyển sang Q2
+                                  </button>
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q3')} className="px-2.5 py-1 text-left hover:bg-sky-950/40 text-sky-400 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" /> Chuyển sang Q3
+                                  </button>
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q4')} className="px-2.5 py-1 text-left hover:bg-slate-800 text-slate-300 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" /> Chuyển sang Q4
+                                  </button>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onTaskStatusChange(t.id, 'completed');
+                                }}
+                                className="p-1 hover:bg-emerald-500/20 text-[#888888] hover:text-emerald-400 rounded-xs transition-colors shrink-0"
+                                title="Đánh dấu hoàn thành"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Q2: SCHEDULE (Lên Kế Hoạch / Chiến Lược) */}
+                  <div className="p-4 sm:p-5 bg-[#0C0C0C] border border-amber-900/60 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-amber-400/60">
+                    <div className="flex items-center justify-between border-b border-[#222222] pb-2.5">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] ring-2 ring-[#D4AF37]/30 shadow-[0_0_8px_rgba(212,175,55,0.6)]" />
+                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-white">
+                            Q2 • Lên Kế Hoạch (Schedule)
+                          </h4>
+                        </div>
+                        <p className="text-[10px] text-[#F7D070] font-medium">
+                          Quan trọng, Chưa gấp • Phát triển dài hạn, ngăn ngừa rủi ro
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-mono text-[#F7D070] bg-[#D4AF37]/20 px-2 py-0.5 rounded-xs border border-[#D4AF37]/40 font-bold">
+                          {eisenhowerData.q2Tasks.length} ({eisenhowerData.q2Percent}%)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleAddNewTaskInQuadrant('q2')}
+                          className="px-2 py-1 rounded bg-amber-950/50 hover:bg-amber-900/70 text-[#F7D070] border border-amber-700/60 text-[10px] font-bold transition-colors cursor-pointer"
+                          title="Thêm nhiệm vụ chiến lược vào Q2"
+                        >
+                          + Việc Q2
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Task List Q2 */}
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {eisenhowerData.q2Tasks.length === 0 ? (
+                        <div className="py-4 text-center space-y-1">
+                          <p className="text-[11px] text-zinc-400 italic">
+                            Chưa có nhiệm vụ dài hạn quan trọng.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleAddNewTaskInQuadrant('q2')}
+                            className="text-[10px] text-[#D4AF37] font-semibold hover:underline cursor-pointer"
+                          >
+                            + Lên lịch việc chiến lược
+                          </button>
+                        </div>
+                      ) : (
+                        eisenhowerData.q2Tasks.map(t => (
+                          <div
+                            key={t.id}
+                            onClick={() => setSelectedEisenhowerTaskId(t.id)}
+                            className={`p-2.5 rounded-sm border transition-all cursor-pointer flex items-center justify-between gap-2.5 text-xs group/item ${
+                              selectedEisenhowerTaskId === t.id
+                                ? 'bg-amber-950/80 border-[#D4AF37] text-white shadow-xs'
+                                : 'bg-[#141414] hover:bg-[#1A1A1A] border-[#222222] hover:border-[#D4AF37]/50 text-white'
+                            }`}
+                          >
+                            <div className="truncate flex-1 min-w-0">
+                              <span className="font-semibold truncate block text-white">{t.title}</span>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-xs font-semibold text-zinc-400">
+                                  {t.dueLabel}
+                                </span>
+                                <span className="text-[9px] uppercase px-1 rounded bg-amber-950/80 text-amber-200 border border-amber-800/60 font-bold">
+                                  {t.priority}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Quick Actions */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <div className="relative group/move" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  className="p-1 hover:bg-[#2A2A2A] text-[#888888] hover:text-[#D4AF37] rounded transition-colors text-[10px]"
+                                  title="Chuyển sang góc phần tư khác"
+                                >
+                                  <ArrowUpDown className="w-3 h-3" />
+                                </button>
+                                <div className="absolute right-0 top-full mt-1 hidden group-hover/move:flex flex-col bg-[#1A1A1A] border border-[#333333] rounded shadow-xl py-1 z-30 min-w-32 animate-in fade-in text-[10px]">
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q1')} className="px-2.5 py-1 text-left hover:bg-rose-950/40 text-rose-300 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Chuyển sang Q1
+                                  </button>
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q3')} className="px-2.5 py-1 text-left hover:bg-sky-950/40 text-sky-400 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" /> Chuyển sang Q3
+                                  </button>
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q4')} className="px-2.5 py-1 text-left hover:bg-slate-800 text-slate-300 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" /> Chuyển sang Q4
+                                  </button>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onTaskStatusChange(t.id, 'completed');
+                                }}
+                                className="p-1 hover:bg-emerald-500/20 text-[#888888] hover:text-emerald-400 rounded-xs transition-colors shrink-0"
+                                title="Đánh dấu hoàn thành"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ============================================================== */}
+                  {/* ROW 2: NOT IMPORTANT (ÍT QUAN TRỌNG)                           */}
+                  {/* ============================================================== */}
+
+                  {/* Q3: DELEGATE (Ủy Quyền / Giải Quyết Nhanh) */}
+                  <div className="p-4 sm:p-5 bg-[#0C0C0C] border border-sky-900/60 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-sky-400/60">
+                    <div className="flex items-center justify-between border-b border-[#222222] pb-2.5">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-sky-500 ring-2 ring-sky-500/30 shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
+                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-white">
+                            Q3 • Ủy Quyền (Delegate)
+                          </h4>
+                        </div>
+                        <p className="text-[10px] text-sky-300 font-medium">
+                          Gấp, Ít quan trọng • Giải quyết nhanh (5-15p) hoặc nhờ vả
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-mono text-sky-300 bg-sky-950/60 px-2 py-0.5 rounded-xs border border-sky-500/40 font-bold">
+                          {eisenhowerData.q3Tasks.length} ({eisenhowerData.q3Percent}%)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleAddNewTaskInQuadrant('q3')}
+                          className="px-2 py-1 rounded bg-sky-950/50 hover:bg-sky-900/70 text-sky-200 border border-sky-700/60 text-[10px] font-bold transition-colors cursor-pointer"
+                          title="Thêm nhiệm vụ ủy quyền vào Q3"
+                        >
+                          + Việc Q3
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Task List Q3 */}
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {eisenhowerData.q3Tasks.length === 0 ? (
+                        <div className="py-4 text-center space-y-1">
+                          <p className="text-[11px] text-zinc-400 italic">
+                            Không có nhiệm vụ cần ủy quyền.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleAddNewTaskInQuadrant('q3')}
+                            className="text-[10px] text-sky-400 font-semibold hover:underline cursor-pointer"
+                          >
+                            + Thêm việc ủy quyền
+                          </button>
+                        </div>
+                      ) : (
+                        eisenhowerData.q3Tasks.map(t => (
+                          <div
+                            key={t.id}
+                            onClick={() => setSelectedEisenhowerTaskId(t.id)}
+                            className={`p-2.5 rounded-sm border transition-all cursor-pointer flex items-center justify-between gap-2.5 text-xs group/item ${
+                              selectedEisenhowerTaskId === t.id
+                                ? 'bg-sky-950/80 border-sky-500 text-white shadow-xs'
+                                : 'bg-[#141414] hover:bg-[#1A1A1A] border-[#222222] hover:border-sky-500/50 text-white'
+                            }`}
+                          >
+                            <div className="truncate flex-1 min-w-0">
+                              <span className="font-semibold truncate block text-white">{t.title}</span>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-xs font-semibold text-zinc-400">
+                                  {t.dueLabel}
+                                </span>
+                                <span className="text-[9px] uppercase px-1 rounded bg-sky-950/80 text-sky-200 border border-sky-800/60 font-bold">
+                                  {t.priority}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Quick Actions */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <div className="relative group/move" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  className="p-1 hover:bg-[#2A2A2A] text-[#888888] hover:text-[#D4AF37] rounded transition-colors text-[10px]"
+                                  title="Chuyển sang góc phần tư khác"
+                                >
+                                  <ArrowUpDown className="w-3 h-3" />
+                                </button>
+                                <div className="absolute right-0 top-full mt-1 hidden group-hover/move:flex flex-col bg-[#1A1A1A] border border-[#333333] rounded shadow-xl py-1 z-30 min-w-32 animate-in fade-in text-[10px]">
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q1')} className="px-2.5 py-1 text-left hover:bg-rose-950/40 text-rose-300 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Chuyển sang Q1
+                                  </button>
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q2')} className="px-2.5 py-1 text-left hover:bg-amber-950/40 text-amber-300 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" /> Chuyển sang Q2
+                                  </button>
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q4')} className="px-2.5 py-1 text-left hover:bg-slate-800 text-slate-300 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" /> Chuyển sang Q4
+                                  </button>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onTaskStatusChange(t.id, 'completed');
+                                }}
+                                className="p-1 hover:bg-emerald-500/20 text-[#888888] hover:text-emerald-400 rounded-xs transition-colors shrink-0"
+                                title="Đánh dấu hoàn thành"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Q4: ELIMINATE (Cân Nhắc Loại Bỏ) */}
+                  <div className="p-4 sm:p-5 bg-[#0C0C0C] border border-slate-800 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-slate-600">
+                    <div className="flex items-center justify-between border-b border-[#222222] pb-2.5">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-slate-400 ring-2 ring-slate-400/30 shadow-[0_0_8px_rgba(148,163,184,0.6)]" />
+                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-white">
+                            Q4 • Loại Bỏ (Eliminate)
+                          </h4>
+                        </div>
+                        <p className="text-[10px] text-slate-300 font-medium">
+                          Không gấp & Ít quan trọng • Cắt giảm để không xao nhãng
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-mono text-slate-200 bg-slate-800 px-2 py-0.5 rounded-xs border border-slate-700 font-bold">
+                          {eisenhowerData.q4Tasks.length} ({eisenhowerData.q4Percent}%)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleAddNewTaskInQuadrant('q4')}
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
+                          title="Thêm nhiệm vụ vào Q4"
+                        >
+                          + Việc Q4
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Task List Q4 */}
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {eisenhowerData.q4Tasks.length === 0 ? (
+                        <div className="py-4 text-center space-y-1">
+                          <p className="text-[11px] text-zinc-400 italic">
+                            Không có nhiệm vụ dư thừa cần loại bỏ.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleAddNewTaskInQuadrant('q4')}
+                            className="text-[10px] text-slate-400 font-semibold hover:underline cursor-pointer"
+                          >
+                            + Ghi nhận việc Q4
+                          </button>
+                        </div>
+                      ) : (
+                        eisenhowerData.q4Tasks.map(t => (
+                          <div
+                            key={t.id}
+                            onClick={() => setSelectedEisenhowerTaskId(t.id)}
+                            className={`p-2.5 rounded-sm border transition-all cursor-pointer flex items-center justify-between gap-2.5 text-xs group/item ${
+                              selectedEisenhowerTaskId === t.id
+                                ? 'bg-slate-900 border-slate-400 text-white shadow-xs'
+                                : 'bg-[#141414] hover:bg-[#1A1A1A] border-[#222222] hover:border-slate-500/50 text-white'
+                            }`}
+                          >
+                            <div className="truncate flex-1 min-w-0">
+                              <span className="font-semibold truncate block text-white">{t.title}</span>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span className="text-[10px] font-mono text-zinc-400 px-1.5 py-0.2 rounded-xs font-semibold bg-slate-800/60">
+                                  {t.dueLabel}
+                                </span>
+                                <span className="text-[9px] uppercase px-1 rounded bg-slate-800 text-slate-200 border border-slate-700 font-bold">
+                                  {t.priority}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Quick Actions */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <div className="relative group/move" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  className="p-1 hover:bg-[#2A2A2A] text-[#888888] hover:text-[#D4AF37] rounded transition-colors text-[10px]"
+                                  title="Chuyển sang góc phần tư khác"
+                                >
+                                  <ArrowUpDown className="w-3 h-3" />
+                                </button>
+                                <div className="absolute right-0 top-full mt-1 hidden group-hover/move:flex flex-col bg-[#1A1A1A] border border-[#333333] rounded shadow-xl py-1 z-30 min-w-32 animate-in fade-in text-[10px]">
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q1')} className="px-2.5 py-1 text-left hover:bg-rose-950/40 text-rose-300 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Chuyển sang Q1
+                                  </button>
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q2')} className="px-2.5 py-1 text-left hover:bg-amber-950/40 text-amber-300 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" /> Chuyển sang Q2
+                                  </button>
+                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q3')} className="px-2.5 py-1 text-left hover:bg-sky-950/40 text-sky-400 flex items-center gap-1.5 cursor-pointer">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" /> Chuyển sang Q3
+                                  </button>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onTaskStatusChange(t.id, 'completed');
+                                }}
+                                className="p-1 hover:bg-emerald-500/20 text-[#888888] hover:text-emerald-400 rounded-xs transition-colors shrink-0"
+                                title="Đánh dấu hoàn thành"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW MODE 2: 2D SCATTER PLOT */}
             {eisenhowerViewMode === 'matrix' && (
               <div className="space-y-4">
                 <div className="relative w-full h-[320px] sm:h-[360px] bg-[#0C0C0C] border border-[#222222] rounded-sm p-2">
-                  {/* Subtle Corner Background Watermark Quadrant Titles */}
-                  <div className="absolute top-3 left-10 text-[10px] font-mono text-[#D4AF37]/50 font-bold uppercase tracking-wider pointer-events-none z-10 flex items-center gap-1">
-                    <span>Q2: LÊN LỊCH</span>
-                    <span className="text-[9px] text-[#777777] font-normal">(Quan trọng, Chưa gấp)</span>
+                  {/* Subtle Corner Background Watermark Quadrant Titles with Dark Badges and Bright Text */}
+                  <div className="absolute top-3 left-10 text-[10px] font-mono text-[#F7D070] font-bold uppercase tracking-wider pointer-events-none z-10 flex items-center gap-1.5 bg-[#121212]/95 border border-[#D4AF37]/40 px-2 py-0.5 rounded-xs backdrop-blur-xs shadow-md">
+                    <span className="text-[#F7D070]">Q2: LÊN LỊCH</span>
+                    <span className="text-[9px] text-[#A0A0A0] font-normal">(Quan trọng, Chưa gấp)</span>
                   </div>
-                  <div className="absolute top-3 right-4 text-[10px] font-mono text-rose-400/60 font-bold uppercase tracking-wider pointer-events-none z-10 flex items-center gap-1">
-                    <span>Q1: LÀM NGAY</span>
-                    <span className="text-[9px] text-[#777777] font-normal">(Khẩn cấp & Quan trọng)</span>
+                  <div className="absolute top-3 right-4 text-[10px] font-mono text-rose-300 font-bold uppercase tracking-wider pointer-events-none z-10 flex items-center gap-1.5 bg-[#121212]/95 border border-rose-500/40 px-2 py-0.5 rounded-xs backdrop-blur-xs shadow-md">
+                    <span className="text-rose-300">Q1: LÀM NGAY</span>
+                    <span className="text-[9px] text-[#A0A0A0] font-normal">(Khẩn cấp & Quan trọng)</span>
                   </div>
-                  <div className="absolute bottom-6 left-10 text-[10px] font-mono text-slate-500 font-bold uppercase tracking-wider pointer-events-none z-10 flex items-center gap-1">
-                    <span>Q4: CÂN NHẮC BỎ</span>
-                    <span className="text-[9px] text-[#666666] font-normal">(Không gấp & Ít quan trọng)</span>
+                  <div className="absolute bottom-6 left-10 text-[10px] font-mono text-slate-300 font-bold uppercase tracking-wider pointer-events-none z-10 flex items-center gap-1.5 bg-[#121212]/95 border border-slate-700/60 px-2 py-0.5 rounded-xs backdrop-blur-xs shadow-md">
+                    <span className="text-slate-200">Q4: CÂN NHẮC BỎ</span>
+                    <span className="text-[9px] text-[#A0A0A0] font-normal">(Không gấp & Ít quan trọng)</span>
                   </div>
-                  <div className="absolute bottom-6 right-4 text-[10px] font-mono text-sky-400/60 font-bold uppercase tracking-wider pointer-events-none z-10 flex items-center gap-1">
-                    <span>Q3: ỦY QUYỀN</span>
-                    <span className="text-[9px] text-[#777777] font-normal">(Gấp, Ít quan trọng)</span>
+                  <div className="absolute bottom-6 right-4 text-[10px] font-mono text-sky-300 font-bold uppercase tracking-wider pointer-events-none z-10 flex items-center gap-1.5 bg-[#121212]/95 border border-sky-500/40 px-2 py-0.5 rounded-xs backdrop-blur-xs shadow-md">
+                    <span className="text-sky-300">Q3: ỦY QUYỀN</span>
+                    <span className="text-[9px] text-[#A0A0A0] font-normal">(Gấp, Ít quan trọng)</span>
                   </div>
 
                   <ResponsiveContainer width="100%" height="100%">
@@ -3208,239 +3808,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </ResponsiveContainer>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-[#777777] px-1">
-                  <span>← Ít Khẩn Cấp (Trục hoành X) Rất Khẩn Cấp →</span>
-                  <span>↑ Rất Quan Trọng (Trục tung Y) Ít Quan Trọng ↓</span>
+                <div className="flex items-center justify-between text-[11px] font-mono px-3 py-1.5 bg-[#0C0C0C] border border-[#222222] rounded-xs text-zinc-300">
+                  <span className="text-zinc-300 font-medium">← Ít Khẩn Cấp (Trục hoành X) Rất Khẩn Cấp →</span>
+                  <span className="text-zinc-300 font-medium">↑ Rất Quan Trọng (Trục tung Y) Ít Quan Trọng ↓</span>
                 </div>
               </div>
             )}
-
-            {/* VIEW MODE 2: 4-QUADRANT CARDS (or visible below matrix) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              {/* Q1 Card */}
-              <div className="p-4 bg-[#0C0C0C] border border-[#222222] rounded-sm space-y-3">
-                <div className="flex items-center justify-between border-b border-[#222222] pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                    <span className="font-editorial-serif font-bold text-sm text-white">Q1 • Làm Ngay (Do First)</span>
-                  </div>
-                  <span className="text-[10px] font-mono text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-xs border border-rose-500/30">
-                    {eisenhowerData.q1Tasks.length} việc
-                  </span>
-                </div>
-                <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                  {eisenhowerData.q1Tasks.length === 0 ? (
-                    <p className="text-[11px] text-[#666666] italic py-2">Không có nhiệm vụ khẩn cấp & quan trọng tồn đọng.</p>
-                  ) : (
-                    eisenhowerData.q1Tasks.map(t => (
-                      <div
-                        key={t.id}
-                        onClick={() => setSelectedEisenhowerTaskId(t.id)}
-                        className={`p-2 rounded-xs border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs ${
-                          selectedEisenhowerTaskId === t.id
-                            ? 'bg-rose-500/20 border-rose-500 text-white'
-                            : 'bg-[#141414] border-[#222222] text-[#CCCCCC] hover:border-rose-500/40'
-                        }`}
-                      >
-                        <div className="truncate flex-1">
-                          <span className="font-medium truncate block">{t.title}</span>
-                          <span className="text-[10px] text-rose-400 font-mono">{t.dueLabel}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onTaskStatusChange(t.id, 'completed');
-                          }}
-                          className="p-1 hover:bg-emerald-500/20 text-[#888888] hover:text-emerald-400 rounded-xs transition-colors shrink-0"
-                          title="Hoàn thành task này"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Q2 Card */}
-              <div className="p-4 bg-[#0C0C0C] border border-[#222222] rounded-sm space-y-3">
-                <div className="flex items-center justify-between border-b border-[#222222] pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37]" />
-                    <span className="font-editorial-serif font-bold text-sm text-white">Q2 • Lên Lịch (Schedule)</span>
-                  </div>
-                  <span className="text-[10px] font-mono text-[#D4AF37] bg-[#D4AF37]/10 px-2 py-0.5 rounded-xs border border-[#D4AF37]/30">
-                    {eisenhowerData.q2Tasks.length} việc
-                  </span>
-                </div>
-                <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                  {eisenhowerData.q2Tasks.length === 0 ? (
-                    <p className="text-[11px] text-[#666666] italic py-2">Chưa có nhiệm vụ dài hạn quan trọng.</p>
-                  ) : (
-                    eisenhowerData.q2Tasks.map(t => (
-                      <div
-                        key={t.id}
-                        onClick={() => setSelectedEisenhowerTaskId(t.id)}
-                        className={`p-2 rounded-xs border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs ${
-                          selectedEisenhowerTaskId === t.id
-                            ? 'bg-[#D4AF37]/20 border-[#D4AF37] text-white'
-                            : 'bg-[#141414] border-[#222222] text-[#CCCCCC] hover:border-[#D4AF37]/40'
-                        }`}
-                      >
-                        <div className="truncate flex-1">
-                          <span className="font-medium truncate block">{t.title}</span>
-                          <span className="text-[10px] text-[#D4AF37] font-mono">{t.dueLabel}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onTaskStatusChange(t.id, 'completed');
-                          }}
-                          className="p-1 hover:bg-emerald-500/20 text-[#888888] hover:text-emerald-400 rounded-xs transition-colors shrink-0"
-                          title="Hoàn thành task này"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Q3 Card */}
-              <div className="p-4 bg-[#0C0C0C] border border-[#222222] rounded-sm space-y-3">
-                <div className="flex items-center justify-between border-b border-[#222222] pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
-                    <span className="font-editorial-serif font-bold text-sm text-white">Q3 • Ủy Quyền (Delegate)</span>
-                  </div>
-                  <span className="text-[10px] font-mono text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-xs border border-sky-500/30">
-                    {eisenhowerData.q3Tasks.length} việc
-                  </span>
-                </div>
-                <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                  {eisenhowerData.q3Tasks.length === 0 ? (
-                    <p className="text-[11px] text-[#666666] italic py-2">Không có nhiệm vụ cần ủy quyền.</p>
-                  ) : (
-                    eisenhowerData.q3Tasks.map(t => (
-                      <div
-                        key={t.id}
-                        onClick={() => setSelectedEisenhowerTaskId(t.id)}
-                        className={`p-2 rounded-xs border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs ${
-                          selectedEisenhowerTaskId === t.id
-                            ? 'bg-sky-500/20 border-sky-500 text-white'
-                            : 'bg-[#141414] border-[#222222] text-[#CCCCCC] hover:border-sky-500/40'
-                        }`}
-                      >
-                        <div className="truncate flex-1">
-                          <span className="font-medium truncate block">{t.title}</span>
-                          <span className="text-[10px] text-sky-400 font-mono">{t.dueLabel}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onTaskStatusChange(t.id, 'completed');
-                          }}
-                          className="p-1 hover:bg-emerald-500/20 text-[#888888] hover:text-emerald-400 rounded-xs transition-colors shrink-0"
-                          title="Hoàn thành task này"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Q4 Card */}
-              <div className="p-4 bg-[#0C0C0C] border border-[#222222] rounded-sm space-y-3">
-                <div className="flex items-center justify-between border-b border-[#222222] pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
-                    <span className="font-editorial-serif font-bold text-sm text-white">Q4 • Cân Nhắc Bỏ (Eliminate)</span>
-                  </div>
-                  <span className="text-[10px] font-mono text-slate-400 bg-slate-500/10 px-2 py-0.5 rounded-xs border border-slate-500/30">
-                    {eisenhowerData.q4Tasks.length} việc
-                  </span>
-                </div>
-                <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                  {eisenhowerData.q4Tasks.length === 0 ? (
-                    <p className="text-[11px] text-[#666666] italic py-2">Không có nhiệm vụ dư thừa cần loại bỏ.</p>
-                  ) : (
-                    eisenhowerData.q4Tasks.map(t => (
-                      <div
-                        key={t.id}
-                        onClick={() => setSelectedEisenhowerTaskId(t.id)}
-                        className={`p-2 rounded-xs border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs ${
-                          selectedEisenhowerTaskId === t.id
-                            ? 'bg-slate-500/20 border-slate-400 text-white'
-                            : 'bg-[#141414] border-[#222222] text-[#CCCCCC] hover:border-slate-500/40'
-                        }`}
-                      >
-                        <div className="truncate flex-1">
-                          <span className="font-medium truncate block">{t.title}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{t.dueLabel}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onTaskStatusChange(t.id, 'completed');
-                          }}
-                          className="p-1 hover:bg-emerald-500/20 text-[#888888] hover:text-emerald-400 rounded-xs transition-colors shrink-0"
-                          title="Hoàn thành task này"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
-        {/* Legend & Stephen Covey Matrix Principle */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#222222] text-xs">
-          <div className="flex items-center gap-4 flex-wrap text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              <span className="text-[#CCCCCC]">Q1: Làm ngay</span>
+        {/* Legend & Stephen Covey Matrix Principle (Phần Chú thích Ma trận Eisenhower) */}
+        <div className="bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner">
+          <div className="flex items-center gap-2 flex-wrap text-[11px]">
+            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
+              CHÚ THÍCH:
+            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#180E0E] border border-rose-500/40 text-rose-200">
+              <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
+              <span className="font-bold text-white">Q1: Làm ngay</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37]" />
-              <span className="text-[#CCCCCC]">Q2: Lên lịch (Chiến lược)</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40 text-amber-200">
+              <span className="w-2 h-2 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.8)]" />
+              <span className="font-bold text-white">Q2: Lên lịch (Chiến lược)</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
-              <span className="text-[#CCCCCC]">Q3: Ủy quyền</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0B1520] border border-sky-500/40 text-sky-200">
+              <span className="w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
+              <span className="font-bold text-white">Q3: Ủy quyền</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
-              <span className="text-[#CCCCCC]">Q4: Loại bỏ</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#141414] border border-slate-600/40 text-slate-200">
+              <span className="w-2 h-2 rounded-full bg-slate-400 shadow-[0_0_8px_rgba(148,163,184,0.8)]" />
+              <span className="font-bold text-white">Q4: Loại bỏ</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[#D4AF37] font-mono text-[11px]">
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>Nguyên lý Covey: Dành 60% năng lượng cho Q2 để chủ động kiểm soát và ngăn ngừa khủng hoảng.</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E] text-amber-300 font-mono text-[11px]">
+            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+            <span className="text-[#F7D070] font-medium">Nguyên lý Covey: Dành 60% năng lượng cho Q2 để chủ động ngăn ngừa khủng hoảng.</span>
           </div>
         </div>
       </div>
     </div>
-    {/* End of Left Column (2/3 width) */}
+    {/* End of Left Column (66% width) */}
 
     {/* ============================================================== */}
-    {/* RIGHT COLUMN (1/3): WORK & RESOURCE ACTION FEED               */}
+    {/* RIGHT COLUMN (33% / 4 cols): WORK & RESOURCE ACTION FEED       */}
+    {/* Houses 'Priority Tasks', 'Recent Notes', and 'New Google Drive Files' */}
     {/* ============================================================== */}
-    <div 
-      className="lg:col-span-5 xl:col-span-4 space-y-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto overscroll-contain pr-1 lg:pr-2.5 pb-12"
-      style={{ scrollbarGutter: 'stable' }}
-    >
+    <div className="lg:col-span-4 w-full min-w-0 space-y-6 lg:sticky lg:top-6 transition-all duration-300 ease-in-out">
       
       {/* Widget 1: Công việc ưu tiên & Deadline */}
       <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-4 sm:p-5 space-y-4">
@@ -3554,8 +3968,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Task list container */}
-          <div className="space-y-2.5">
+          {/* Task list container with custom scrollbar */}
+          <div className="space-y-2.5 max-h-[580px] overflow-y-auto pr-1">
             {filteredPriorityTasks.length === 0 ? (
               <div className="p-6 text-center bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2">
                 <CheckCircle2 className="w-7 h-7 text-[#555555] mx-auto" />
@@ -3935,28 +4349,201 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {files.length === 0 ? (
             <p className="text-xs text-[#666666] italic py-2">Chưa có tài liệu nào. Tải lên tệp tại mục Tài liệu & Drive.</p>
           ) : (
-            files.slice(0, 3).map(file => (
-            <div
-              key={file.id}
-              className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] flex items-center justify-between text-xs"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="p-1 rounded bg-[#1A1A1A] text-[#D4AF37] font-bold uppercase text-[9px] border border-[#2A2A2A]">
-                  {file.category}
-                </span>
-                <span className="text-[#E0E0E0] font-medium truncate">{file.name}</span>
-              </div>
-              <span className="text-[10px] text-[#777777] shrink-0 font-mono">{(file.size / 1024).toFixed(0)} KB</span>
-            </div>
-          )))}
+            files.slice(0, 4).map(file => {
+              const directLink = getFileDirectLink(file);
+              return (
+                <div
+                  key={file.id}
+                  onClick={() => setPreviewDriveFile(file)}
+                  className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] hover:border-[#D4AF37]/60 hover:bg-[#141414] flex items-center justify-between gap-2 text-xs transition-all cursor-pointer group"
+                  title="Nhấn để xem trước thông tin và mở liên kết trực tiếp"
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border shrink-0 ${getCategoryBadgeClass(file.category)}`}>
+                      {file.category}
+                    </span>
+                    <span className="text-[#E0E0E0] group-hover:text-white font-medium truncate">
+                      {file.name}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] text-[#777777] font-mono">
+                      {formatFileSize(file.size)}
+                    </span>
+                    <span
+                      className="p-1 rounded text-[#888888] group-hover:text-[#D4AF37] hover:bg-[#202020] transition-colors"
+                      title="Xem trước & mở liên kết"
+                    >
+                      {directLink ? <ExternalLink className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
     </div>
-    {/* End of Right Column (1/3 width) */}
+    {/* End of Right Column (33% width) */}
 
   </div>
   {/* End of 2-Column Cockpit Layout Grid */}
+
+  {/* Miniature Modal for Google Drive File Preview & Direct Link */}
+  {previewDriveFile && (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+      onClick={() => setPreviewDriveFile(null)}
+    >
+      <div
+        className="relative w-full max-w-md bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#2A2A2A] rounded-lg shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150 text-slate-800 dark:text-white"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-[#262626] pb-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-md bg-blue-50 text-blue-600 dark:bg-[#D4AF37]/10 dark:text-[#D4AF37] border border-blue-200 dark:border-[#D4AF37]/20 shrink-0">
+              <FolderSync className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${getCategoryBadgeClass(previewDriveFile.category)}`}>
+                  {previewDriveFile.category}
+                </span>
+                {previewDriveFile.classification && (
+                  <span className="text-[10px] text-slate-500 dark:text-[#888888] font-mono">
+                    • {previewDriveFile.classification}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate mt-1" title={previewDriveFile.name}>
+                {previewDriveFile.name}
+              </h3>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setPreviewDriveFile(null)}
+            className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-[#888888] dark:hover:text-white dark:hover:bg-[#202020] transition-colors cursor-pointer shrink-0"
+            title="Đóng xem trước"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Metadata Grid */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="p-2.5 rounded bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#222222] space-y-0.5">
+            <span className="text-[10px] text-slate-400 dark:text-[#777777] uppercase font-mono block">Dung lượng</span>
+            <span className="font-semibold text-slate-800 dark:text-[#E0E0E0] font-mono">
+              {formatFileSize(previewDriveFile.size)}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#222222] space-y-0.5">
+            <span className="text-[10px] text-slate-400 dark:text-[#777777] uppercase font-mono block">Ngày tải lên</span>
+            <span className="font-semibold text-slate-800 dark:text-[#E0E0E0] font-mono">
+              {new Date(previewDriveFile.uploadedAt).toLocaleDateString('vi-VN')}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#222222] space-y-0.5">
+            <span className="text-[10px] text-slate-400 dark:text-[#777777] uppercase font-mono block">Định dạng</span>
+            <span className="font-semibold text-slate-800 dark:text-[#E0E0E0] truncate block" title={previewDriveFile.mimeType}>
+              {previewDriveFile.mimeType.split('/').pop()?.toUpperCase() || 'FILE'}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#222222] space-y-0.5">
+            <span className="text-[10px] text-slate-400 dark:text-[#777777] uppercase font-mono block">Trạng thái Cloud</span>
+            <div className="flex items-center gap-1.5 font-semibold text-xs">
+              {previewDriveFile.isSyncedToDrive && (previewDriveFile.webViewLink || previewDriveFile.driveFileId) ? (
+                <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" /> Google Drive
+                </span>
+              ) : (
+                <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <HardDrive className="w-3.5 h-3.5" /> Local Vault
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Notes / Description Snippet */}
+        {(previewDriveFile.notes || previewDriveFile.description) && (
+          <div className="p-2.5 rounded bg-[#0E0E0E] border border-[#262626] space-y-1">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider">
+              <FileText className="w-3 h-3 text-[#D4AF37]" />
+              <span>Chú thích / Tóm tắt</span>
+            </div>
+            <p className="text-[11px] text-white italic line-clamp-3 leading-relaxed font-medium">
+              &ldquo;{previewDriveFile.notes || previewDriveFile.description}&rdquo;
+            </p>
+          </div>
+        )}
+
+        {/* Tags */}
+        {previewDriveFile.tags && previewDriveFile.tags.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {previewDriveFile.tags.map((tag, idx) => (
+              <span
+                key={idx}
+                className="text-[9px] px-2 py-0.5 rounded bg-slate-100 dark:bg-[#0D0D0D] border border-slate-200 dark:border-[#262626] text-slate-600 dark:text-[#A0A0A0] font-mono"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="pt-2 border-t border-slate-200 dark:border-[#262626] flex items-center gap-2">
+          {getFileDirectLink(previewDriveFile) ? (
+            <a
+              href={getFileDirectLink(previewDriveFile)!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-2 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:hover:bg-[#c29f2e] dark:text-black font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Mở trên Google Drive</span>
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('files');
+                setPreviewDriveFile(null);
+              }}
+              className="flex-1 py-2 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <FolderSync className="w-3.5 h-3.5" />
+              <span>Đồng bộ lên Drive</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('files');
+              setPreviewDriveFile(null);
+            }}
+            className="py-2 px-3 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#202020] dark:hover:bg-[#2A2A2A] dark:text-white border border-slate-200 dark:border-[#333333] text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+            title="Mở toàn màn hình trong Quản lý Tài liệu"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Chi tiết</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
     </div>
   );
 };

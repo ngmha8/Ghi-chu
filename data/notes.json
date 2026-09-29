@@ -1,65 +1,69 @@
 [
   {
+    "updatedAt": "2026-08-26T14:15:35.062Z",
+    "isPinned": false,
+    "createdAt": "2026-08-25T11:18:22.550Z",
+    "id": "note-1787656702550",
     "tags": [
       "Cá nhân"
     ],
-    "createdAt": "2026-08-25T11:18:22.550Z",
-    "linkedTaskIds": [
-      "task-1787656644725"
-    ],
-    "updatedAt": "2026-08-26T14:15:35.062Z",
     "title": "Kết nạp Đảng",
     "attachedFileIds": [],
-    "id": "note-1787656702550",
     "content": "Kết nạp Đảng viên dự bị tại cơ quan vào ngày 26/08/2026",
-    "isPinned": false
+    "linkedTaskIds": [
+      "task-1787656644725"
+    ]
   },
   {
-    "content": "Hồ sơ xin cấp chứng chỉ nhân viên bức xạ đã được nộp thành công vào ngày **27/08/2026**.\n\n### 📄 Tài liệu liên quan trong hệ thống:\n1. **Đơn đề nghị cấp Chứng chỉ NXBX (Mẫu số 05):**\n   * [Mẫu số 05-PL08-Mau Don de nghi cap Chung chi NXBX.docx](https://docs.google.com/document/d/1Y8syPh2gCENHCuU9nZTizNGttGF67v-s/edit?usp=drivesdk&ouid=117508515517163287358&rtpof=true&sd=true)\n2. **Văn bản xác nhận kinh nghiệm làm việc (Mẫu số 19):**\n   * [Mẫu số 19-PL07-Mau van ban xac nhan kinh nghiem lam viec.docx](https://docs.google.com/document/d/1UpTygtRAZ9g_cBpKvOpkN9jCfZ8N-xIQ/edit?usp=drivesdk&ouid=117508515517163287358&rtpof=true&sd=true)\n\n---\n*Ghi chú được tự động tạo và liên kết với công việc \"Xin cấp chứng chỉ nhân viên bức xạ\" (đã hoàn thành trước thời hạn 28/08/2026).*",
-    "title": "Đã nộp hồ sơ xin cấp chứng chỉ nhân viên bức xạ (27/08/2026)",
-    "isPinned": false,
-    "createdAt": "2026-08-27T08:28:57.476Z",
     "tags": [
       "Công việc",
       "NXBX",
       "Hồ sơ"
     ],
+    "createdAt": "2026-08-27T08:28:57.476Z",
+    "title": "Đã nộp hồ sơ xin cấp chứng chỉ nhân viên bức xạ (27/08/2026)",
+    "updatedAt": "2026-08-27T08:28:57.476Z",
     "linkedTaskIds": [],
     "attachedFileIds": [],
+    "isPinned": false,
     "id": "note-1787819337476",
-    "updatedAt": "2026-08-27T08:28:57.476Z"
+    "content": "Hồ sơ xin cấp chứng chỉ nhân viên bức xạ đã được nộp thành công vào ngày **27/08/2026**.\n\n### 📄 Tài liệu liên quan trong hệ thống:\n1. **Đơn đề nghị cấp Chứng chỉ NXBX (Mẫu số 05):**\n   * [Mẫu số 05-PL08-Mau Don de nghi cap Chung chi NXBX.docx](https://docs.google.com/document/d/1Y8syPh2gCENHCuU9nZTizNGttGF67v-s/edit?usp=drivesdk&ouid=117508515517163287358&rtpof=true&sd=true)\n2. **Văn bản xác nhận kinh nghiệm làm việc (Mẫu số 19):**\n   * [Mẫu số 19-PL07-Mau van ban xac nhan kinh nghiem lam viec.docx](https://docs.google.com/document/d/1UpTygtRAZ9g_cBpKvOpkN9jCfZ8N-xIQ/edit?usp=drivesdk&ouid=117508515517163287358&rtpof=true&sd=true)\n\n---\n*Ghi chú được tự động tạo và liên kết với công việc \"Xin cấp chứng chỉ nhân viên bức xạ\" (đã hoàn thành trước thời hạn 28/08/2026).*"
   },
   {
-    "createdAt": "2026-08-29T09:31:10.335Z",
+    "id": "note-1787995870335",
     "linkedTaskIds": [
       "task-1787713081768"
     ],
     "attachedFileIds": [],
-    "id": "note-1787995870335",
     "content": "Hoàn thành kiểm định máy chụp CLVT và kiểm xạ hai máy x quang + máy chụp CLVT",
-    "tags": [],
-    "isPinned": false,
+    "createdAt": "2026-08-29T09:31:10.335Z",
     "title": "Hoàn thành kiểm định máy chụp CLVT",
-    "updatedAt": "2026-08-29T09:31:10.335Z"
+    "updatedAt": "2026-08-29T09:31:10.335Z",
+    "tags": [],
+    "isPinned": false
   },
   {
-    "content": "Đi chụp x quang tại Nếnh, Việt Yên",
-    "isPinned": false,
-    "noteDate": "2026-09-24T00:21:00.000Z",
-    "title": "Đi chụp x quang tại Nếnh, Việt Yên",
     "createdAt": "2026-09-24T00:21:00.000Z",
+    "noteDate": "2026-09-24T00:21:00.000Z",
+    "updatedAt": "2026-09-24T08:19:30.401Z",
+    "id": "note-1790237970401",
+    "title": "Đi chụp x quang tại Nếnh, Việt Yên",
     "tags": [
       "Công việc"
     ],
     "attachedFileIds": [],
-    "updatedAt": "2026-09-24T08:19:30.401Z",
-    "id": "note-1790237970401",
-    "linkedTaskIds": []
+    "linkedTaskIds": [],
+    "isPinned": false,
+    "content": "Đi chụp x quang tại Nếnh, Việt Yên"
   },
   {
-    "content": "### 🎯 Mục tiêu & Kết quả hoàn thành\n- **Mục tiêu:** Gửi liều kế cá nhân của nhân viên X-quang đến đơn vị chuyên trách để đọc và báo cáo kết quả an toàn bức xạ định kỳ.\n- **Kết quả:** Đã hoàn tất xử lý và gửi thông tin/thiết bị theo đúng địa chỉ yêu cầu.\n\n### 📝 Nội dung & Điểm mấu chốt\n- **Cơ sở tiếp nhận:** Trung tâm Đánh giá Không phá hủy\n- **Địa chỉ:** 140 đường Nguyễn Tuân, phường Thanh Xuân Trung, quận Thanh Xuân, Hà Nội.\n- **Người tiếp nhận:** Vũ Xuân Thành\n- **Số điện thoại liên hệ:** 0834705874 - 0969227961\n\n### 💡 Bài học kinh nghiệm & Đúc kết\n- **Tối ưu thời gian xử lý:** Thời điểm hoàn thành (22:42) muộn hơn hạn chót dự kiến (19:17). Lần sau nên chủ động liên hệ đơn vị vận chuyển/bưu cục trong giờ hành chính để tránh phát sinh thời gian chờ muộn.\n- **Chuẩn hóa thông tin liên hệ:** Lưu thông tin anh Vũ Xuân Thành và Trung tâm Đánh giá Không phá hủy vào danh bạ đối tác cố định để tái sử dụng cho các đợt kiểm tra liều kế định kỳ tiếp theo.\n\n### 🚀 Gợi ý bước tiếp theo\n1. **Xác nhận giao nhận:** Liên hệ xác nhận với anh Vũ Xuân Thành khi bên tiếp nhận đã nhận đủ số lượng liều kế.\n2. **Theo dõi kết quả:** Tạo một nhắc nhở (Task/Reminder) để theo dõi thời hạn nhận lại báo cáo kết quả đọc liều.\n3. **Cập nhật hồ sơ:** Lưu báo cáo kết quả vào Hồ sơ An toàn Bức xạ của phòng khám/bệnh viện ngay khi nhận được.",
-    "updatedAt": "2026-09-25T15:43:30.710Z",
+    "attachedFileIds": [],
+    "noteDate": "2026-09-25T15:43:30.710Z",
     "title": "Tổng kết: Gửi liều kế cá nhân nhân viên X-quang đi đọc kết quả",
+    "linkedTaskIds": [
+      "task-1790080853521"
+    ],
+    "updatedAt": "2026-09-25T15:43:30.710Z",
     "tags": [
       "tong_ket",
       "hoan_thanh",
@@ -69,13 +73,9 @@
       "Công việc",
       "tong-ket"
     ],
-    "linkedTaskIds": [
-      "task-1790080853521"
-    ],
-    "attachedFileIds": [],
-    "createdAt": "2026-09-25T15:43:30.710Z",
     "isPinned": false,
-    "noteDate": "2026-09-25T15:43:30.710Z",
+    "content": "### 🎯 Mục tiêu & Kết quả hoàn thành\n- **Mục tiêu:** Gửi liều kế cá nhân của nhân viên X-quang đến đơn vị chuyên trách để đọc và báo cáo kết quả an toàn bức xạ định kỳ.\n- **Kết quả:** Đã hoàn tất xử lý và gửi thông tin/thiết bị theo đúng địa chỉ yêu cầu.\n\n### 📝 Nội dung & Điểm mấu chốt\n- **Cơ sở tiếp nhận:** Trung tâm Đánh giá Không phá hủy\n- **Địa chỉ:** 140 đường Nguyễn Tuân, phường Thanh Xuân Trung, quận Thanh Xuân, Hà Nội.\n- **Người tiếp nhận:** Vũ Xuân Thành\n- **Số điện thoại liên hệ:** 0834705874 - 0969227961\n\n### 💡 Bài học kinh nghiệm & Đúc kết\n- **Tối ưu thời gian xử lý:** Thời điểm hoàn thành (22:42) muộn hơn hạn chót dự kiến (19:17). Lần sau nên chủ động liên hệ đơn vị vận chuyển/bưu cục trong giờ hành chính để tránh phát sinh thời gian chờ muộn.\n- **Chuẩn hóa thông tin liên hệ:** Lưu thông tin anh Vũ Xuân Thành và Trung tâm Đánh giá Không phá hủy vào danh bạ đối tác cố định để tái sử dụng cho các đợt kiểm tra liều kế định kỳ tiếp theo.\n\n### 🚀 Gợi ý bước tiếp theo\n1. **Xác nhận giao nhận:** Liên hệ xác nhận với anh Vũ Xuân Thành khi bên tiếp nhận đã nhận đủ số lượng liều kế.\n2. **Theo dõi kết quả:** Tạo một nhắc nhở (Task/Reminder) để theo dõi thời hạn nhận lại báo cáo kết quả đọc liều.\n3. **Cập nhật hồ sơ:** Lưu báo cáo kết quả vào Hồ sơ An toàn Bức xạ của phòng khám/bệnh viện ngay khi nhận được.",
+    "createdAt": "2026-09-25T15:43:30.710Z",
     "id": "note-1790351010710"
   }
 ]

@@ -223,7 +223,7 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
               }`}
             >
               <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span>+ Thêm Phân Loại Mới</span>
+              <span>Thêm Phân Loại Mới</span>
             </button>
 
             <button

@@ -39,19 +39,6 @@ body {
   background: #D4AF37;
 }
 
-html.theme-light ::-webkit-scrollbar-track {
-  background: #F1F5F9;
-}
-
-html.theme-light ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 2px;
-}
-
-html.theme-light ::-webkit-scrollbar-thumb:hover {
-  background: #0F52BA;
-}
-
 /* ==========================================================================
    ARCHITECT.OS — SAPPHIRE EXECUTIVE LIGHT THEME (XANH & TRẮNG CHUYÊN NGHIỆP)
    Designed from a Web Architecture & AI Engineering perspective:
@@ -65,53 +52,59 @@ html.theme-light {
   color-scheme: light;
 }
 
+/* ==========================================================================
+   MODERN REFINED LIGHT THEME (MINIMALIST EXECUTIVE PRO)
+   Designed for optical balance, soft contrast, and zero eye strain
+   ========================================================================== */
+
+html.theme-light {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+  color-scheme: light;
+}
+
 html.theme-light body {
-  background-color: #F4F7FC !important;
+  background-color: #F8FAFC !important;
   color: #0F172A !important;
 }
 
 html.theme-light ::selection {
-  background-color: #0F52BA !important;
-  color: #FFFFFF !important;
+  background-color: #DBEAFE !important;
+  color: #1E3A8A !important;
 }
 
 /* Canvas & Header Architecture */
 html.theme-light header {
-  background-color: rgba(255, 255, 255, 0.96) !important;
+  background-color: rgba(255, 255, 255, 0.94) !important;
   border-bottom-color: #E2E8F0 !important;
   color: #0F172A !important;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05) !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04) !important;
+  backdrop-filter: blur(12px) !important;
 }
 
 html.theme-light .bg-\[\#0F0F0F\] {
-  background-color: #F4F7FC !important;
+  background-color: #F8FAFC !important;
 }
 
 html.theme-light .bg-\[\#0F0F0F\]\/95 {
-  background-color: rgba(255, 255, 255, 0.96) !important;
+  background-color: rgba(255, 255, 255, 0.95) !important;
 }
 
 html.theme-light .bg-\[\#0A0A0A\] {
-  background-color: #EDF3FA !important;
-}
-
-html.theme-light .bg-\[\#0C0C0C\] {
-  background-color: #FFFFFF !important;
-}
-
-html.theme-light .bg-\[\#0E0E0E\] {
-  background-color: #FFFFFF !important;
+  background-color: #F1F5F9 !important;
 }
 
 /* Surfaces, Cards, Modals & Drawers */
+html.theme-light .bg-\[\#101010\],
 html.theme-light .bg-\[\#111111\],
 html.theme-light .bg-\[\#121212\],
 html.theme-light .bg-\[\#141414\],
 html.theme-light .bg-\[\#151515\],
 html.theme-light .bg-\[\#161616\],
-html.theme-light .bg-\[\#181818\] {
+html.theme-light .bg-\[\#181818\],
+html.theme-light .bg-\[\#1A1A1A\] {
   background-color: #FFFFFF !important;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 4px 14px -2px rgba(15, 82, 186, 0.04) !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.03) !important;
 }
 
 /* Subtle Secondary Layers & Hover States */
@@ -131,12 +124,15 @@ html.theme-light .hover\:bg-\[\#1A1A1A\]:hover,
 html.theme-light .hover\:bg-\[\#1C1C1C\]:hover,
 html.theme-light .hover\:bg-\[\#1E1E1E\]:hover,
 html.theme-light .hover\:bg-\[\#202020\]:hover {
-  background-color: #E6EFFB !important;
+  background-color: #F1F5F9 !important;
 }
 
 /* Borders & Dividers */
 html.theme-light .border-\[\#2A2A2A\],
+html.theme-light .border-\[\#262626\],
+html.theme-light .border-\[\#252525\],
 html.theme-light .border-\[\#222222\],
+html.theme-light .border-\[\#1F1F1F\],
 html.theme-light .border-\[\#282828\],
 html.theme-light .border-\[\#2E2E2E\],
 html.theme-light .border-\[\#333333\],
@@ -144,12 +140,94 @@ html.theme-light .border-\[\#444444\] {
   border-color: #E2E8F0 !important;
 }
 
-html.theme-light .hover\:border-\[\#444444\]:hover {
+html.theme-light .hover\:border-\[\#444444\]:hover,
+html.theme-light .hover\:border-\[\#333333\]:hover,
+html.theme-light .hover\:border-\[\#383838\]:hover {
   border-color: #CBD5E1 !important;
 }
 
 html.theme-light .divide-\[\#222222\] > :not([hidden]) ~ :not([hidden]),
 html.theme-light .divide-\[\#2A2A2A\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #E2E8F0 !important;
+}
+
+/* ==========================================================================
+   SEGMENTED CONTROLS & SWITCHERS (Track + Floating White Active Pill)
+   Resolves the harsh electric blue block issue on 2D Scatter, 4 Cards, filters
+   ========================================================================== */
+
+/* Segmented Control Track */
+html.theme-light .bg-\[\#0C0C0C\],
+html.theme-light .bg-\[\#0E0E0E\] {
+  background-color: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+}
+
+/* Active Segmented Pill inside Track (White card + subtle shadow + dark text) */
+html.theme-light .bg-\[\#0C0C0C\] button.bg-\[\#D4AF37\],
+html.theme-light .bg-\[\#0C0C0C\] button.bg-\[\#2A2A2A\],
+html.theme-light .bg-\[\#0C0C0C\] button.bg-white,
+html.theme-light .bg-\[\#0E0E0E\] button.bg-\[\#D4AF37\],
+html.theme-light .bg-\[\#0E0E0E\] button.bg-\[\#2A2A2A\],
+html.theme-light .bg-\[\#0E0E0E\] button.bg-white {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.04) !important;
+  font-weight: 600 !important;
+}
+
+html.theme-light .bg-\[\#0C0C0C\] button.bg-\[\#D4AF37\] *,
+html.theme-light .bg-\[\#0C0C0C\] button.bg-\[\#2A2A2A\] *,
+html.theme-light .bg-\[\#0C0C0C\] button.bg-white * {
+  color: #0F172A !important;
+}
+
+html.theme-light .bg-\[\#0C0C0C\] button.bg-\[\#D4AF37\] svg,
+html.theme-light .bg-\[\#0C0C0C\] button.bg-\[\#2A2A2A\] svg,
+html.theme-light .bg-\[\#0C0C0C\] button.bg-white svg {
+  color: #2563EB !important;
+}
+
+/* Overdue tab active state inside segmented control */
+html.theme-light .bg-\[\#0C0C0C\] button.bg-rose-600 {
+  background-color: #FFE4E6 !important;
+  color: #BE123C !important;
+  border: 1px solid #FECDD3 !important;
+  box-shadow: 0 1px 2px rgba(190, 18, 60, 0.06) !important;
+  font-weight: 600 !important;
+}
+
+html.theme-light .bg-\[\#0C0C0C\] button.bg-rose-600 * {
+  color: #BE123C !important;
+}
+
+/* Inactive Segmented Buttons inside Track */
+html.theme-light .bg-\[\#0C0C0C\] button:not(.bg-\[\#D4AF37\]):not(.bg-\[\#2A2A2A\]):not(.bg-white):not(.bg-rose-600),
+html.theme-light .bg-\[\#0E0E0E\] button:not(.bg-\[\#D4AF37\]):not(.bg-\[\#2A2A2A\]):not(.bg-white):not(.bg-rose-600) {
+  background-color: transparent !important;
+  color: #64748B !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.theme-light .bg-\[\#0C0C0C\] button:not(.bg-\[\#D4AF37\]):not(.bg-\[\#2A2A2A\]):not(.bg-white):not(.bg-rose-600) * {
+  color: #64748B !important;
+}
+
+html.theme-light .bg-\[\#0C0C0C\] button:not(.bg-\[\#D4AF37\]):not(.bg-\[\#2A2A2A\]):not(.bg-white):not(.bg-rose-600):hover,
+html.theme-light .bg-\[\#0E0E0E\] button:not(.bg-\[\#D4AF37\]):not(.bg-\[\#2A2A2A\]):not(.bg-white):not(.bg-rose-600):hover {
+  background-color: rgba(255, 255, 255, 0.7) !important;
+  color: #0F172A !important;
+}
+
+html.theme-light .bg-\[\#0C0C0C\] button:not(.bg-\[\#D4AF37\]):not(.bg-\[\#2A2A2A\]):not(.bg-white):not(.bg-rose-600):hover * {
+  color: #0F172A !important;
+}
+
+/* Inset Chart Background Container (Scatter Plot / Radar Canvas) */
+html.theme-light div.bg-\[\#0C0C0C\] {
+  background-color: #F8FAFC !important;
   border-color: #E2E8F0 !important;
 }
 
@@ -172,64 +250,118 @@ html.theme-light textarea::placeholder {
   color: #94A3B8 !important;
 }
 
-/* Royal Sapphire Blue Accent System (Transformation from Gold to Sapphire Blue) */
+/* ==========================================================================
+   PRIMARY ACCENTS & STANDALONE ACTION BUTTONS
+   ========================================================================== */
+
+/* Accent Color (Replacing harsh #0F52BA with modern, balanced #2563EB) */
 html.theme-light .text-\[\#D4AF37\] {
-  color: #0F52BA !important;
+  color: #2563EB !important;
 }
 
 html.theme-light .hover\:text-\[\#D4AF37\]:hover {
-  color: #0A3E92 !important;
-}
-
-html.theme-light .bg-\[\#D4AF37\] {
-  background-color: #0F52BA !important;
-  color: #FFFFFF !important;
-}
-
-html.theme-light .bg-\[\#D4AF37\] * {
-  color: #FFFFFF !important;
-}
-
-html.theme-light .hover\:bg-\[\#c29f2e\]:hover {
-  background-color: #0A3E92 !important;
+  color: #1D4ED8 !important;
 }
 
 html.theme-light .border-\[\#D4AF37\] {
-  border-color: #0F52BA !important;
+  border-color: #2563EB !important;
 }
 
 html.theme-light .border-\[\#D4AF37\]\/30,
 html.theme-light .border-\[\#D4AF37\]\/40,
 html.theme-light .border-\[\#D4AF37\]\/50,
 html.theme-light .border-\[\#D4AF37\]\/60 {
-  border-color: #BFDBFE !important;
+  border-color: #DBEAFE !important;
 }
 
 html.theme-light .hover\:border-\[\#D4AF37\]\/50:hover,
 html.theme-light .hover\:border-\[\#D4AF37\]\/40:hover {
-  border-color: #0F52BA !important;
+  border-color: #2563EB !important;
 }
 
 html.theme-light .bg-\[\#D4AF37\]\/10,
 html.theme-light .bg-\[\#D4AF37\]\/15,
 html.theme-light .bg-\[\#D4AF37\]\/20 {
-  background-color: #EBF3FF !important;
-  color: #0F52BA !important;
+  background-color: #EFF6FF !important;
+  color: #1D4ED8 !important;
 }
 
 html.theme-light .bg-\[\#D4AF37\]\/10 *,
 html.theme-light .bg-\[\#D4AF37\]\/15 *,
 html.theme-light .bg-\[\#D4AF37\]\/20 * {
-  color: #0F52BA !important;
+  color: #1D4ED8 !important;
 }
 
 html.theme-light .focus\:border-\[\#D4AF37\]:focus {
-  border-color: #0F52BA !important;
-  box-shadow: 0 0 0 1px #0F52BA !important;
+  border-color: #2563EB !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
 }
 
-html.theme-light .shadow-\[0_2px_12px_rgba\(212\,175\,55\,0\.15\)\] {
-  box-shadow: 0 2px 12px rgba(15, 82, 186, 0.18) !important;
+/* Watermark Numbers on Stat Cards (01, 02, 03, 04) */
+html.theme-light .text-\[\#D4AF37\]\/10 {
+  color: rgba(37, 99, 235, 0.08) !important;
+}
+
+/* Primary Call-to-Action Buttons (e.g. Tóm Tắt AI, Tạo Task Mới outside segmented switchers) */
+html.theme-light button.bg-\[\#D4AF37\]:not(.bg-\[\#0C0C0C\] button):not(.bg-\[\#0E0E0E\] button) {
+  background-color: #0F172A !important;
+  color: #FFFFFF !important;
+  border: 1px solid #0F172A !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.12), 0 1px 2px -1px rgba(15, 23, 42, 0.08) !important;
+}
+
+html.theme-light button.bg-\[\#D4AF37\]:not(.bg-\[\#0C0C0C\] button):not(.bg-\[\#0E0E0E\] button) * {
+  color: #FFFFFF !important;
+}
+
+html.theme-light button.bg-\[\#D4AF37\]:not(.bg-\[\#0C0C0C\] button):not(.bg-\[\#0E0E0E\] button):hover,
+html.theme-light button.hover\:bg-\[\#c29f2e\]:hover {
+  background-color: #1E293B !important;
+  color: #FFFFFF !important;
+}
+
+/* Secondary Button Outline (e.g. Thoại 2 Chiều, Tạo Task) */
+html.theme-light button.text-\[\#D4AF37\].bg-\[\#151515\] {
+  background-color: #FFFFFF !important;
+  color: #2563EB !important;
+  border-color: #DBEAFE !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04) !important;
+}
+
+html.theme-light button.text-\[\#D4AF37\].bg-\[\#151515\]:hover {
+  background-color: #EFF6FF !important;
+  border-color: #BFDBFE !important;
+}
+
+html.theme-light button.text-\[\#E0E0E0\].bg-\[\#151515\] {
+  background-color: #FFFFFF !important;
+  color: #1E293B !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04) !important;
+}
+
+html.theme-light button.text-\[\#E0E0E0\].bg-\[\#151515\]:hover {
+  background-color: #F8FAFC !important;
+  border-color: #CBD5E1 !important;
+}
+
+/* Eisenhower Quadrant Filter Buttons in Light Mode */
+html.theme-light button.bg-rose-500 {
+  background-color: #FFE4E6 !important;
+  color: #BE123C !important;
+  border: 1px solid #FECDD3 !important;
+}
+
+html.theme-light button.bg-sky-500 {
+  background-color: #E0F2FE !important;
+  color: #0369A1 !important;
+  border: 1px solid #BAE6FD !important;
+}
+
+html.theme-light button.bg-slate-400 {
+  background-color: #F1F5F9 !important;
+  color: #334155 !important;
+  border: 1px solid #CBD5E1 !important;
 }
 
 /* High-Contrast Typographic Hierarchy */
@@ -270,27 +402,14 @@ html.theme-light .text-zinc-300 {
   color: #475569 !important;
 }
 
-/* Protect text colors on dark action buttons & status tags */
-html.theme-light button.bg-\[\#D4AF37\],
-html.theme-light button.bg-\[\#D4AF37\] span,
-html.theme-light .bg-\[\#D4AF37\] .text-black,
-html.theme-light .bg-blue-600,
-html.theme-light .bg-blue-600 span,
-html.theme-light .bg-emerald-600,
-html.theme-light .bg-emerald-600 span,
-html.theme-light .bg-red-600,
-html.theme-light .bg-red-600 span {
-  color: #FFFFFF !important;
-}
-
 /* Dropdown Menus & Modal Elevation */
 html.theme-light .shadow-2xl {
-  box-shadow: 0 20px 35px -8px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(226, 232, 240, 0.9) !important;
+  box-shadow: 0 20px 35px -8px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.9) !important;
 }
 
 /* Light Theme Scrollbars */
 html.theme-light ::-webkit-scrollbar-track {
-  background: #F4F7FC;
+  background: #F1F5F9;
 }
 
 html.theme-light ::-webkit-scrollbar-thumb {
@@ -299,7 +418,7 @@ html.theme-light ::-webkit-scrollbar-thumb {
 }
 
 html.theme-light ::-webkit-scrollbar-thumb:hover {
-  background: #0F52BA;
+  background: #94A3B8;
 }
 
 /* Badges & Status Pills in Light Mode */
@@ -333,9 +452,10 @@ html.theme-light .bg-rose-500\/20 {
   color: #BE123C !important;
 }
 
-/* Deadline & Countdown Status Badges in Light Mode (Fix dark-on-dark button issue) */
+/* Deadline & Countdown Status Badges in Light Mode */
 html.theme-light .bg-zinc-800\/80,
 html.theme-light .bg-zinc-800,
+html.theme-light .bg-zinc-800\/60,
 html.theme-light .bg-zinc-900 {
   background-color: #F1F5F9 !important;
   color: #334155 !important;
@@ -343,6 +463,7 @@ html.theme-light .bg-zinc-900 {
 }
 
 html.theme-light .bg-rose-950\/60,
+html.theme-light .bg-rose-950\/40,
 html.theme-light .bg-rose-950\/20,
 html.theme-light .bg-rose-950 {
   background-color: #FFF1F2 !important;
@@ -351,13 +472,15 @@ html.theme-light .bg-rose-950 {
 }
 
 html.theme-light .bg-amber-950\/60,
+html.theme-light .bg-amber-950\/40,
 html.theme-light .bg-amber-950 {
   background-color: #FFFBEB !important;
-  color: #B45309 !important;
+  color: #92400E !important;
   border-color: #FDE68A !important;
 }
 
 html.theme-light .bg-sky-950\/50,
+html.theme-light .bg-sky-950\/40,
 html.theme-light .bg-sky-950 {
   background-color: #F0F9FF !important;
   color: #0369A1 !important;
@@ -371,12 +494,94 @@ html.theme-light .bg-emerald-950 {
   border-color: #A7F3D0 !important;
 }
 
-/* Recharts Tooltip in Light Mode */
+html.theme-light .bg-teal-950\/40,
+html.theme-light .bg-teal-950 {
+  background-color: #F0FDFA !important;
+  color: #0F766E !important;
+  border-color: #99F6E4 !important;
+}
+
+html.theme-light .bg-purple-950\/40,
+html.theme-light .bg-purple-950 {
+  background-color: #FAF5FF !important;
+  color: #6D28D9 !important;
+  border-color: #E9D5FF !important;
+}
+
+html.theme-light .bg-indigo-950\/40,
+html.theme-light .bg-indigo-950 {
+  background-color: #EEF2FF !important;
+  color: #4338CA !important;
+  border-color: #C7D2FE !important;
+}
+
+html.theme-light .bg-cyan-950\/40,
+html.theme-light .bg-cyan-950 {
+  background-color: #ECFEFF !important;
+  color: #0E7490 !important;
+  border-color: #A5F3FC !important;
+}
+
+/* Document Card Annotation Notes, Tags & Inset Blocks in Light Mode */
+html.theme-light .bg-\[\#0B0B0B\],
+html.theme-light .bg-\[\#121008\] {
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+}
+
+html.theme-light .bg-\[\#0B0B0B\] p,
+html.theme-light .bg-\[\#121008\] p {
+  color: #334155 !important;
+}
+
+html.theme-light .bg-\[\#0A0A0A\],
+html.theme-light .bg-\[\#111111\] {
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+  color: #64748B !important;
+}
+
+html.theme-light .bg-\[\#0D0D0D\] {
+  background-color: #F1F5F9 !important;
+  color: #475569 !important;
+  border-color: #E2E8F0 !important;
+}
+
+html.theme-light .bg-\[\#262626\] {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+  border-color: #CBD5E1 !important;
+}
+
+/* ==========================================================================
+   RECHARTS VISUALIZATIONS IN LIGHT MODE
+   Clean, light-touch grid lines and readable crisp tooltips
+   ========================================================================== */
+
+html.theme-light .recharts-cartesian-grid line {
+  stroke: #E2E8F0 !important;
+  stroke-opacity: 0.9 !important;
+}
+
+html.theme-light .recharts-cartesian-axis-line {
+  stroke: #CBD5E1 !important;
+}
+
+html.theme-light .recharts-cartesian-axis-tick text {
+  fill: #64748B !important;
+  font-size: 11px !important;
+}
+
+html.theme-light .recharts-reference-line line {
+  stroke: #CBD5E1 !important;
+}
+
 html.theme-light .recharts-default-tooltip,
-html.theme-light .recharts-tooltip-wrapper .bg-\[\#181818\] {
+html.theme-light .recharts-tooltip-wrapper .bg-\[\#181818\],
+html.theme-light .recharts-tooltip-wrapper .bg-\[\#141414\] {
   background-color: #FFFFFF !important;
   border-color: #CBD5E1 !important;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 4px 6px -2px rgba(15, 23, 42, 0.05) !important;
   color: #0F172A !important;
 }
 

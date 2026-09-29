@@ -1258,7 +1258,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             title="Thêm phân loại mới"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>+ Nhóm mới</span>
+            <span>Nhóm mới</span>
           </button>
         </div>
       </div>
@@ -1647,15 +1647,15 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
 
                     {/* Popover Quick Category Selector */}
                     {isCategoryPopoverOpen && (
-                      <div className="absolute top-full left-0 mt-1 z-30 w-64 bg-[#181818] border border-[#3A3A3A] rounded shadow-2xl p-2.5 space-y-2 animate-in fade-in">
-                        <div className="text-[10px] font-bold text-[#AAAAAA] uppercase px-1 pb-1.5 border-b border-[#2A2A2A] flex items-center justify-between">
+                      <div className="absolute top-full left-0 mt-1 z-30 w-64 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#3A3A3A] rounded shadow-2xl p-2.5 space-y-2 animate-in fade-in">
+                        <div className="text-[10px] font-bold text-slate-500 dark:text-[#AAAAAA] uppercase px-1 pb-1.5 border-b border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
                           <span className="flex items-center gap-1">
-                            <Tag className="w-3 h-3 text-[#D4AF37]" />
+                            <Tag className="w-3 h-3 text-blue-600 dark:text-[#D4AF37]" />
                             <span>Phân loại tài liệu</span>
                           </span>
                           <button
                             onClick={() => setOpenCategoryPopoverFileId(null)}
-                            className="text-[#666666] hover:text-white cursor-pointer px-1 text-xs"
+                            className="text-slate-400 hover:text-slate-700 dark:text-[#666666] dark:hover:text-white cursor-pointer px-1 text-xs"
                           >
                             ✕
                           </button>
@@ -1673,8 +1673,8 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                                 key={cat.id}
                                 className={`group/catitem w-full px-2 py-1.5 rounded text-xs flex items-center justify-between transition-colors ${
                                   isCurrent
-                                    ? 'bg-[#262626] text-white font-bold border border-[#404040]'
-                                    : 'text-[#CCCCCC] hover:bg-[#202020] border border-transparent'
+                                    ? 'bg-slate-100 text-slate-900 border border-slate-300 dark:bg-[#262626] dark:text-white dark:border-[#404040] font-bold shadow-xs'
+                                    : 'text-slate-600 hover:bg-slate-50 border border-transparent dark:text-[#CCCCCC] dark:hover:bg-[#202020]'
                                 }`}
                               >
                                 <button
@@ -1687,7 +1687,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                                     {renderCategoryIcon(cat.icon, 'w-3.5 h-3.5 shrink-0')}
                                     <span className="truncate">{cat.name}</span>
                                   </span>
-                                  {isCurrent && <Check className="w-3.5 h-3.5 text-[#D4AF37] shrink-0 ml-auto mr-1" />}
+                                  {isCurrent && <Check className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37] shrink-0 ml-auto mr-1" />}
                                 </button>
 
                                 {/* Delete button on the right */}
@@ -1697,7 +1697,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                                     e.stopPropagation();
                                     handleRequestDeleteCategory(cat);
                                   }}
-                                  className="p-1 text-[#666666] hover:text-rose-400 hover:bg-rose-950/60 rounded transition-all cursor-pointer shrink-0 opacity-60 group-hover/catitem:opacity-100 ml-1"
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:text-[#666666] dark:hover:text-rose-400 dark:hover:bg-rose-950/60 rounded transition-all cursor-pointer shrink-0 opacity-60 group-hover/catitem:opacity-100 ml-1"
                                   title={`Xóa phân loại "${cat.name}"${catDocCount > 0 ? ` (đang có ${catDocCount} tài liệu)` : ''}`}
                                 >
                                   <Trash2 className="w-3 h-3" />
@@ -1708,7 +1708,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                         </div>
 
                         {/* Direct New Category Input Form */}
-                        <div className="pt-2 border-t border-[#2A2A2A]">
+                        <div className="pt-2 border-t border-slate-200 dark:border-[#2A2A2A]">
                           <form
                             onSubmit={(e) => {
                               e.preventDefault();
@@ -1723,12 +1723,12 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                               placeholder="+ Nhập phân loại mới..."
                               value={popoverNewCatInput}
                               onChange={(e) => setPopoverNewCatInput(e.target.value)}
-                              className="flex-1 px-2.5 py-1.5 bg-[#0C0C0C] border border-[#333333] rounded text-[11px] text-[#E0E0E0] placeholder:text-[#666666] focus:outline-none focus:border-[#D4AF37]"
+                              className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#333333] rounded text-[11px] text-slate-800 dark:text-[#E0E0E0] placeholder:text-slate-400 dark:placeholder:text-[#666666] focus:outline-none focus:border-blue-500 dark:focus:border-[#D4AF37]"
                             />
                             <button
                               type="submit"
                               disabled={!popoverNewCatInput.trim()}
-                              className="px-2.5 py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] disabled:opacity-30 disabled:cursor-not-allowed text-black font-bold rounded text-xs shrink-0 cursor-pointer flex items-center justify-center shadow-xs"
+                              className="px-2.5 py-1.5 bg-slate-900 dark:bg-[#D4AF37] hover:bg-slate-800 dark:hover:bg-[#c29f2e] disabled:opacity-30 disabled:cursor-not-allowed text-white dark:text-black font-bold rounded text-xs shrink-0 cursor-pointer flex items-center justify-center shadow-xs"
                               title="Tạo và gán phân loại mới"
                             >
                               <Plus className="w-3.5 h-3.5 stroke-[3]" />
@@ -1743,21 +1743,26 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                   {file.notes || file.description ? (
                     <div
                       onClick={() => handleOpenEditNote(file)}
-                      className={`p-2 rounded-sm bg-[#0B0B0B] border hover:border-[#D4AF37]/60 transition-all cursor-pointer group/notebox ${
+                      className={`p-2.5 rounded-sm bg-[#0E0E0E] border hover:border-[#D4AF37] transition-all cursor-pointer group/notebox shadow-xs ${
                         search.trim() && (
                           (file.notes && file.notes.toLowerCase().includes(search.toLowerCase().trim())) ||
                           (file.description && file.description.toLowerCase().includes(search.toLowerCase().trim()))
                         )
-                          ? 'border-[#D4AF37] ring-1 ring-[#D4AF37]/30 bg-[#121008]'
-                          : 'border-[#222222]'
+                          ? 'border-[#D4AF37] ring-1 ring-[#D4AF37]/40 bg-[#161408]'
+                          : 'border-[#262626]'
                       }`}
                       title="Bấm vào để chỉnh sửa chú thích tài liệu"
                     >
                       <div className="flex items-start gap-1.5 text-xs">
-                        <NotebookPen className="w-3 h-3 text-[#D4AF37] shrink-0 mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] text-[#CFCFCF] group-hover/notebox:text-white line-clamp-2 leading-relaxed italic">
-                            "{file.notes || file.description}"
+                        <NotebookPen className="w-3.5 h-3.5 text-[#D4AF37] shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-mono uppercase font-bold text-[#D4AF37] tracking-wider">
+                              Chú thích
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-white group-hover/notebox:text-white line-clamp-2 leading-relaxed italic font-medium">
+                            &ldquo;{file.notes || file.description}&rdquo;
                           </p>
                         </div>
                       </div>
@@ -1766,48 +1771,24 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     <button
                       type="button"
                       onClick={() => handleOpenEditNote(file)}
-                      className="w-full text-left px-2 py-1 rounded bg-[#0A0A0A] hover:bg-[#111111] border border-dashed border-[#262626] hover:border-[#D4AF37]/40 text-[10px] text-[#777777] hover:text-[#D4AF37] flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full text-left px-2.5 py-1.5 rounded-sm bg-[#0E0E0E] hover:bg-[#181818] border border-dashed border-[#2C2C2C] hover:border-[#D4AF37]/60 text-[11px] text-white hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer group/addnote"
                       title="Thêm chú thích giúp tìm kiếm tài liệu nhanh hơn"
                     >
-                      <Plus className="w-3 h-3 text-[#555555]" />
-                      <span>+ Thêm chú thích tìm kiếm...</span>
+                      <Plus className="w-3.5 h-3.5 text-[#D4AF37] group-hover/addnote:scale-110 transition-transform" />
+                      <span className="text-white/95 font-medium group-hover/addnote:text-[#D4AF37]">Thêm chú thích tìm kiếm...</span>
                     </button>
-                  )}
-
-                  {/* Document Custom Tags (excluding unclassified or category name duplicates) */}
-                  {file.tags && file.tags.filter(t => {
-                    const clean = t.toLowerCase().trim();
-                    return clean && clean !== 'unclassified' && clean !== 'chưa xác định' && clean !== 'chưa phân loại' && clean !== resolvedCat.name.toLowerCase() && clean !== resolvedCat.id.toLowerCase();
-                  }).length > 0 && (
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {file.tags
-                        .filter(t => {
-                          const clean = t.toLowerCase().trim();
-                          return clean && clean !== 'unclassified' && clean !== 'chưa xác định' && clean !== 'chưa phân loại' && clean !== resolvedCat.name.toLowerCase() && clean !== resolvedCat.id.toLowerCase();
-                        })
-                        .map((t, idx) => (
-                          <span
-                            key={idx}
-                            onClick={() => setSearch(`#${t}`)}
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-[#0D0D0D] border border-[#262626] text-[#A0A0A0] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 font-mono transition-colors cursor-pointer"
-                            title={`Bấm để lọc theo #${t}`}
-                          >
-                            #{t}
-                          </span>
-                        ))}
-                    </div>
                   )}
 
                   {/* Linked indicators */}
                   {(linkedTasks.length > 0 || linkedNotes.length > 0) && (
-                    <div className="flex items-center gap-2 text-[10px] text-[#888888]">
+                    <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-[#888888]">
                       {linkedTasks.length > 0 && (
-                        <span className="bg-[#0C0C0C] px-1.5 py-0.5 rounded border border-[#2A2A2A] text-emerald-400">
+                        <span className="bg-emerald-50 dark:bg-[#0C0C0C] px-1.5 py-0.5 rounded border border-emerald-200 dark:border-[#2A2A2A] text-emerald-700 dark:text-emerald-400">
                           ⚡ {linkedTasks.length} task
                         </span>
                       )}
                       {linkedNotes.length > 0 && (
-                        <span className="bg-[#0C0C0C] px-1.5 py-0.5 rounded border border-[#2A2A2A] text-[#D4AF37]">
+                        <span className="bg-amber-50 dark:bg-[#0C0C0C] px-1.5 py-0.5 rounded border border-amber-200 dark:border-[#2A2A2A] text-amber-800 dark:text-[#D4AF37]">
                           📝 {linkedNotes.length} note
                         </span>
                       )}
@@ -2058,16 +2039,16 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                   </button>
                 </div>
                 {previewFile.notes || previewFile.description ? (
-                  <p className="text-xs text-[#E0E0E0] italic leading-relaxed bg-[#121212] p-2.5 rounded border border-[#222222]">
-                    "{previewFile.notes || previewFile.description}"
+                  <p className="text-xs text-white leading-relaxed bg-[#141414] p-2.5 rounded border border-[#262626] font-medium">
+                    &ldquo;{previewFile.notes || previewFile.description}&rdquo;
                   </p>
                 ) : (
-                  <div className="flex items-center justify-between bg-[#121212] p-2.5 rounded border border-dashed border-[#222222]">
-                    <span className="text-xs text-[#777777]">Chưa có chú thích nào cho tài liệu này.</span>
+                  <div className="flex items-center justify-between bg-[#141414] p-2.5 rounded border border-dashed border-[#262626]">
+                    <span className="text-xs text-[#E0E0E0]">Chưa có chú thích nào cho tài liệu này.</span>
                     <button
                       type="button"
                       onClick={() => handleOpenEditNote(previewFile)}
-                      className="px-2 py-1 bg-[#1A1A1A] hover:bg-[#D4AF37] text-[#D4AF37] hover:text-black font-bold text-[10px] uppercase tracking-wider rounded transition-colors cursor-pointer"
+                      className="px-2 py-1 bg-[#222222] hover:bg-[#D4AF37] text-white hover:text-black font-bold text-[10px] uppercase tracking-wider rounded transition-colors cursor-pointer"
                     >
                       + Thêm chú thích ngay
                     </button>

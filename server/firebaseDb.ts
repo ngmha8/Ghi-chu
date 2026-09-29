@@ -396,45 +396,57 @@ export async function initializeFirestoreData() {
     }
 
     // 5. Sync Telegram Config
-    const tgDocSnap = await getDoc(doc(firestoreDb, 'config', 'telegram'));
-    if (tgDocSnap.exists()) {
-      cachedTelegramConfig = { ...cachedTelegramConfig, ...(tgDocSnap.data() as TelegramConfig) };
-      console.log(`📥 Loaded Telegram Config from Firebase Firestore.`);
-    } else {
-      await firestoreSetDoc('config', 'telegram', cachedTelegramConfig);
+    try {
+      const tgDocSnap = await getDoc(doc(firestoreDb, 'config', 'telegram'));
+      if (tgDocSnap.exists()) {
+        cachedTelegramConfig = { ...cachedTelegramConfig, ...(tgDocSnap.data() as TelegramConfig) };
+        console.log(`📥 Loaded Telegram Config from Firebase Firestore.`);
+      } else {
+        await firestoreSetDoc('config', 'telegram', cachedTelegramConfig);
+      }
+    } catch (e) {
+      console.warn('Telegram config cloud sync warning:', e);
     }
 
     // 6. Sync Google Drive Service Account Config
-    const saDocSnap = await getDoc(doc(firestoreDb, 'config', 'drive_service_account'));
-    if (saDocSnap.exists()) {
-      cachedDriveServiceAccountConfig = { ...cachedDriveServiceAccountConfig, ...(saDocSnap.data() as DriveServiceAccountConfig) };
-      console.log(`📥 Loaded Google Drive Service Account Config from Firebase Firestore.`);
-    } else if (cachedDriveServiceAccountConfig.clientEmail) {
-      await firestoreSetDoc('config', 'drive_service_account', cachedDriveServiceAccountConfig);
+    try {
+      const saDocSnap = await getDoc(doc(firestoreDb, 'config', 'drive_service_account'));
+      if (saDocSnap.exists()) {
+        cachedDriveServiceAccountConfig = { ...cachedDriveServiceAccountConfig, ...(saDocSnap.data() as DriveServiceAccountConfig) };
+        console.log(`📥 Loaded Google Drive Service Account Config from Firebase Firestore.`);
+      } else if (cachedDriveServiceAccountConfig.clientEmail) {
+        await firestoreSetDoc('config', 'drive_service_account', cachedDriveServiceAccountConfig);
+      }
+    } catch (e) {
+      console.warn('Drive service account cloud sync warning:', e);
     }
 
     // 7. Sync Security PIN Settings
-    const pinDocSnap = await getDoc(doc(firestoreDb, 'settings', 'security_pin'));
-    if (pinDocSnap.exists()) {
-      const cloudPin = pinDocSnap.data() as any;
-      if (cloudPin.pinHash && cloudPin.salt) {
-        cachedSecurityPinConfig = { ...cachedSecurityPinConfig, ...cloudPin };
-      } else if (cloudPin.pin) {
-        console.log('🔒 Auto-migrating Firestore legacy plaintext PIN to Salted SHA-256...');
-        const migrated = hashPinWithSalt(cloudPin.pin.toString());
-        cachedSecurityPinConfig = {
-          ...cachedSecurityPinConfig,
-          ...cloudPin,
-          pinHash: migrated.hash,
-          salt: migrated.salt,
-          updatedAt: new Date().toISOString(),
-        };
-        delete (cachedSecurityPinConfig as any).pin;
+    try {
+      const pinDocSnap = await getDoc(doc(firestoreDb, 'settings', 'security_pin'));
+      if (pinDocSnap.exists()) {
+        const cloudPin = pinDocSnap.data() as any;
+        if (cloudPin.pinHash && cloudPin.salt) {
+          cachedSecurityPinConfig = { ...cachedSecurityPinConfig, ...cloudPin };
+        } else if (cloudPin.pin) {
+          console.log('🔒 Auto-migrating Firestore legacy plaintext PIN to Salted SHA-256...');
+          const migrated = hashPinWithSalt(cloudPin.pin.toString());
+          cachedSecurityPinConfig = {
+            ...cachedSecurityPinConfig,
+            ...cloudPin,
+            pinHash: migrated.hash,
+            salt: migrated.salt,
+            updatedAt: new Date().toISOString(),
+          };
+          delete (cachedSecurityPinConfig as any).pin;
+          await firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
+        }
+        console.log(`📥 Loaded & Verified Security PIN Config (Salted SHA-256) from Firebase Firestore.`);
+      } else {
         await firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
       }
-      console.log(`📥 Loaded & Verified Security PIN Config (Salted SHA-256) from Firebase Firestore.`);
-    } else {
-      await firestoreSetDoc('settings', 'security_pin', cachedSecurityPinConfig);
+    } catch (e) {
+      console.warn('Security PIN cloud sync warning:', e);
     }
 
     // 8. Sync AI Learned Memories (Self-Learning Memory Store)

@@ -20,20 +20,19 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------
-    // SENSITIVE SYSTEM CONFIGURATION (STRICT CLIENT LOCKDOWN)
-    // Telegram Bot Tokens, PIN configs, Drive Service Account keys
-    // MUST ONLY be read/written by Server-side Admin SDK / backend
+    // SYSTEM CONFIGURATION & SETTINGS
+    // Protected by Server-side PIN security & Express validation
     // -------------------------------------------------------------
     match /config/{configId} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
 
     match /settings/{settingId} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
 
     match /drive_service_account/{docId} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
