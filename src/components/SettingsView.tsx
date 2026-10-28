@@ -1503,12 +1503,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <h3 className="text-sm font-bold text-white uppercase tracking-wider">
                       Đăng Nhập Google Cá Nhân (1-Click Google OAuth)
                     </h3>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 font-mono font-bold border border-emerald-800">
-                      Tiện Lợi Nhất ⭐
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-[#1A1A1A] text-[#AAAAAA] font-mono border border-[#333333]">
+                      Tùy chọn phụ
                     </span>
                   </div>
                   <p className="text-xs text-[#AAAAAA] mt-0.5">
-                    Đăng nhập tài khoản Google của bạn để <strong className="text-emerald-400">đẩy file lưu cục bộ trực tiếp lên Google Drive cá nhân</strong> chỉ với 1 click.
+                    Đăng nhập tài khoản Google của bạn nếu muốn đẩy file trực tiếp vào Drive riêng thay vì dùng tài khoản dịch vụ chung.
                   </p>
                 </div>
               </div>
@@ -1520,6 +1520,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     <span>Đã kết nối: <strong>{googleUser.email}</strong></span>
                   </div>
+                ) : saConfig?.isConnected ? (
+                  <span className="text-xs bg-emerald-950/80 text-emerald-400 border border-emerald-700/80 px-3 py-1.5 rounded font-mono flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Đã có Service Account thay thế</span>
+                  </span>
                 ) : (
                   <span className="text-xs bg-[#0C0C0C] text-[#888888] border border-[#2A2A2A] px-3 py-1.5 rounded font-mono">
                     Chưa đăng nhập
@@ -1527,6 +1532,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 )}
               </div>
             </div>
+
+            {saConfig?.isConnected && (
+              <div className="p-3 bg-emerald-950/50 border border-emerald-600/70 rounded text-xs text-emerald-300 flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  <strong>Hệ thống đã kết nối Google Drive tự động qua Service Account!</strong> Mọi thiết bị khi nhập đúng mã PIN đều tự động tải và đồng bộ tới thư mục "{saConfig.folderName || 'AI Assistant Documents'}". Bạn <strong>không cần</strong> phải đăng nhập Google cá nhân ở đây.
+                </span>
+              </div>
+            )}
 
             {/* Google OAuth 2.0 Client ID Input Block */}
             <div className="p-4 rounded bg-[#0C0C0C] border border-[#262626] space-y-3">

@@ -13,6 +13,7 @@ import {
   deletePersistentBinary,
   UPLOADS_DIR,
 } from '../storageService.ts';
+import { uploadFileToDriveFolder } from '../googleDriveServiceAccount.ts';
 import { syncAndVectorizeAllDocuments } from '../embeddingService.ts';
 import type { DriveFile } from '../../src/types/index.ts';
 
@@ -221,10 +222,7 @@ router.post('/sync-drive/:id', async (req: Request, res: Response) => {
 router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Thiếu Google OAuth Access Token. Vui lòng bấm Đăng Nhập Google để kết nối.' });
-    }
-    const userToken = authHeader.substring(7);
+    let userToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
     const fileId = req.params.id;
     const targetFolderId = req.body?.folderId;
     const directBase64 = req.body?.base64Data;
@@ -278,6 +276,44 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
         const textFallback = `--- TÀI LIỆU HỆ THỐNG: ${file.name} ---\nPhân loại: ${file.classification || 'Tài liệu'}\nKích thước: ${file.size} bytes\nThời gian: ${file.uploadedAt}\n\nTài liệu được lưu trữ và đồng bộ hóa tự động bởi AI Personal Assistant Vault.`;
         fileBuffer = Buffer.from(textFallback, 'utf-8');
       }
+    }
+
+    // If no user OAuth token provided, check if Service Account is configured
+    if (!userToken) {
+      const saConfig = await getDbDriveServiceAccountConfig();
+      if (saConfig?.clientEmail && saConfig?.privateKey && (targetFolderId || saConfig?.folderId)) {
+        const uploadRes = await uploadFileToDriveFolder(
+          {
+            ...saConfig,
+            folderId: targetFolderId || saConfig.folderId,
+          },
+          file.name,
+          file.mimeType || 'application/octet-stream',
+          fileBuffer
+        );
+
+        if (uploadRes.uploadedToDrive && uploadRes.id) {
+          const updated: DriveFile = {
+            ...file,
+            driveFileId: uploadRes.id,
+            webViewLink: uploadRes.webViewLink || `https://drive.google.com/file/d/${uploadRes.id}/view`,
+            isSyncedToDrive: true,
+            syncStatus: 'synced',
+            syncError: undefined,
+          };
+          const saved = await saveDbFile(updated);
+          return res.json({
+            success: true,
+            file: saved,
+            driveResult: uploadRes,
+            viaServiceAccount: true,
+          });
+        }
+      }
+
+      return res.status(401).json({
+        error: 'Chưa có kết nối Google Drive. Vui lòng kiểm tra lại cấu hình Service Account trong Cài Đặt.',
+      });
     }
 
     const metadata: { name: string; mimeType: string; parents?: string[] } = {

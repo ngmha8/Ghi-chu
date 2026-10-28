@@ -11,21 +11,16 @@ export async function uploadLocalFileToUserGoogleDrive(
 ): Promise<{ driveFileId: string; webViewLink: string; file: any }> {
   let token = getGoogleAccessToken();
 
-  if (!token) {
-    // Interactive 1-click prompt
-    const authResult = await signInWithGoogleWorkspace();
-    if (!authResult || !authResult.accessToken) {
-      throw new Error('Vui lòng đăng nhập tài khoản Google để cấp quyền tải lên Google Drive');
-    }
-    token = authResult.accessToken;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   const res = await fetch(`/api/files/upload-to-user-drive/${fileId}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
     body: JSON.stringify({ folderId: targetFolderId, base64Data }),
   });
 

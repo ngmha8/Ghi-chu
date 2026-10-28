@@ -1065,8 +1065,28 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Google Account 1-Click Connection Status */}
-          {googleUser ? (
+          {/* Google Drive Status (Prioritize Service Account Auto-Connected) */}
+          {saConfig?.isConnected ? (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-emerald-950/70 border border-emerald-600/80 text-[11px] font-mono text-emerald-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="font-bold">Drive:</span>
+                <span className="text-white font-semibold truncate max-w-[160px]" title={saConfig.folderName || 'Thư mục Drive'}>
+                  {saConfig.folderName || 'AI Assistant Documents'}
+                </span>
+                <span className="text-[10px] bg-emerald-900/80 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/40">Tự động</span>
+              </div>
+              <button
+                onClick={handleUnifiedSyncDriveFiles}
+                disabled={isSyncingSa}
+                className="px-3 py-1.5 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] hover:text-white border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                title="Quét và đồng bộ toàn bộ tài liệu từ Google Drive vào hệ thống"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSa ? 'animate-spin' : ''}`} />
+                <span>{isSyncingSa ? 'Đang quét...' : 'Đồng Bộ Drive'}</span>
+              </button>
+            </div>
+          ) : googleUser ? (
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm bg-emerald-950/60 border border-emerald-700/80 text-[11px] font-mono text-emerald-400">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span className="truncate max-w-[140px]" title={googleUser.email || ''}>
