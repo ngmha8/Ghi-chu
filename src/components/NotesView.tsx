@@ -361,8 +361,8 @@ export const NotesView: React.FC<NotesViewProps> = ({
                       <Pin className="w-3.5 h-3.5 text-[#D4AF37] absolute top-3 right-3 fill-[#D4AF37]" />
                     )}
 
-                    <h3 className="text-xs font-editorial-serif font-bold text-white pr-6 truncate">{note.title || 'Ghi chú chưa đặt tên'}</h3>
-                    <p className="text-[11px] font-editorial-serif italic text-[#AAAAAA] line-clamp-2 mt-1 leading-relaxed">"{note.content || 'Nội dung trống...'}"</p>
+                    <h3 className="text-xs font-editorial-serif font-bold text-slate-900 dark:text-white pr-6 truncate">{note.title || 'Ghi chú chưa đặt tên'}</h3>
+                    <p className="text-[11px] font-editorial-serif italic text-slate-800 dark:text-[#AAAAAA] line-clamp-2 mt-1 leading-relaxed">"{note.content || 'Nội dung trống...'}"</p>
 
                     <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[#2A2A2A]">
                       <span className="text-[10px] font-mono text-[#888888] flex items-center gap-1" title="Thời gian ghi chú">
@@ -522,7 +522,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
               {/* Note Content Editor / Preview */}
               {isPreviewMode ? (
-                <div className="min-h-[350px] p-4 bg-[#0C0C0C] rounded-sm border border-[#2A2A2A] text-sm text-[#D0D0D0] whitespace-pre-wrap leading-relaxed font-sans">
+                <div className="min-h-[350px] p-4 bg-[#0C0C0C] rounded-sm border border-[#2A2A2A] text-sm text-[#D0D0D0] whitespace-pre-wrap leading-relaxed font-sans shadow-inner">
                   {editorContent || 'Chưa có nội dung...'}
                 </div>
               ) : (

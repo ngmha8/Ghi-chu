@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-serif: "Playfair Display", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
@@ -82,8 +84,11 @@ html.theme-light header {
   backdrop-filter: blur(12px) !important;
 }
 
-html.theme-light .bg-\[\#0F0F0F\] {
+html.theme-light .bg-\[\#0F0F0F\],
+html.theme-light .bg-\[\#090909\],
+html.theme-light .bg-\[\#050505\] {
   background-color: #F8FAFC !important;
+  color: #0F172A !important;
 }
 
 html.theme-light .bg-\[\#0F0F0F\]\/95 {
@@ -95,6 +100,7 @@ html.theme-light .bg-\[\#0A0A0A\] {
 }
 
 /* Surfaces, Cards, Modals & Drawers */
+html.theme-light .bg-\[\#0C0C0C\],
 html.theme-light .bg-\[\#101010\],
 html.theme-light .bg-\[\#111111\],
 html.theme-light .bg-\[\#121212\],
@@ -303,14 +309,17 @@ html.theme-light .text-\[\#D4AF37\]\/10 {
 }
 
 /* Primary Call-to-Action Buttons (e.g. Tóm Tắt AI, Tạo Task Mới outside segmented switchers) */
-html.theme-light button.bg-\[\#D4AF37\]:not(.bg-\[\#0C0C0C\] button):not(.bg-\[\#0E0E0E\] button) {
+html.theme-light button.bg-\[\#D4AF37\]:not(.bg-\[\#0C0C0C\] button):not(.bg-\[\#0E0E0E\] button),
+html.theme-light button.bg-\[\#c29f2e\] {
   background-color: #0F172A !important;
   color: #FFFFFF !important;
   border: 1px solid #0F172A !important;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.12), 0 1px 2px -1px rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.16), 0 1px 2px -1px rgba(15, 23, 42, 0.1) !important;
+  font-weight: 700 !important;
 }
 
-html.theme-light button.bg-\[\#D4AF37\]:not(.bg-\[\#0C0C0C\] button):not(.bg-\[\#0E0E0E\] button) * {
+html.theme-light button.bg-\[\#D4AF37\]:not(.bg-\[\#0C0C0C\] button):not(.bg-\[\#0E0E0E\] button) *,
+html.theme-light button.bg-\[\#c29f2e\] * {
   color: #FFFFFF !important;
 }
 
@@ -320,86 +329,270 @@ html.theme-light button.hover\:bg-\[\#c29f2e\]:hover {
   color: #FFFFFF !important;
 }
 
+/* Secondary & Neutral Buttons with crisp solid borders */
+html.theme-light button.bg-\[\#0C0C0C\],
+html.theme-light button.bg-\[\#0E0E0E\],
+html.theme-light button.bg-\[\#141414\],
+html.theme-light button.bg-\[\#151515\],
+html.theme-light button.bg-\[\#1A1A1A\],
+html.theme-light button.bg-\[\#1C1C1C\],
+html.theme-light button.bg-\[\#222222\],
+html.theme-light button.bg-\[\#2A2A2A\] {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border: 1px solid #CBD5E1 !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05) !important;
+  font-weight: 600 !important;
+}
+
+html.theme-light button.bg-\[\#0C0C0C\] *,
+html.theme-light button.bg-\[\#0E0E0E\] *,
+html.theme-light button.bg-\[\#141414\] *,
+html.theme-light button.bg-\[\#151515\] *,
+html.theme-light button.bg-\[\#1A1A1A\] *,
+html.theme-light button.bg-\[\#1C1C1C\] *,
+html.theme-light button.bg-\[\#222222\] *,
+html.theme-light button.bg-\[\#2A2A2A\] * {
+  color: #0F172A !important;
+}
+
+html.theme-light button.bg-\[\#0C0C0C\]:hover,
+html.theme-light button.bg-\[\#0E0E0E\]:hover,
+html.theme-light button.bg-\[\#141414\]:hover,
+html.theme-light button.bg-\[\#151515\]:hover,
+html.theme-light button.bg-\[\#1A1A1A\]:hover,
+html.theme-light button.bg-\[\#1C1C1C\]:hover,
+html.theme-light button.bg-\[\#222222\]:hover,
+html.theme-light button.bg-\[\#2A2A2A\]:hover {
+  background-color: #F1F5F9 !important;
+  border-color: #94A3B8 !important;
+  color: #0F172A !important;
+}
+
 /* Secondary Button Outline (e.g. Thoại 2 Chiều, Tạo Task) */
-html.theme-light button.text-\[\#D4AF37\].bg-\[\#151515\] {
+html.theme-light button.text-\[\#D4AF37\].bg-\[\#151515\],
+html.theme-light button.text-\[\#D4AF37\].bg-\[\#1A1A1A\],
+html.theme-light button.text-\[\#D4AF37\].bg-\[\#0C0C0C\] {
   background-color: #FFFFFF !important;
   color: #2563EB !important;
-  border-color: #DBEAFE !important;
-  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04) !important;
+  border: 1px solid #BFDBFE !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05) !important;
 }
 
-html.theme-light button.text-\[\#D4AF37\].bg-\[\#151515\]:hover {
+html.theme-light button.text-\[\#D4AF37\].bg-\[\#151515\]:hover,
+html.theme-light button.text-\[\#D4AF37\].bg-\[\#1A1A1A\]:hover,
+html.theme-light button.text-\[\#D4AF37\].bg-\[\#0C0C0C\]:hover {
   background-color: #EFF6FF !important;
-  border-color: #BFDBFE !important;
+  border-color: #3B82F6 !important;
 }
 
-html.theme-light button.text-\[\#E0E0E0\].bg-\[\#151515\] {
+html.theme-light button.text-\[\#E0E0E0\].bg-\[\#151515\],
+html.theme-light button.text-\[\#E0E0E0\].bg-\[\#1A1A1A\] {
   background-color: #FFFFFF !important;
-  color: #1E293B !important;
-  border-color: #E2E8F0 !important;
-  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04) !important;
+  color: #0F172A !important;
+  border: 1px solid #CBD5E1 !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05) !important;
 }
 
-html.theme-light button.text-\[\#E0E0E0\].bg-\[\#151515\]:hover {
+html.theme-light button.text-\[\#E0E0E0\].bg-\[\#151515\]:hover,
+html.theme-light button.text-\[\#E0E0E0\].bg-\[\#1A1A1A\]:hover {
   background-color: #F8FAFC !important;
-  border-color: #CBD5E1 !important;
+  border-color: #94A3B8 !important;
 }
 
-/* Eisenhower Quadrant Filter Buttons in Light Mode */
+/* Eisenhower Quadrant Filter & Action Buttons in Light Mode */
 html.theme-light button.bg-rose-500 {
   background-color: #FFE4E6 !important;
   color: #BE123C !important;
   border: 1px solid #FECDD3 !important;
+  font-weight: 700 !important;
 }
 
 html.theme-light button.bg-sky-500 {
   background-color: #E0F2FE !important;
   color: #0369A1 !important;
   border: 1px solid #BAE6FD !important;
+  font-weight: 700 !important;
 }
 
 html.theme-light button.bg-slate-400 {
   background-color: #F1F5F9 !important;
-  color: #334155 !important;
+  color: #1E293B !important;
   border: 1px solid #CBD5E1 !important;
+  font-weight: 700 !important;
 }
 
-/* High-Contrast Typographic Hierarchy */
+/* Quadrant Add Task Buttons */
+html.theme-light button[title*="Q1"],
+html.theme-light button[title*="khẩn cấp"] {
+  background-color: #FFE4E6 !important;
+  color: #9F1239 !important;
+  border: 1px solid #FECDD3 !important;
+  font-weight: 700 !important;
+}
+
+html.theme-light button[title*="Q2"],
+html.theme-light button[title*="chiến lược"] {
+  background-color: #FEF3C7 !important;
+  color: #92400E !important;
+  border: 1px solid #FDE68A !important;
+  font-weight: 700 !important;
+}
+
+html.theme-light button[title*="Q3"],
+html.theme-light button[title*="ủy quyền"] {
+  background-color: #E0F2FE !important;
+  color: #0369A1 !important;
+  border: 1px solid #BAE6FD !important;
+  font-weight: 700 !important;
+}
+
+html.theme-light button[title*="Q4"] {
+  background-color: #F1F5F9 !important;
+  color: #1E293B !important;
+  border: 1px solid #CBD5E1 !important;
+  font-weight: 700 !important;
+}
+
+/* Add note quick button in document list */
+html.theme-light button[title*="Thêm chú thích"] {
+  background-color: #F8FAFC !important;
+  border: 1px dashed #94A3B8 !important;
+  color: #0F172A !important;
+  font-weight: 600 !important;
+}
+
+html.theme-light button[title*="Thêm chú thích"]:hover {
+  background-color: #EFF6FF !important;
+  border-color: #2563EB !important;
+}
+
+html.theme-light button[title*="Thêm chú thích"] span {
+  color: #0F172A !important;
+  font-weight: 600 !important;
+}
+
+html.theme-light button[title*="Thêm chú thích"]:hover span {
+  color: #2563EB !important;
+}
+
+/* High-Contrast Typographic Hierarchy & Titles */
+html.theme-light h1,
+html.theme-light h2,
+html.theme-light h3,
+html.theme-light h4,
+html.theme-light h5,
+html.theme-light h6,
+html.theme-light .font-editorial-serif {
+  color: #0F172A !important;
+  font-weight: 700 !important;
+}
+
 html.theme-light .text-white {
   color: #0F172A !important;
 }
 
-html.theme-light .text-\[\#E0E0E0\] {
+/* Light Mode Hex Color Remapping for High-Contrast Readability */
+html.theme-light .text-\[\#F7D070\],
+html.theme-light .text-\[\#F0F0F0\],
+html.theme-light .text-\[\#EDEDED\],
+html.theme-light .text-\[\#E5E5E5\],
+html.theme-light .text-\[\#DDDDDD\],
+html.theme-light .text-\[\#D0D0D0\],
+html.theme-light .text-\[\#C0C0C0\],
+html.theme-light .text-\[\#BBBBBB\],
+html.theme-light .text-\[\#B0B0B0\] {
+  color: #0F172A !important;
+}
+
+html.theme-light .text-\[\#E0E0E0\],
+html.theme-light .text-\[\#CCCCCC\] {
   color: #1E293B !important;
 }
 
-html.theme-light .text-\[\#CCCCCC\] {
+html.theme-light .text-\[\#AAAAAA\],
+html.theme-light .text-\[\#A0A0A0\],
+html.theme-light .text-\[\#999999\],
+html.theme-light .text-\[\#888888\],
+html.theme-light .text-\[\#777777\] {
   color: #334155 !important;
 }
 
-html.theme-light .text-\[\#AAAAAA\] {
+html.theme-light .text-\[\#666666\],
+html.theme-light .text-\[\#666\],
+html.theme-light .text-\[\#555555\] {
   color: #475569 !important;
-}
-
-html.theme-light .text-\[\#A0A0A0\] {
-  color: #64748B !important;
-}
-
-html.theme-light .text-\[\#888888\] {
-  color: #64748B !important;
-}
-
-html.theme-light .text-\[\#777777\] {
-  color: #64748B !important;
-}
-
-html.theme-light .text-\[\#666666\] {
-  color: #94A3B8 !important;
 }
 
 html.theme-light .text-zinc-400,
-html.theme-light .text-zinc-300 {
-  color: #475569 !important;
+html.theme-light .text-zinc-300,
+html.theme-light .text-slate-300,
+html.theme-light .text-slate-400 {
+  color: #334155 !important;
+}
+
+/* Quadrant Subtitle High Contrast */
+html.theme-light .text-rose-300,
+html.theme-light .text-rose-200 {
+  color: #9F1239 !important;
+}
+
+html.theme-light .text-amber-300,
+html.theme-light .text-amber-200 {
+  color: #92400E !important;
+}
+
+html.theme-light .text-sky-300,
+html.theme-light .text-sky-200 {
+  color: #0369A1 !important;
+}
+
+html.theme-light .text-emerald-300,
+html.theme-light .text-emerald-200 {
+  color: #065F46 !important;
+}
+
+/* NOTE CONTENT CHARACTERS & ANNOTATION BLOCKS IN LIGHT MODE */
+html.theme-light .whitespace-pre-wrap {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  line-height: 1.7 !important;
+}
+
+/* Note snippets in stream list and file notes */
+html.theme-light div[title*="chú thích"],
+html.theme-light .group\/notebox {
+  background-color: #F8FAFC !important;
+  border: 1px solid #CBD5E1 !important;
+}
+
+html.theme-light div[title*="chú thích"]:hover,
+html.theme-light .group\/notebox:hover {
+  background-color: #FFFFFF !important;
+  border-color: #2563EB !important;
+  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.15) !important;
+}
+
+html.theme-light div[title*="chú thích"] p,
+html.theme-light .group\/notebox p {
+  color: #0F172A !important;
+  font-weight: 600 !important;
+  font-style: normal !important;
+  line-height: 1.6 !important;
+}
+
+/* Note content in NotesView list cards */
+html.theme-light .line-clamp-2 {
+  color: #1E293B !important;
+  font-weight: 500 !important;
+}
+
+/* Note content inside preview modals */
+html.theme-light p[class*="leading-relaxed"] {
+  color: #0F172A !important;
 }
 
 /* Dropdown Menus & Modal Elevation */
@@ -524,33 +717,108 @@ html.theme-light .bg-cyan-950 {
 
 /* Document Card Annotation Notes, Tags & Inset Blocks in Light Mode */
 html.theme-light .bg-\[\#0B0B0B\],
-html.theme-light .bg-\[\#121008\] {
+html.theme-light .bg-\[\#121008\],
+html.theme-light .bg-\[\#0A0A0A\],
+html.theme-light .bg-\[\#111111\],
+html.theme-light .bg-\[\#0D0D0D\] {
   background-color: #F8FAFC !important;
   border-color: #E2E8F0 !important;
+  color: #0F172A !important;
 }
 
 html.theme-light .bg-\[\#0B0B0B\] p,
-html.theme-light .bg-\[\#121008\] p {
-  color: #334155 !important;
+html.theme-light .bg-\[\#121008\] p,
+html.theme-light .bg-\[\#0A0A0A\] p,
+html.theme-light .bg-\[\#111111\] p,
+html.theme-light .bg-\[\#0D0D0D\] p {
+  color: #0F172A !important;
 }
 
-html.theme-light .bg-\[\#0A0A0A\],
-html.theme-light .bg-\[\#111111\] {
-  background-color: #F8FAFC !important;
-  border-color: #E2E8F0 !important;
-  color: #64748B !important;
-}
-
-html.theme-light .bg-\[\#0D0D0D\] {
-  background-color: #F1F5F9 !important;
-  color: #475569 !important;
-  border-color: #E2E8F0 !important;
+html.theme-light .bg-\[\#0B0B0B\] span,
+html.theme-light .bg-\[\#121008\] span,
+html.theme-light .bg-\[\#0A0A0A\] span,
+html.theme-light .bg-\[\#111111\] span,
+html.theme-light .bg-\[\#0D0D0D\] span {
+  color: #0F172A !important;
 }
 
 html.theme-light .bg-\[\#262626\] {
   background-color: #F1F5F9 !important;
   color: #0F172A !important;
   border-color: #CBD5E1 !important;
+}
+
+/* Custom dark badge, chip & legend backgrounds remapped for Light Theme */
+html.theme-light .bg-\[\#181408\] {
+  background-color: #FEF3C7 !important; /* amber-100 */
+  border-color: #FDE68A !important;
+  color: #78350F !important; /* amber-900 */
+}
+
+html.theme-light .bg-\[\#181408\] * {
+  color: #78350F !important;
+}
+
+html.theme-light .bg-\[\#0B1520\],
+html.theme-light .bg-\[\#0B151F\] {
+  background-color: #E0F2FE !important; /* sky-100 */
+  border-color: #BAE6FD !important;
+  color: #0369A1 !important; /* sky-700 */
+}
+
+html.theme-light .bg-\[\#0B1520\] *,
+html.theme-light .bg-\[\#0B151F\] * {
+  color: #0369A1 !important;
+}
+
+html.theme-light .bg-\[\#0E1712\],
+html.theme-light .bg-\[\#0E1A14\],
+html.theme-light .bg-\[\#0F1710\],
+html.theme-light .bg-\[\#121E18\] {
+  background-color: #ECFDF5 !important; /* emerald-100 */
+  border-color: #A7F3D0 !important;
+  color: #065F46 !important; /* emerald-800 */
+}
+
+html.theme-light .bg-\[\#0E1712\] *,
+html.theme-light .bg-\[\#0E1A14\] *,
+html.theme-light .bg-\[\#0F1710\] *,
+html.theme-light .bg-\[\#121E18\] * {
+  color: #065F46 !important;
+}
+
+html.theme-light .bg-\[\#180E0E\] {
+  background-color: #FFE4E6 !important; /* rose-100 */
+  border-color: #FECDD3 !important;
+  color: #9F1239 !important; /* rose-800 */
+}
+
+html.theme-light .bg-\[\#180E0E\] * {
+  color: #9F1239 !important;
+}
+
+html.theme-light .bg-\[\#121212\],
+html.theme-light .bg-\[\#131313\],
+html.theme-light .bg-\[\#161616\],
+html.theme-light .bg-\[\#1F1F1F\],
+html.theme-light .bg-\[\#1F1607\],
+html.theme-light .bg-\[\#18150B\],
+html.theme-light .bg-\[\#1A1810\],
+html.theme-light .bg-\[\#161408\] {
+  background-color: #F8FAFC !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+
+html.theme-light .bg-\[\#121212\] *,
+html.theme-light .bg-\[\#131313\] *,
+html.theme-light .bg-\[\#161616\] *,
+html.theme-light .bg-\[\#1F1F1F\] *,
+html.theme-light .bg-\[\#1F1607\] *,
+html.theme-light .bg-\[\#18150B\] *,
+html.theme-light .bg-\[\#1A1810\] *,
+html.theme-light .bg-\[\#161408\] * {
+  color: #0F172A !important;
 }
 
 /* ==========================================================================
@@ -583,5 +851,106 @@ html.theme-light .recharts-tooltip-wrapper .bg-\[\#141414\] {
   border-color: #CBD5E1 !important;
   box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 4px 6px -2px rgba(15, 23, 42, 0.05) !important;
   color: #0F172A !important;
+}
+
+/* ==========================================================================
+   EISENHOWER MATRIX QUADRANTS & LEGEND STRIPS IN DARK & LIGHT MODES
+   Guarantees 100% dark background and high contrast text in Dark Mode,
+   and clean white background with crisp borders in Light Mode.
+   ========================================================================== */
+
+/* Dark Mode Defaults (When html is .dark or not .theme-light) */
+html.dark .eisenhower-q1,
+html:not(.theme-light) .eisenhower-q1 {
+  background-color: #0C0C0C !important;
+  border-color: rgba(225, 29, 72, 0.4) !important;
+}
+
+html.dark .eisenhower-q2,
+html:not(.theme-light) .eisenhower-q2 {
+  background-color: #0C0C0C !important;
+  border-color: rgba(217, 119, 6, 0.4) !important;
+}
+
+html.dark .eisenhower-q3,
+html:not(.theme-light) .eisenhower-q3 {
+  background-color: #0C0C0C !important;
+  border-color: rgba(14, 165, 233, 0.4) !important;
+}
+
+html.dark .eisenhower-q4,
+html:not(.theme-light) .eisenhower-q4 {
+  background-color: #0C0C0C !important;
+  border-color: #27272A !important;
+}
+
+/* Light Mode Overrides for Eisenhower Quadrants */
+html.theme-light .eisenhower-q1,
+html.theme-light .eisenhower-q2,
+html.theme-light .eisenhower-q3,
+html.theme-light .eisenhower-q4 {
+  background-color: #FFFFFF !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05) !important;
+}
+
+html.theme-light .eisenhower-q1 {
+  border-color: #FDA4AF !important;
+}
+
+html.theme-light .eisenhower-q1 h4 {
+  color: #9F1239 !important;
+}
+
+html.theme-light .eisenhower-q1 p {
+  color: #BE123C !important;
+}
+
+html.theme-light .eisenhower-q2 {
+  border-color: #FCD34D !important;
+}
+
+html.theme-light .eisenhower-q2 h4 {
+  color: #92400E !important;
+}
+
+html.theme-light .eisenhower-q2 p {
+  color: #B45309 !important;
+}
+
+html.theme-light .eisenhower-q3 {
+  border-color: #7DD3FC !important;
+}
+
+html.theme-light .eisenhower-q3 h4 {
+  color: #0369A1 !important;
+}
+
+html.theme-light .eisenhower-q3 p {
+  color: #0284C7 !important;
+}
+
+html.theme-light .eisenhower-q4 {
+  border-color: #CBD5E1 !important;
+}
+
+html.theme-light .eisenhower-q4 h4 {
+  color: #1E293B !important;
+}
+
+html.theme-light .eisenhower-q4 p {
+  color: #475569 !important;
+}
+
+/* Chart Legend Strip */
+html:not(.theme-light) .chart-legend-container,
+html.dark .chart-legend-container {
+  background-color: #0A0A0A !important;
+  border-color: #262626 !important;
+}
+
+html.theme-light .chart-legend-container {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04) !important;
 }
 

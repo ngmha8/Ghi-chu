@@ -1257,7 +1257,6 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             className="px-2.5 py-2 rounded-sm text-xs font-medium text-[#888888] hover:text-[#D4AF37] bg-[#0C0C0C] border border-dashed border-[#2A2A2A] hover:border-[#D4AF37]/50 whitespace-nowrap flex items-center gap-1 cursor-pointer transition-colors"
             title="Thêm phân loại mới"
           >
-            <Plus className="w-3.5 h-3.5" />
             <span>Nhóm mới</span>
           </button>
         </div>
@@ -1647,7 +1646,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
 
                     {/* Popover Quick Category Selector */}
                     {isCategoryPopoverOpen && (
-                      <div className="absolute top-full left-0 mt-1 z-30 w-64 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#3A3A3A] rounded shadow-2xl p-2.5 space-y-2 animate-in fade-in">
+                      <div className="absolute top-full left-0 mt-1 z-30 w-64 bg-[#181818] border border-[#3A3A3A] rounded shadow-2xl p-2.5 space-y-2 animate-in fade-in">
                         <div className="text-[10px] font-bold text-slate-500 dark:text-[#AAAAAA] uppercase px-1 pb-1.5 border-b border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
                           <span className="flex items-center gap-1">
                             <Tag className="w-3 h-3 text-blue-600 dark:text-[#D4AF37]" />
@@ -1761,7 +1760,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                               Chú thích
                             </span>
                           </div>
-                          <p className="text-[11px] text-white group-hover/notebox:text-white line-clamp-2 leading-relaxed italic font-medium">
+                          <p className="text-[11px] text-slate-900 dark:text-white line-clamp-2 leading-relaxed font-semibold">
                             &ldquo;{file.notes || file.description}&rdquo;
                           </p>
                         </div>
@@ -1774,7 +1773,6 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                       className="w-full text-left px-2.5 py-1.5 rounded-sm bg-[#0E0E0E] hover:bg-[#181818] border border-dashed border-[#2C2C2C] hover:border-[#D4AF37]/60 text-[11px] text-white hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer group/addnote"
                       title="Thêm chú thích giúp tìm kiếm tài liệu nhanh hơn"
                     >
-                      <Plus className="w-3.5 h-3.5 text-[#D4AF37] group-hover/addnote:scale-110 transition-transform" />
                       <span className="text-white/95 font-medium group-hover/addnote:text-[#D4AF37]">Thêm chú thích tìm kiếm...</span>
                     </button>
                   )}
@@ -2044,11 +2042,11 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                   </p>
                 ) : (
                   <div className="flex items-center justify-between bg-[#141414] p-2.5 rounded border border-dashed border-[#262626]">
-                    <span className="text-xs text-[#E0E0E0]">Chưa có chú thích nào cho tài liệu này.</span>
+                    <span className="text-xs text-slate-700 dark:text-[#E0E0E0]">Chưa có chú thích nào cho tài liệu này.</span>
                     <button
                       type="button"
                       onClick={() => handleOpenEditNote(previewFile)}
-                      className="px-2 py-1 bg-[#222222] hover:bg-[#D4AF37] text-white hover:text-black font-bold text-[10px] uppercase tracking-wider rounded transition-colors cursor-pointer"
+                      className="px-2.5 py-1 bg-slate-900 dark:bg-[#222222] hover:bg-blue-600 dark:hover:bg-[#D4AF37] text-white dark:hover:text-black font-bold text-[10px] uppercase tracking-wider rounded transition-colors cursor-pointer"
                     >
                       + Thêm chú thích ngay
                     </button>

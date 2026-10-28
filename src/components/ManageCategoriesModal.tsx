@@ -222,7 +222,6 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
                   : 'bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/40'
               }`}
             >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
               <span>Thêm Phân Loại Mới</span>
             </button>
 

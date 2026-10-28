@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Task, Note, DriveFile, NotificationLog } from '../types/index.js';
 import { formatOfficialDeadline, getDeadlineStatusInfo } from '../services/dateUtils.js';
 import { formatRecurringLabel } from '../utils/recurring.js';
@@ -156,6 +157,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Miniature Modal Preview state for Google Drive files
   const [previewDriveFile, setPreviewDriveFile] = useState<DriveFile | null>(null);
+
+  // Floating Move Menu for Eisenhower Quadrants (elevated above scroll containers via portal)
+  interface ActiveMoveMenu {
+    taskId: string;
+    sourceQuadrant: 'q1' | 'q2' | 'q3' | 'q4';
+    x: number;
+    y: number;
+  }
+  const [activeMoveMenu, setActiveMoveMenu] = useState<ActiveMoveMenu | null>(null);
+
+  // Auto-dismiss floating move menu on outside click, window resize, scroll, or escape
+  useEffect(() => {
+    if (!activeMoveMenu) return;
+    const handleClose = () => setActiveMoveMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActiveMoveMenu(null);
+    };
+    window.addEventListener('scroll', handleClose, true);
+    window.addEventListener('resize', handleClose);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('scroll', handleClose, true);
+      window.removeEventListener('resize', handleClose);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeMoveMenu]);
 
   const formatFileSize = (bytes: number): string => {
     if (!bytes || bytes === 0) return '0 B';
@@ -2025,33 +2052,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Legend & Synthesis Takeaways Strip */}
-        <div className="bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner">
+        <div className="chart-legend-container bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs dark:shadow-inner">
           {/* Legend Items */}
           <div className="flex items-center gap-3.5 flex-wrap text-[11px]">
-            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
+            <span className="px-2 py-0.5 rounded-xs bg-slate-100 dark:bg-[#1A1A1A] border border-slate-300 dark:border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-slate-800 dark:text-[#D4AF37]">
               CHÚ THÍCH:
             </span>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40">
-              <span className="w-2.5 h-2.5 rounded-xs bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
-              <span className="text-white font-bold">Task hoàn thành ({productivityInsights30d.totalTasksCompleted})</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-amber-50 dark:bg-[#181408] border border-amber-300 dark:border-amber-500/40 text-amber-950 dark:text-white">
+              <span className="w-2.5 h-2.5 rounded-xs bg-amber-500 dark:bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
+              <span className="font-bold text-slate-900 dark:text-white">Task hoàn thành ({productivityInsights30d.totalTasksCompleted})</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0B1520] border border-sky-500/40">
-              <span className="w-2.5 h-2.5 rounded-xs bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
-              <span className="text-white font-bold">Ghi chú đúc kết ({productivityInsights30d.totalNotesCreated})</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-sky-50 dark:bg-[#0B1520] border border-sky-300 dark:border-sky-500/40 text-sky-950 dark:text-white">
+              <span className="w-2.5 h-2.5 rounded-xs bg-sky-500 dark:bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
+              <span className="font-bold text-slate-900 dark:text-white">Ghi chú đúc kết ({productivityInsights30d.totalNotesCreated})</span>
             </div>
             {productivityInsightsFilter === 'all' && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-xs bg-[#0E1712] border border-emerald-500/40">
-                <span className="w-3 h-0.5 border-t border-dashed border-emerald-400" />
-                <span className="text-emerald-300 font-semibold">Tổng hoạt động ngày</span>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-xs bg-emerald-50 dark:bg-[#0E1712] border border-emerald-300 dark:border-emerald-500/40 text-emerald-950 dark:text-emerald-300">
+                <span className="w-3 h-0.5 border-t border-dashed border-emerald-500 dark:border-emerald-400" />
+                <span className="font-semibold text-slate-900 dark:text-emerald-300">Tổng hoạt động ngày</span>
               </div>
             )}
           </div>
 
           {/* Automated Synthesis Reflection Pill */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E] text-amber-300 font-mono text-[11px]">
-            <Zap className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
-            <span className="text-[#F7D070] font-medium">
-              Độ đều đặn 30 ngày: <strong className="text-white font-bold">{productivityInsights30d.consistencyPercent}%</strong> số ngày có hoạt động.
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#2E2E2E] text-slate-900 dark:text-amber-300 font-mono text-[11px]">
+            <Zap className="w-3.5 h-3.5 text-amber-600 dark:text-[#D4AF37] shrink-0" />
+            <span className="text-slate-900 dark:text-[#F7D070] font-medium">
+              Độ đều đặn 30 ngày: <strong className="text-slate-900 dark:text-white font-bold">{productivityInsights30d.consistencyPercent}%</strong> số ngày có hoạt động.
             </span>
           </div>
         </div>
@@ -2367,35 +2394,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Chart Legend & Takeaway Insight */}
-        <div className="bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner">
+        <div className="chart-legend-container bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs dark:shadow-inner">
           {/* Legend Items */}
           <div className="flex items-center gap-3.5 flex-wrap text-[11px]">
-            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
+            <span className="px-2 py-0.5 rounded-xs bg-slate-100 dark:bg-[#1A1A1A] border border-slate-300 dark:border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-slate-800 dark:text-[#D4AF37]">
               CHÚ THÍCH:
             </span>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0E1712] border border-emerald-500/40">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
-              <span className="text-white font-bold">Đã hoàn thành</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-emerald-50 dark:bg-[#0E1712] border border-emerald-300 dark:border-emerald-500/40 text-emerald-950 dark:text-white">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
+              <span className="font-bold text-slate-900 dark:text-white">Đã hoàn thành</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0B1520] border border-blue-500/40">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.7)]" />
-              <span className="text-white font-bold">Tạo mới</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-blue-50 dark:bg-[#0B1520] border border-blue-300 dark:border-blue-500/40 text-blue-950 dark:text-white">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 dark:bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.7)]" />
+              <span className="font-bold text-slate-900 dark:text-white">Tạo mới</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
-              <span className="text-white font-bold">Tích lũy / Năng suất</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-amber-50 dark:bg-[#181408] border border-amber-300 dark:border-amber-500/40 text-amber-950 dark:text-white">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 dark:bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
+              <span className="font-bold text-slate-900 dark:text-white">Tích lũy / Năng suất</span>
             </div>
           </div>
 
           {/* Smart Productivity Takeaway */}
-          <div className="flex items-center gap-2 text-zinc-300 font-mono text-[11px] px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E]">
+          <div className="flex items-center gap-2 text-slate-800 dark:text-zinc-300 font-mono text-[11px] px-2.5 py-1 rounded-xs bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#2E2E2E]">
             {trendAnalytics.peakPoint ? (
-              <span className="text-[#F7D070] flex items-center gap-1 font-medium">
-                <Zap className="w-3 h-3 text-[#D4AF37]" />
-                <span>Đỉnh năng suất: <strong className="text-white font-bold">{trendAnalytics.peakPoint.label}</strong> ({trendAnalytics.peakPoint.completed} việc hoàn thành)</span>
+              <span className="text-slate-900 dark:text-[#F7D070] flex items-center gap-1 font-medium">
+                <Zap className="w-3 h-3 text-amber-600 dark:text-[#D4AF37]" />
+                <span>Đỉnh năng suất: <strong className="text-slate-900 dark:text-white font-bold">{trendAnalytics.peakPoint.label}</strong> ({trendAnalytics.peakPoint.completed} việc hoàn thành)</span>
               </span>
             ) : (
-              <span className="text-zinc-400">Chưa phát hiện đỉnh hoàn thành trong kỳ</span>
+              <span className="text-slate-600 dark:text-zinc-400">Chưa phát hiện đỉnh hoàn thành trong kỳ</span>
             )}
           </div>
         </div>
@@ -2641,28 +2668,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Legend & AI Productivity Rhythm Insight */}
-        <div className="bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner">
+        <div className="chart-legend-container bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs dark:shadow-inner">
           <div className="flex items-center gap-3.5 flex-wrap text-[11px]">
-            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
+            <span className="px-2 py-0.5 rounded-xs bg-slate-100 dark:bg-[#1A1A1A] border border-slate-300 dark:border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-slate-800 dark:text-[#D4AF37]">
               CHÚ THÍCH:
             </span>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0E1712] border border-emerald-500/40">
-              <span className="w-2.5 h-2.5 rounded-xs bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
-              <span className="text-white font-bold">Tỷ lệ hoàn thành (%) - Trục trái</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-emerald-50 dark:bg-[#0E1712] border border-emerald-300 dark:border-emerald-500/40 text-emerald-950 dark:text-white">
+              <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
+              <span className="font-bold text-slate-900 dark:text-white">Tỷ lệ hoàn thành (%) - Trục trái</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
-              <span className="text-white font-bold">Giờ tập trung AI (h) - Trục phải</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-amber-50 dark:bg-[#181408] border border-amber-300 dark:border-amber-500/40 text-amber-950 dark:text-white">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 dark:bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
+              <span className="font-bold text-slate-900 dark:text-white">Giờ tập trung AI (h) - Trục phải</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#161616] border border-[#333333]">
-              <span className="w-3 h-0.5 border-t border-dashed border-[#AAAAAA]" />
-              <span className="text-zinc-300 font-medium">Mốc chuẩn đề xuất</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-slate-100 dark:bg-[#161616] border border-slate-300 dark:border-[#333333]">
+              <span className="w-3 h-0.5 border-t border-dashed border-slate-500 dark:border-[#AAAAAA]" />
+              <span className="font-semibold text-slate-800 dark:text-zinc-300">Mốc chuẩn đề xuất</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E] text-[#F7D070] font-mono text-[11px]">
-            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
-            <span className="font-medium">Tương quan AI: Các ngày đạt từ 4.0h tập trung sâu ghi nhận tỷ lệ hoàn thành cao hơn 32%.</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#2E2E2E] text-slate-900 dark:text-[#F7D070] font-mono text-[11px]">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-[#D4AF37] shrink-0" />
+            <span className="font-semibold text-slate-900 dark:text-[#F7D070]">Tương quan AI: Các ngày đạt từ 4.0h tập trung sâu ghi nhận tỷ lệ hoàn thành cao hơn 32%.</span>
           </div>
         </div>
       </div>
@@ -2943,30 +2970,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Legend & 30-Day Retrospective Insight */}
-        <div className="bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-inner">
+        <div className="chart-legend-container bg-[#0A0A0A] border border-[#262626] rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs dark:shadow-inner">
           <div className="flex items-center gap-3.5 flex-wrap text-[11px]">
-            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
+            <span className="px-2 py-0.5 rounded-xs bg-slate-100 dark:bg-[#1A1A1A] border border-slate-300 dark:border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-slate-800 dark:text-[#D4AF37]">
               CHÚ THÍCH:
             </span>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40">
-              <span className="w-2.5 h-2.5 rounded-xs bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
-              <span className="text-white font-bold">Điểm năng suất ngày (0 - 100)</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-amber-50 dark:bg-[#181408] border border-amber-300 dark:border-amber-500/40 text-amber-950 dark:text-white">
+              <span className="w-2.5 h-2.5 rounded-xs bg-amber-500 dark:bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.7)]" />
+              <span className="font-bold text-slate-900 dark:text-white">Điểm năng suất ngày (0 - 100)</span>
             </div>
             {showMovingAverage && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0B1520] border border-sky-500/40">
-                <span className="w-3 h-0.5 border-t border-dashed border-sky-400" />
-                <span className="text-sky-200 font-bold">Đường TB động 7 ngày</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-sky-50 dark:bg-[#0B1520] border border-sky-300 dark:border-sky-500/40 text-sky-950 dark:text-sky-200">
+                <span className="w-3 h-0.5 border-t border-dashed border-sky-500 dark:border-sky-400" />
+                <span className="font-bold text-slate-900 dark:text-sky-200">Đường TB động 7 ngày</span>
               </div>
             )}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0E1712] border border-emerald-500/40">
-              <span className="w-3 h-0.5 border-t border-dashed border-emerald-400" />
-              <span className="text-emerald-300 font-semibold">Mục tiêu 80+</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-emerald-50 dark:bg-[#0E1712] border border-emerald-300 dark:border-emerald-500/40 text-emerald-950 dark:text-emerald-300">
+              <span className="w-3 h-0.5 border-t border-dashed border-emerald-500 dark:border-emerald-400" />
+              <span className="font-bold text-slate-900 dark:text-emerald-300">Mục tiêu 80+</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E] text-[#F7D070] font-mono text-[11px]">
-            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
-            <span className="font-medium">Tổng kết 30 ngày: {monthlyTrendAnalytics.highQualityRatio}% số ngày đạt chuẩn hiệu suất cao.</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#2E2E2E] text-slate-900 dark:text-[#F7D070] font-mono text-[11px]">
+            <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37] shrink-0" />
+            <span className="font-semibold text-slate-900 dark:text-[#F7D070]">Tổng kết 30 ngày: {monthlyTrendAnalytics.highQualityRatio}% số ngày đạt chuẩn hiệu suất cao.</span>
           </div>
         </div>
       </div>
@@ -3292,27 +3319,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {/* ============================================================== */}
 
                   {/* Q1: DO FIRST (Làm Ngay) */}
-                  <div className="p-4 sm:p-5 bg-[#0C0C0C] border border-rose-900/60 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-rose-500/60">
-                    <div className="flex items-center justify-between border-b border-[#222222] pb-2.5">
+                  <div className="eisenhower-q1 p-4 sm:p-5 bg-[#0C0C0C] border border-rose-900/60 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-rose-500/60">
+                    <div className="flex items-center justify-between border-b border-rose-900/40 pb-2.5">
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
-                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-white">
+                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-rose-400">
                             Q1 • Làm Ngay (Do First)
                           </h4>
                         </div>
-                        <p className="text-[10px] text-rose-300 font-medium">
+                        <p className="text-[10px] text-rose-300 font-semibold">
                           Khẩn cấp & Quan trọng • Khủng hoảng, deadline cận kề
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[10px] font-mono text-rose-300 bg-rose-950/60 px-2 py-0.5 rounded-xs border border-rose-500/40 font-bold">
+                        <span className="text-[10px] font-mono text-rose-300 bg-rose-950/80 px-2 py-0.5 rounded-xs border border-rose-500/40 font-bold">
                           {eisenhowerData.q1Tasks.length} ({eisenhowerData.q1Percent}%)
                         </span>
                         <button
                           type="button"
                           onClick={() => handleAddNewTaskInQuadrant('q1')}
-                          className="px-2 py-1 rounded bg-rose-950/50 hover:bg-rose-900/70 text-rose-200 border border-rose-700/60 text-[10px] font-bold transition-colors cursor-pointer"
+                          className="px-2 py-1 rounded bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-700/60 text-[10px] font-bold transition-colors cursor-pointer"
                           title="Thêm nhiệm vụ mới vào Q1 (Do First)"
                         >
                           + Việc Q1
@@ -3360,27 +3387,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                             {/* Quick Actions */}
                             <div className="flex items-center gap-1 shrink-0">
-                              {/* Move dropdown */}
-                              <div className="relative group/move" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  className="p-1 hover:bg-[#2A2A2A] text-[#888888] hover:text-[#D4AF37] rounded transition-colors text-[10px]"
-                                  title="Chuyển sang góc phần tư khác"
-                                >
-                                  <ArrowUpDown className="w-3 h-3" />
-                                </button>
-                                <div className="absolute right-0 top-full mt-1 hidden group-hover/move:flex flex-col bg-[#1A1A1A] border border-[#333333] rounded shadow-xl py-1 z-30 min-w-32 animate-in fade-in text-[10px]">
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q2')} className="px-2.5 py-1 text-left hover:bg-amber-950/40 text-amber-300 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" /> Chuyển sang Q2
-                                  </button>
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q3')} className="px-2.5 py-1 text-left hover:bg-sky-950/40 text-sky-400 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" /> Chuyển sang Q3
-                                  </button>
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q4')} className="px-2.5 py-1 text-left hover:bg-slate-800 text-slate-300 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" /> Chuyển sang Q4
-                                  </button>
-                                </div>
-                              </div>
+                              {/* Move button (Opens elevated portal menu) */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setActiveMoveMenu(
+                                    activeMoveMenu?.taskId === t.id
+                                      ? null
+                                      : {
+                                          taskId: t.id,
+                                          sourceQuadrant: 'q1',
+                                          x: rect.right,
+                                          y: rect.bottom,
+                                        }
+                                  );
+                                }}
+                                className={`p-1.5 rounded transition-all text-[11px] cursor-pointer ${
+                                  activeMoveMenu?.taskId === t.id
+                                    ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-900 dark:text-rose-300 ring-1 ring-rose-400'
+                                    : 'hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-slate-500 dark:text-[#888888] hover:text-rose-600 dark:hover:text-[#D4AF37]'
+                                }`}
+                                title="Chuyển sang góc phần tư khác"
+                              >
+                                <ArrowUpDown className="w-3.5 h-3.5" />
+                              </button>
 
                               <button
                                 type="button"
@@ -3401,27 +3433,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
 
                   {/* Q2: SCHEDULE (Lên Kế Hoạch / Chiến Lược) */}
-                  <div className="p-4 sm:p-5 bg-[#0C0C0C] border border-amber-900/60 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-amber-400/60">
-                    <div className="flex items-center justify-between border-b border-[#222222] pb-2.5">
+                  <div className="eisenhower-q2 p-4 sm:p-5 bg-[#0C0C0C] border border-amber-900/60 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-amber-400/60">
+                    <div className="flex items-center justify-between border-b border-amber-900/40 pb-2.5">
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] ring-2 ring-[#D4AF37]/30 shadow-[0_0_8px_rgba(212,175,55,0.6)]" />
-                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-white">
+                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-[#F5D77F]">
                             Q2 • Lên Kế Hoạch (Schedule)
                           </h4>
                         </div>
-                        <p className="text-[10px] text-[#F7D070] font-medium">
+                        <p className="text-[10px] text-amber-300 font-semibold">
                           Quan trọng, Chưa gấp • Phát triển dài hạn, ngăn ngừa rủi ro
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[10px] font-mono text-[#F7D070] bg-[#D4AF37]/20 px-2 py-0.5 rounded-xs border border-[#D4AF37]/40 font-bold">
+                        <span className="text-[10px] font-mono text-amber-200 bg-amber-950/80 px-2 py-0.5 rounded-xs border border-amber-800/60 font-bold">
                           {eisenhowerData.q2Tasks.length} ({eisenhowerData.q2Percent}%)
                         </span>
                         <button
                           type="button"
                           onClick={() => handleAddNewTaskInQuadrant('q2')}
-                          className="px-2 py-1 rounded bg-amber-950/50 hover:bg-amber-900/70 text-[#F7D070] border border-amber-700/60 text-[10px] font-bold transition-colors cursor-pointer"
+                          className="px-2 py-1 rounded bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 text-[10px] font-bold transition-colors cursor-pointer"
                           title="Thêm nhiệm vụ chiến lược vào Q2"
                         >
                           + Việc Q2
@@ -3469,26 +3501,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                             {/* Quick Actions */}
                             <div className="flex items-center gap-1 shrink-0">
-                              <div className="relative group/move" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  className="p-1 hover:bg-[#2A2A2A] text-[#888888] hover:text-[#D4AF37] rounded transition-colors text-[10px]"
-                                  title="Chuyển sang góc phần tư khác"
-                                >
-                                  <ArrowUpDown className="w-3 h-3" />
-                                </button>
-                                <div className="absolute right-0 top-full mt-1 hidden group-hover/move:flex flex-col bg-[#1A1A1A] border border-[#333333] rounded shadow-xl py-1 z-30 min-w-32 animate-in fade-in text-[10px]">
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q1')} className="px-2.5 py-1 text-left hover:bg-rose-950/40 text-rose-300 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Chuyển sang Q1
-                                  </button>
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q3')} className="px-2.5 py-1 text-left hover:bg-sky-950/40 text-sky-400 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" /> Chuyển sang Q3
-                                  </button>
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q4')} className="px-2.5 py-1 text-left hover:bg-slate-800 text-slate-300 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" /> Chuyển sang Q4
-                                  </button>
-                                </div>
-                              </div>
+                              {/* Move button (Opens elevated portal menu) */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setActiveMoveMenu(
+                                    activeMoveMenu?.taskId === t.id
+                                      ? null
+                                      : {
+                                          taskId: t.id,
+                                          sourceQuadrant: 'q2',
+                                          x: rect.right,
+                                          y: rect.bottom,
+                                        }
+                                  );
+                                }}
+                                className={`p-1.5 rounded transition-all text-[11px] cursor-pointer ${
+                                  activeMoveMenu?.taskId === t.id
+                                    ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-[#F7D070] ring-1 ring-amber-400'
+                                    : 'hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-slate-500 dark:text-[#888888] hover:text-amber-600 dark:hover:text-[#D4AF37]'
+                                }`}
+                                title="Chuyển sang góc phần tư khác"
+                              >
+                                <ArrowUpDown className="w-3.5 h-3.5" />
+                              </button>
 
                               <button
                                 type="button"
@@ -3513,27 +3551,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {/* ============================================================== */}
 
                   {/* Q3: DELEGATE (Ủy Quyền / Giải Quyết Nhanh) */}
-                  <div className="p-4 sm:p-5 bg-[#0C0C0C] border border-sky-900/60 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-sky-400/60">
-                    <div className="flex items-center justify-between border-b border-[#222222] pb-2.5">
+                  <div className="eisenhower-q3 p-4 sm:p-5 bg-[#0C0C0C] border border-sky-900/60 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-sky-400/60">
+                    <div className="flex items-center justify-between border-b border-sky-900/40 pb-2.5">
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-sky-500 ring-2 ring-sky-500/30 shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
-                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-white">
+                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-sky-400">
                             Q3 • Ủy Quyền (Delegate)
                           </h4>
                         </div>
-                        <p className="text-[10px] text-sky-300 font-medium">
+                        <p className="text-[10px] text-sky-300 font-semibold">
                           Gấp, Ít quan trọng • Giải quyết nhanh (5-15p) hoặc nhờ vả
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[10px] font-mono text-sky-300 bg-sky-950/60 px-2 py-0.5 rounded-xs border border-sky-500/40 font-bold">
+                        <span className="text-[10px] font-mono text-sky-200 bg-sky-950/80 px-2 py-0.5 rounded-xs border border-sky-800/60 font-bold">
                           {eisenhowerData.q3Tasks.length} ({eisenhowerData.q3Percent}%)
                         </span>
                         <button
                           type="button"
                           onClick={() => handleAddNewTaskInQuadrant('q3')}
-                          className="px-2 py-1 rounded bg-sky-950/50 hover:bg-sky-900/70 text-sky-200 border border-sky-700/60 text-[10px] font-bold transition-colors cursor-pointer"
+                          className="px-2 py-1 rounded bg-sky-950/60 hover:bg-sky-900/80 text-sky-300 border border-sky-700/60 text-[10px] font-bold transition-colors cursor-pointer"
                           title="Thêm nhiệm vụ ủy quyền vào Q3"
                         >
                           + Việc Q3
@@ -3581,26 +3619,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                             {/* Quick Actions */}
                             <div className="flex items-center gap-1 shrink-0">
-                              <div className="relative group/move" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  className="p-1 hover:bg-[#2A2A2A] text-[#888888] hover:text-[#D4AF37] rounded transition-colors text-[10px]"
-                                  title="Chuyển sang góc phần tư khác"
-                                >
-                                  <ArrowUpDown className="w-3 h-3" />
-                                </button>
-                                <div className="absolute right-0 top-full mt-1 hidden group-hover/move:flex flex-col bg-[#1A1A1A] border border-[#333333] rounded shadow-xl py-1 z-30 min-w-32 animate-in fade-in text-[10px]">
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q1')} className="px-2.5 py-1 text-left hover:bg-rose-950/40 text-rose-300 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Chuyển sang Q1
-                                  </button>
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q2')} className="px-2.5 py-1 text-left hover:bg-amber-950/40 text-amber-300 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" /> Chuyển sang Q2
-                                  </button>
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q4')} className="px-2.5 py-1 text-left hover:bg-slate-800 text-slate-300 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" /> Chuyển sang Q4
-                                  </button>
-                                </div>
-                              </div>
+                              {/* Move button (Opens elevated portal menu) */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setActiveMoveMenu(
+                                    activeMoveMenu?.taskId === t.id
+                                      ? null
+                                      : {
+                                          taskId: t.id,
+                                          sourceQuadrant: 'q3',
+                                          x: rect.right,
+                                          y: rect.bottom,
+                                        }
+                                  );
+                                }}
+                                className={`p-1.5 rounded transition-all text-[11px] cursor-pointer ${
+                                  activeMoveMenu?.taskId === t.id
+                                    ? 'bg-sky-100 dark:bg-sky-950/80 text-sky-900 dark:text-sky-300 ring-1 ring-sky-400'
+                                    : 'hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-slate-500 dark:text-[#888888] hover:text-sky-600 dark:hover:text-[#D4AF37]'
+                                }`}
+                                title="Chuyển sang góc phần tư khác"
+                              >
+                                <ArrowUpDown className="w-3.5 h-3.5" />
+                              </button>
 
                               <button
                                 type="button"
@@ -3621,27 +3665,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
 
                   {/* Q4: ELIMINATE (Cân Nhắc Loại Bỏ) */}
-                  <div className="p-4 sm:p-5 bg-[#0C0C0C] border border-slate-800 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-slate-600">
-                    <div className="flex items-center justify-between border-b border-[#222222] pb-2.5">
+                  <div className="eisenhower-q4 p-4 sm:p-5 bg-[#0C0C0C] border border-slate-800 rounded-sm space-y-3.5 shadow-xs transition-all hover:border-slate-600">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-slate-400 ring-2 ring-slate-400/30 shadow-[0_0_8px_rgba(148,163,184,0.6)]" />
-                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-white">
+                          <h4 className="font-editorial-serif font-bold text-sm sm:text-base text-slate-300">
                             Q4 • Loại Bỏ (Eliminate)
                           </h4>
                         </div>
-                        <p className="text-[10px] text-slate-300 font-medium">
+                        <p className="text-[10px] text-slate-400 font-semibold">
                           Không gấp & Ít quan trọng • Cắt giảm để không xao nhãng
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[10px] font-mono text-slate-200 bg-slate-800 px-2 py-0.5 rounded-xs border border-slate-700 font-bold">
+                        <span className="text-[10px] font-mono text-slate-300 bg-slate-800 px-2 py-0.5 rounded-xs border border-slate-700 font-bold">
                           {eisenhowerData.q4Tasks.length} ({eisenhowerData.q4Percent}%)
                         </span>
                         <button
                           type="button"
                           onClick={() => handleAddNewTaskInQuadrant('q4')}
-                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
                           title="Thêm nhiệm vụ vào Q4"
                         >
                           + Việc Q4
@@ -3689,26 +3733,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                             {/* Quick Actions */}
                             <div className="flex items-center gap-1 shrink-0">
-                              <div className="relative group/move" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  className="p-1 hover:bg-[#2A2A2A] text-[#888888] hover:text-[#D4AF37] rounded transition-colors text-[10px]"
-                                  title="Chuyển sang góc phần tư khác"
-                                >
-                                  <ArrowUpDown className="w-3 h-3" />
-                                </button>
-                                <div className="absolute right-0 top-full mt-1 hidden group-hover/move:flex flex-col bg-[#1A1A1A] border border-[#333333] rounded shadow-xl py-1 z-30 min-w-32 animate-in fade-in text-[10px]">
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q1')} className="px-2.5 py-1 text-left hover:bg-rose-950/40 text-rose-300 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Chuyển sang Q1
-                                  </button>
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q2')} className="px-2.5 py-1 text-left hover:bg-amber-950/40 text-amber-300 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" /> Chuyển sang Q2
-                                  </button>
-                                  <button onClick={() => handleMoveTaskQuadrant(t.id, 'q3')} className="px-2.5 py-1 text-left hover:bg-sky-950/40 text-sky-400 flex items-center gap-1.5 cursor-pointer">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" /> Chuyển sang Q3
-                                  </button>
-                                </div>
-                              </div>
+                              {/* Move button (Opens elevated portal menu) */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setActiveMoveMenu(
+                                    activeMoveMenu?.taskId === t.id
+                                      ? null
+                                      : {
+                                          taskId: t.id,
+                                          sourceQuadrant: 'q4',
+                                          x: rect.right,
+                                          y: rect.bottom,
+                                        }
+                                  );
+                                }}
+                                className={`p-1.5 rounded transition-all text-[11px] cursor-pointer ${
+                                  activeMoveMenu?.taskId === t.id
+                                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-200 ring-1 ring-slate-400'
+                                    : 'hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-slate-500 dark:text-[#888888] hover:text-slate-900 dark:hover:text-[#D4AF37]'
+                                }`}
+                                title="Chuyển sang góc phần tư khác"
+                              >
+                                <ArrowUpDown className="w-3.5 h-3.5" />
+                              </button>
 
                               <button
                                 type="button"
@@ -3823,27 +3873,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] border border-[#333333] text-[10px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
               CHÚ THÍCH:
             </span>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#180E0E] border border-rose-500/40 text-rose-200">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-rose-50 dark:bg-[#180E0E] border border-rose-300 dark:border-rose-500/40 text-rose-900 dark:text-rose-200">
               <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
-              <span className="font-bold text-white">Q1: Làm ngay</span>
+              <span className="font-bold text-slate-900 dark:text-white">Q1: Làm ngay</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#181408] border border-amber-500/40 text-amber-200">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-amber-50 dark:bg-[#181408] border border-amber-300 dark:border-amber-500/40 text-amber-900 dark:text-amber-200">
               <span className="w-2 h-2 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.8)]" />
-              <span className="font-bold text-white">Q2: Lên lịch (Chiến lược)</span>
+              <span className="font-bold text-slate-900 dark:text-white">Q2: Lên lịch (Chiến lược)</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#0B1520] border border-sky-500/40 text-sky-200">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-sky-50 dark:bg-[#0B1520] border border-sky-300 dark:border-sky-500/40 text-sky-900 dark:text-sky-200">
               <span className="w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
-              <span className="font-bold text-white">Q3: Ủy quyền</span>
+              <span className="font-bold text-slate-900 dark:text-white">Q3: Ủy quyền</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#141414] border border-slate-600/40 text-slate-200">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-slate-100 dark:bg-[#141414] border border-slate-300 dark:border-slate-600/40 text-slate-900 dark:text-slate-200">
               <span className="w-2 h-2 rounded-full bg-slate-400 shadow-[0_0_8px_rgba(148,163,184,0.8)]" />
-              <span className="font-bold text-white">Q4: Loại bỏ</span>
+              <span className="font-bold text-slate-900 dark:text-white">Q4: Loại bỏ</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#121212] border border-[#2E2E2E] text-amber-300 font-mono text-[11px]">
-            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
-            <span className="text-[#F7D070] font-medium">Nguyên lý Covey: Dành 60% năng lượng cho Q2 để chủ động ngăn ngừa khủng hoảng.</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-amber-50 dark:bg-[#121212] border border-amber-200 dark:border-[#2E2E2E] text-amber-900 dark:text-amber-300 font-mono text-[11px]">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-[#D4AF37] shrink-0" />
+            <span className="text-amber-900 dark:text-[#F7D070] font-semibold">Nguyên lý Covey: Dành 60% năng lượng cho Q2 để chủ động ngăn ngừa khủng hoảng.</span>
           </div>
         </div>
       </div>
@@ -4477,12 +4527,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Notes / Description Snippet */}
         {(previewDriveFile.notes || previewDriveFile.description) && (
-          <div className="p-2.5 rounded bg-[#0E0E0E] border border-[#262626] space-y-1">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider">
-              <FileText className="w-3 h-3 text-[#D4AF37]" />
+          <div className="p-2.5 rounded bg-white dark:bg-[#0E0E0E] border border-slate-300 dark:border-[#262626] space-y-1">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 dark:text-[#D4AF37] uppercase tracking-wider">
+              <FileText className="w-3 h-3 text-blue-600 dark:text-[#D4AF37]" />
               <span>Chú thích / Tóm tắt</span>
             </div>
-            <p className="text-[11px] text-white italic line-clamp-3 leading-relaxed font-medium">
+            <p className="text-[11px] text-slate-900 dark:text-white line-clamp-3 leading-relaxed font-semibold">
               &ldquo;{previewDriveFile.notes || previewDriveFile.description}&rdquo;
             </p>
           </div>
@@ -4543,6 +4593,85 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
     </div>
+  )}
+
+  {/* ============================================================== */}
+  {/* ELEVATED PORTAL MENU FOR EISENHOWER QUADRANT TASK REASSIGNMENT */}
+  {/* Escapes all scroll & card overflow boundaries with high z-index */}
+  {/* ============================================================== */}
+  {activeMoveMenu && createPortal(
+    <div
+      className="fixed inset-0 z-[9999]"
+      onClick={() => setActiveMoveMenu(null)}
+    >
+      <div
+        style={{
+          position: 'fixed',
+          top: Math.max(10, Math.min(activeMoveMenu.y + 4, window.innerHeight - 165)),
+          left: Math.max(12, Math.min(activeMoveMenu.x - 170, window.innerWidth - 180)),
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="flex flex-col bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-[#333333] rounded-lg shadow-2xl ring-1 ring-slate-900/10 dark:ring-black/60 py-1.5 min-w-[170px] text-xs backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
+      >
+        <div className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 border-b border-slate-100 dark:border-[#282828] mb-1 flex items-center justify-between">
+          <span>Chuyển phân loại</span>
+          <ArrowUpDown className="w-3 h-3 text-amber-500 dark:text-[#D4AF37]" />
+        </div>
+        {activeMoveMenu.sourceQuadrant !== 'q1' && (
+          <button
+            type="button"
+            onClick={() => {
+              handleMoveTaskQuadrant(activeMoveMenu.taskId, 'q1');
+              setActiveMoveMenu(null);
+            }}
+            className="px-3 py-1.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/50 text-rose-700 dark:text-rose-300 font-semibold flex items-center gap-2 cursor-pointer transition-colors rounded-xs mx-1"
+          >
+            <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.6)] shrink-0" />
+            <span>Chuyển sang Q1</span>
+          </button>
+        )}
+        {activeMoveMenu.sourceQuadrant !== 'q2' && (
+          <button
+            type="button"
+            onClick={() => {
+              handleMoveTaskQuadrant(activeMoveMenu.taskId, 'q2');
+              setActiveMoveMenu(null);
+            }}
+            className="px-3 py-1.5 text-left hover:bg-amber-50 dark:hover:bg-amber-950/50 text-amber-800 dark:text-[#F7D070] font-semibold flex items-center gap-2 cursor-pointer transition-colors rounded-xs mx-1"
+          >
+            <span className="w-2 h-2 rounded-full bg-[#D4AF37] shadow-[0_0_6px_rgba(212,175,55,0.6)] shrink-0" />
+            <span>Chuyển sang Q2</span>
+          </button>
+        )}
+        {activeMoveMenu.sourceQuadrant !== 'q3' && (
+          <button
+            type="button"
+            onClick={() => {
+              handleMoveTaskQuadrant(activeMoveMenu.taskId, 'q3');
+              setActiveMoveMenu(null);
+            }}
+            className="px-3 py-1.5 text-left hover:bg-sky-50 dark:hover:bg-sky-950/50 text-sky-700 dark:text-sky-300 font-semibold flex items-center gap-2 cursor-pointer transition-colors rounded-xs mx-1"
+          >
+            <span className="w-2 h-2 rounded-full bg-sky-500 shadow-[0_0_6px_rgba(56,189,248,0.6)] shrink-0" />
+            <span>Chuyển sang Q3</span>
+          </button>
+        )}
+        {activeMoveMenu.sourceQuadrant !== 'q4' && (
+          <button
+            type="button"
+            onClick={() => {
+              handleMoveTaskQuadrant(activeMoveMenu.taskId, 'q4');
+              setActiveMoveMenu(null);
+            }}
+            className="px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold flex items-center gap-2 cursor-pointer transition-colors rounded-xs mx-1"
+          >
+            <span className="w-2 h-2 rounded-full bg-slate-400 shadow-[0_0_6px_rgba(148,163,184,0.6)] shrink-0" />
+            <span>Chuyển sang Q4</span>
+          </button>
+        )}
+      </div>
+    </div>,
+    document.body
   )}
     </div>
   );

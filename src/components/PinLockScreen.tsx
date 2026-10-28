@@ -152,7 +152,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-500 bg-[#090909] text-[#E0E0E0] flex flex-col items-center justify-center p-4 select-none overflow-y-auto">
+    <div className="pin-lock-container fixed inset-0 z-500 bg-[#090909] text-[#E0E0E0] flex flex-col items-center justify-center p-4 select-none overflow-y-auto transition-colors duration-200">
       {/* Background Decorative Ambient */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-30">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#D4AF37]/10 rounded-full blur-3xl" />
@@ -185,10 +185,10 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
         
         {/* Brand & Security Header */}
         <div className="flex flex-col items-center mb-6 text-center">
-          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-2xl mb-4 border ${
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-xl mb-4 border ${
             isUnlocking
-              ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 scale-110'
-              : 'bg-[#151515] border-[#D4AF37]/40 text-[#D4AF37]'
+              ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 scale-110 shadow-emerald-500/20'
+              : 'bg-[#151515] border-[#D4AF37]/40 text-[#D4AF37] shadow-md shadow-[#D4AF37]/10'
           }`}>
             {isUnlocking ? (
               <Unlock className="w-8 h-8 animate-bounce" />
@@ -198,14 +198,14 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
           </div>
 
           <div className="flex items-center gap-2">
-            <h1 className="font-editorial-serif italic text-2xl text-[#D4AF37] tracking-tight">
+            <h1 className="font-editorial-serif italic text-2xl text-[#F5D77F] dark:text-[#D4AF37] tracking-tight font-bold">
               Architect.OS
             </h1>
             <span className="text-[9px] uppercase tracking-[0.2em] font-bold px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30">
               Security
             </span>
           </div>
-          <p className="text-xs text-[#888888] uppercase tracking-widest mt-1">
+          <p className="text-xs text-zinc-300 font-semibold uppercase tracking-widest mt-1">
             Hệ Thống Được Bảo Vệ Bằng Mã PIN
           </p>
         </div>
@@ -214,12 +214,12 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
         <div className={`w-full bg-[#121212] border border-[#2A2A2A] rounded-xl p-5 mb-5 shadow-2xl transition-all duration-200 ${
           isShaking ? 'animate-[shake_0.4s_ease-in-out] border-rose-500/80 bg-rose-950/20' : ''
         }`}>
-          <div className="flex items-center justify-between text-xs text-[#888888] mb-3">
-            <span className="font-medium">Nhập mã PIN để mở khóa:</span>
+          <div className="flex items-center justify-between text-xs text-zinc-300 font-semibold mb-3">
+            <span>Nhập mã PIN để mở khóa:</span>
             <button
               type="button"
               onClick={() => setShowDigits(!showDigits)}
-              className="text-[#AAAAAA] hover:text-[#D4AF37] flex items-center gap-1 transition-colors cursor-pointer"
+              className="text-zinc-300 hover:text-[#D4AF37] flex items-center gap-1 transition-colors cursor-pointer"
             >
               {showDigits ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               <span className="text-[10px] uppercase font-bold">{showDigits ? 'Ẩn' : 'Hiện'}</span>
@@ -236,7 +236,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
                   className={`w-4 h-4 rounded-full transition-all duration-200 flex items-center justify-center font-mono font-bold text-sm ${
                     hasDigit
                       ? isUnlocking
-                        ? 'bg-emerald-400 scale-110 shadow-[0_0_10px_rgba(52,211,153,0.8)]'
+                        ? 'bg-emerald-400 scale-110 shadow-[0_0_10px_rgba(52,211,153,0.8)] text-white'
                         : 'bg-[#D4AF37] scale-110 shadow-[0_0_8px_rgba(212,175,55,0.6)] text-black'
                       : 'bg-[#222222] border border-[#333333]'
                   }`}
@@ -247,7 +247,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
             })}
             {/* Show extra dots if PIN length > 4 */}
             {pinInput.length > 4 && (
-              <span className="text-xs font-mono text-[#D4AF37] ml-1">
+              <span className="text-xs font-mono text-[#D4AF37] font-bold ml-1">
                 +{pinInput.length - 4}
               </span>
             )}
@@ -255,7 +255,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
 
           {/* Error Message */}
           {errorMsg && (
-            <div className="mt-3 p-2 bg-rose-950/50 border border-rose-800/80 rounded text-center text-xs text-rose-300 flex items-center justify-center gap-1.5 animate-in fade-in">
+            <div className="mt-3 p-2 bg-rose-950/50 border border-rose-800/80 rounded text-center text-xs text-rose-300 flex items-center justify-center gap-1.5 animate-in fade-in font-medium">
               <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
               <span>{errorMsg}</span>
             </div>
@@ -263,7 +263,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
 
           {/* Cooldown notice */}
           {cooldownSeconds > 0 && (
-            <div className="mt-2 text-center text-xs text-amber-400 font-mono">
+            <div className="mt-2 text-center text-xs text-amber-400 font-mono font-bold">
               ⏱️ Thử lại sau: {cooldownSeconds}s
             </div>
           )}
@@ -288,7 +288,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
             type="button"
             onClick={handleClear}
             disabled={cooldownSeconds > 0 || isUnlocking || pinInput.length === 0}
-            className="h-14 rounded-xl bg-[#121212] hover:bg-[#1C1C1C] border border-[#222222] text-[#888888] hover:text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+            className="h-14 rounded-xl bg-[#151515] hover:bg-[#202020] border border-[#262626] text-zinc-200 hover:text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
           >
             Xóa
           </button>
@@ -308,7 +308,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
             type="button"
             onClick={handleBackspace}
             disabled={cooldownSeconds > 0 || isUnlocking || pinInput.length === 0}
-            className="h-14 rounded-xl bg-[#121212] hover:bg-[#1C1C1C] border border-[#222222] text-[#888888] hover:text-[#D4AF37] transition-all flex items-center justify-center cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+            className="h-14 rounded-xl bg-[#151515] hover:bg-[#202020] border border-[#262626] text-zinc-200 hover:text-[#D4AF37] transition-all flex items-center justify-center cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
           >
             <Delete className="w-5 h-5" />
           </button>
@@ -332,26 +332,26 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
           <button
             type="button"
             onClick={() => setShowHint(!showHint)}
-            className="text-xs text-[#888888] hover:text-[#D4AF37] inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="text-xs text-zinc-300 hover:text-[#D4AF37] font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <HelpCircle className="w-3.5 h-3.5" />
             <span>{showHint ? 'Ẩn gợi ý mã PIN' : 'Gợi ý mã PIN / Quên mã PIN?'}</span>
           </button>
 
           {showHint && (
-            <div className="p-3 bg-[#121212] border border-[#2A2A2A] rounded-lg text-xs text-[#CCCCCC] text-left space-y-1.5 animate-in fade-in">
+            <div className="p-3 bg-[#121212] border border-[#2A2A2A] rounded-lg text-xs text-[#CCCCCC] text-left space-y-1.5 shadow-md animate-in fade-in">
               <div className="font-bold text-[#D4AF37] flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
                 <span>Thông tin bảo mật:</span>
               </div>
-              <p className="text-[11px] text-[#AAAAAA]">
+              <p className="text-[11px] text-zinc-300">
                 • {settings.hasCustomPin 
                     ? (settings.hint && settings.hint !== 'Mã PIN mặc định là 1234' && settings.hint !== 'Mã PIN mặc định ban đầu là 1234'
                         ? `Gợi ý: ${settings.hint}` 
                         : 'Mã PIN đã được chủ tài khoản thiết lập tùy chỉnh.')
                     : (settings.hint || 'Mã PIN mặc định ban đầu là: 1234')}
               </p>
-              <p className="text-[11px] text-[#777777]">
+              <p className="text-[11px] text-zinc-400">
                 • Bạn có thể đổi mã PIN hoặc tắt tính năng này bất cứ lúc nào trong mục <strong>Cài Đặt ➔ Bảo Mật & Mã PIN</strong> sau khi đăng nhập.
               </p>
             </div>

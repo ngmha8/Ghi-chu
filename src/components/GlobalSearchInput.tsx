@@ -310,7 +310,7 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
               <X className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <span className="hidden xl:inline text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#1F1F1F] border border-[#333333] text-[#777777]">
+            <span className="hidden xl:inline text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#1F1F1F] border border-slate-300 dark:border-[#333333] text-slate-700 dark:text-[#888888] font-semibold">
               # tag
             </span>
           )}
