@@ -28,6 +28,7 @@ import {
   Send,
   Zap,
   FolderOpen,
+  FolderSync,
   HelpCircle,
   PlusCircle,
   Eye,
@@ -1821,13 +1822,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-[#AAAAAA] leading-relaxed">
-                    💡 <strong className="text-white">Bạn không cần phải nhập lại JSON Key hay Folder ID khi đăng nhập hay đổi máy.</strong> Mọi tác vụ tải file, đồng bộ và AI Agent đều sẽ tự động kết nối qua tài khoản dịch vụ này.
-                  </p>
+                  {/* Two-Way Sync Distinction Notice */}
+                  <div className="p-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded space-y-1.5 text-[11px]">
+                    <div className="font-bold text-[#D4AF37] flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                      <HardDrive className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      <span>Cơ Chế Đồng Bộ 2 Chiều Giữa App & Google Drive:</span>
+                    </div>
+                    <p className="text-[#CCCCCC] leading-relaxed">
+                      • <strong className="text-emerald-400">Chiều đọc (Drive ➔ App):</strong> Robot Service Account tự động quét và nạp tài liệu từ thư mục Drive về app trên mọi thiết bị mà không cần người dùng đăng nhập Google.
+                    </p>
+                    <p className="text-[#CCCCCC] leading-relaxed">
+                      • <strong className="text-amber-400">Chiều ghi (App ➔ Drive cá nhân):</strong> Google quy định Robot có hạn mức 0MB trên tài khoản cá nhân (@gmail.com). Do đó, để tải tệp mới lên Drive cá nhân, hệ thống yêu cầu <strong className="text-white">Đăng nhập Tài khoản Google của Admin (Chủ sở hữu Drive)</strong>.
+                    </p>
+                  </div>
 
                   {/* Actions for active config */}
                   <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-emerald-900/40">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <button
                         type="button"
                         onClick={handleTestSaConnection}
@@ -1835,7 +1846,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         className="py-1.5 px-3 rounded-sm bg-[#1A1A1A] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${isTestingSa ? 'animate-spin' : ''}`} />
-                        <span>{isTestingSa ? 'Đang kiểm tra...' : 'Kiểm Tra Lại Kết Nối'}</span>
+                        <span>{isTestingSa ? 'Đang kiểm tra...' : 'Kiểm Tra Kết Nối'}</span>
                       </button>
 
                       <button
@@ -1847,15 +1858,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleSyncSaFiles}
-                      disabled={isSyncingSa}
-                      className="py-1.5 px-4 rounded-sm bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
-                    >
-                      <FolderOpen className="w-3.5 h-3.5" />
-                      <span>{isSyncingSa ? 'Đang đồng bộ...' : 'Đồng Bộ Tệp Drive Ngay'}</span>
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleSyncSaFiles}
+                        disabled={isSyncingSa}
+                        className="py-1.5 px-3.5 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-white border border-[#3A3A3A] font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
+                        title="Quét các file sẵn có trong thư mục Google Drive về ứng dụng (tự động qua Robot)"
+                      >
+                        <FolderSync className={`w-3.5 h-3.5 text-[#D4AF37] ${isSyncingSa ? 'animate-spin' : ''}`} />
+                        <span>{isSyncingSa ? 'Đang quét...' : 'Quét Tệp Từ Drive Về App'}</span>
+                      </button>
+
+                      {googleUser ? (
+                        <div className="py-1.5 px-3 rounded-sm bg-emerald-950/80 border border-emerald-600/80 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Admin Drive: {googleUser.email}</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleGoogleSignIn}
+                          disabled={isLoggingInGoogle}
+                          className="py-1.5 px-4 rounded-sm bg-white hover:bg-slate-200 text-black font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
+                          title="Đăng nhập tài khoản Google Admin để cho phép đẩy file lên Drive cá nhân"
+                        >
+                          <Globe className="w-3.5 h-3.5 text-[#4285F4]" />
+                          <span>{isLoggingInGoogle ? 'Đang kết nối...' : 'Đăng Nhập Google Admin'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

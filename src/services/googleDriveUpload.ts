@@ -8,7 +8,13 @@ export async function uploadLocalFileToUserGoogleDrive(
   fileId: string,
   targetFolderId?: string,
   base64Data?: string
-): Promise<{ driveFileId?: string; webViewLink?: string; file: any; notice?: string }> {
+): Promise<{
+  driveFileId?: string;
+  webViewLink?: string;
+  file: any;
+  notice?: string;
+  requiresAdminLogin?: boolean;
+}> {
   let token = getGoogleAccessToken();
 
   const headers: Record<string, string> = {
@@ -39,10 +45,13 @@ export async function uploadLocalFileToUserGoogleDrive(
     setGoogleAccessToken(null);
   }
 
+  const hasDriveId = !!(data.file?.driveFileId || data.driveResult?.id);
+
   return {
     driveFileId: data.file?.driveFileId || data.driveResult?.id,
     webViewLink: data.file?.webViewLink || data.driveResult?.webViewLink,
     file: data.file,
     notice: data.notice,
+    requiresAdminLogin: !hasDriveId && (data.requiresAdminLogin || !token),
   };
 }

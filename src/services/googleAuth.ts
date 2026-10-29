@@ -191,9 +191,13 @@ export const signInWithGoogleWorkspace = async (): Promise<{
         },
         error_callback: (err: any) => {
           // If the user closed the popup window manually, treat as cancellation rather than hard error
-          const msg = err?.message || '';
+          const msg = err?.message || err?.type || '';
           if (err?.type === 'popup_closed' || msg.toLowerCase().includes('popup window closed') || msg.toLowerCase().includes('popup_closed')) {
-            reject(new Error('Đã hủy đăng nhập Google (cửa sổ xác thực đã được đóng).'));
+            reject(new Error('Đã đóng cửa sổ đăng nhập Google. Nếu gặp thông báo origin_mismatch, hãy sao chép link trang web hiện tại và thêm vào mục Authorized JavaScript origins trong Google Cloud Console.'));
+            return;
+          }
+          if (msg.toLowerCase().includes('origin_mismatch') || msg.toLowerCase().includes('origin mismatch')) {
+            reject(new Error(`Lỗi origin_mismatch: Địa chỉ '${typeof window !== 'undefined' ? window.location.origin : ''}' chưa được thêm vào Authorized JavaScript origins trong Google Cloud Console.`));
             return;
           }
           console.warn('GIS Client notification:', err);

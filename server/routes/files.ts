@@ -314,13 +314,15 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
             file,
             driveResult: uploadRes,
             viaServiceAccount: true,
-            notice: uploadRes.notice || 'Đã lưu trữ an toàn trong kho dữ liệu đám mây.',
+            requiresAdminLogin: true,
+            notice: uploadRes.notice || 'Đã lưu trữ an toàn trong Cloud Vault. Để tải trực tiếp lên Google Drive cá nhân, yêu cầu đăng nhập tài khoản Google của Admin (Chủ sở hữu).',
           });
         }
       }
 
       return res.status(401).json({
-        error: 'Chưa có kết nối Google Drive. Vui lòng kiểm tra lại cấu hình Service Account trong Cài Đặt.',
+        error: 'Chưa có kết nối Google Drive. Vui lòng kiểm tra lại cấu hình Service Account trong Cài Đặt hoặc đăng nhập tài khoản Google Admin.',
+        requiresAdminLogin: true,
       });
     }
 
@@ -406,7 +408,8 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
             driveResult: uploadRes,
             viaServiceAccount: true,
             tokenExpired: isAuthError,
-            notice: uploadRes.notice || 'Đã lưu trữ an toàn trong kho dữ liệu đám mây.',
+            requiresAdminLogin: true,
+            notice: uploadRes.notice || 'Đã lưu trữ an toàn trong Cloud Vault. Để tải trực tiếp lên Google Drive cá nhân, yêu cầu đăng nhập tài khoản Google của Admin (Chủ sở hữu).',
           });
         }
       }
