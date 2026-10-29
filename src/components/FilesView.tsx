@@ -1223,10 +1223,10 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                 onClick={handleUnifiedSyncDriveFiles}
                 disabled={isSyncingSa}
                 className="px-3 py-1.5 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] hover:text-white border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                title="Quét và đồng bộ toàn bộ tài liệu từ Google Drive vào hệ thống"
+                title="Làm mới kết nối và kiểm tra lại thư mục Google Drive"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSa ? 'animate-spin' : ''}`} />
-                <span>{isSyncingSa ? 'Đang quét...' : 'Đồng Bộ Drive'}</span>
+                <span>{isSyncingSa ? 'Đang làm mới...' : 'Làm Mới Drive'}</span>
               </button>
             </div>
           ) : googleUser ? (
@@ -1275,10 +1275,10 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             onClick={handleUnifiedSyncDriveFiles}
             disabled={isSyncing || isSyncingSa}
             className="px-3 py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/60 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-            title="Quét và nạp các tệp mới từ thư mục Google Drive về ứng dụng"
+            title="Nạp và hiển thị toàn bộ các tệp có sẵn trên Google Drive về ứng dụng"
           >
             <FolderSync className={`w-3.5 h-3.5 text-[#D4AF37] ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
-            <span>{isSyncing || isSyncingSa ? 'Đang tải...' : 'Đồng Bộ Từ Drive'}</span>
+            <span>{isSyncing || isSyncingSa ? 'Đang nạp...' : 'Nạp Tệp Từ Drive'}</span>
           </button>
 
           {/* Prominent Sync ALL Local Files to Personal Google Drive Button */}
@@ -2298,7 +2298,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                       <span>Tài liệu đang lưu trữ cục bộ</span>
                     </div>
                     <p className="text-[11px] text-[#A0A0A0]">
-                      Tệp được lưu an toàn trong cơ sở dữ liệu. Nhấn "Đồng bộ từ Drive" ở thanh công cụ để đồng bộ toàn bộ.
+                      Tệp được lưu an toàn trong cơ sở dữ liệu. Nhấn "Nạp tệp từ Drive" ở thanh công cụ để đồng bộ toàn bộ.
                     </p>
                   </div>
                   <button
@@ -2307,7 +2307,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-wider rounded-sm shrink-0 flex items-center justify-center gap-1.5 cursor-pointer shadow"
                   >
                     <FolderSync className={`w-3.5 h-3.5 ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
-                    <span>{isSyncing || isSyncingSa ? 'Đang đồng bộ...' : 'Đồng Bộ Từ Drive'}</span>
+                    <span>{isSyncing || isSyncingSa ? 'Đang nạp...' : 'Nạp Tệp Từ Drive'}</span>
                   </button>
                 </div>
               ) : (
