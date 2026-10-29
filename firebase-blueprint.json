@@ -119,6 +119,22 @@
         "generatedAt": { "type": "string" }
       },
       "required": ["title", "summary", "category"]
+    },
+    "FileBinary": {
+      "title": "FileBinary",
+      "description": "Chunked binary data of uploaded files",
+      "type": "object",
+      "properties": {
+        "fileId": { "type": "string" },
+        "fileName": { "type": "string" },
+        "mimeType": { "type": "string" },
+        "data": { "type": "string" },
+        "size": { "type": "number" },
+        "chunkIndex": { "type": "number" },
+        "totalChunks": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["fileId", "data"]
     }
   },
   "firestore": {
@@ -153,6 +169,10 @@
     "/ai_insights/{insightId}": {
       "entity": "AiLearningInsight",
       "description": "Autonomous learning reflections"
+    },
+    "/file_binaries/{binaryId}": {
+      "entity": "FileBinary",
+      "description": "Persistent chunked binary data vault for uploaded documents"
     }
   }
 }

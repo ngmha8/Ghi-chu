@@ -308,6 +308,14 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
             driveResult: uploadRes,
             viaServiceAccount: true,
           });
+        } else {
+          return res.json({
+            success: true,
+            file,
+            driveResult: uploadRes,
+            viaServiceAccount: true,
+            notice: uploadRes.notice || 'Đã lưu trữ an toàn trong kho dữ liệu đám mây.',
+          });
         }
       }
 
@@ -353,13 +361,62 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
 
     if (!driveRes.ok) {
       const errText = await driveRes.text();
-      console.error('Google Drive API error:', errText);
+      const isAuthError = driveRes.status === 401 || errText.includes('authError') || errText.includes('Invalid Credentials');
+      if (isAuthError) {
+        console.warn('OAuth user token expired or invalid; automatically falling back to Service Account upload.');
+      } else {
+        console.warn('Google Drive API OAuth upload warning (falling back to Service Account):', errText);
+      }
+
+      // Resilient Fallback: Upload via configured Google Drive Service Account
+      const saConfig = await getDbDriveServiceAccountConfig();
+      if (saConfig?.clientEmail && saConfig?.privateKey && (targetFolderId || saConfig?.folderId)) {
+        const uploadRes = await uploadFileToDriveFolder(
+          {
+            ...saConfig,
+            folderId: targetFolderId || saConfig.folderId,
+          },
+          file.name,
+          file.mimeType || 'application/octet-stream',
+          fileBuffer
+        );
+
+        if (uploadRes.uploadedToDrive && uploadRes.id) {
+          const updated: DriveFile = {
+            ...file,
+            driveFileId: uploadRes.id,
+            webViewLink: uploadRes.webViewLink || `https://drive.google.com/file/d/${uploadRes.id}/view`,
+            isSyncedToDrive: true,
+            syncStatus: 'synced',
+            syncError: undefined,
+          };
+          const saved = await saveDbFile(updated);
+          return res.json({
+            success: true,
+            file: saved,
+            driveResult: uploadRes,
+            viaServiceAccount: true,
+            tokenExpired: isAuthError,
+          });
+        } else {
+          // File stored safely in multi-tier vault
+          return res.json({
+            success: true,
+            file,
+            driveResult: uploadRes,
+            viaServiceAccount: true,
+            tokenExpired: isAuthError,
+            notice: uploadRes.notice || 'Đã lưu trữ an toàn trong kho dữ liệu đám mây.',
+          });
+        }
+      }
+
       let errMsg = `Lỗi Google Drive (${driveRes.status})`;
       try {
         const parsed = JSON.parse(errText);
         if (parsed?.error?.message) errMsg = parsed.error.message;
       } catch (e) {}
-      return res.status(driveRes.status).json({ error: errMsg });
+      return res.status(driveRes.status).json({ error: errMsg, tokenExpired: isAuthError });
     }
 
     const driveResult: any = await driveRes.json();

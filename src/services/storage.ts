@@ -18,6 +18,7 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // Initialize Firebase Storage instance
 let storageInstance: FirebaseStorage | null = null;
+let isGcsTemporarilyDisabled = false;
 
 /**
  * Retrieves the singleton Firebase Cloud Storage instance
@@ -29,8 +30,22 @@ export function getFirebaseStorage(): FirebaseStorage {
       ? (bucket.startsWith('gs://') ? bucket : `gs://${bucket}`)
       : undefined;
     storageInstance = getStorage(app, bucketUrl);
+    // Enforce fast fail-fast timeout (3.5 seconds) to avoid freezing UI for 2 minutes
+    try {
+      storageInstance.maxUploadRetryTime = 3500;
+      storageInstance.maxOperationRetryTime = 3500;
+    } catch (e) {}
   }
   return storageInstance;
+}
+
+export function disableCloudStorageDirect(): void {
+  isGcsTemporarilyDisabled = true;
+}
+
+export function isCloudStorageConfigured(): boolean {
+  if (isGcsTemporarilyDisabled) return false;
+  return !!(firebaseConfig.storageBucket && firebaseConfig.storageBucket.trim().length > 0);
 }
 
 export interface StorageUploadResult {
@@ -47,13 +62,6 @@ export interface UploadOptions {
   customFileName?: string;
   metadata?: Record<string, string>;
   onProgress?: (progressPercent: number, snapshot: UploadTaskSnapshot) => void;
-}
-
-/**
- * Checks whether Google Cloud Storage (GCS) bucket is configured in firebase-applet-config.json
- */
-export function isCloudStorageConfigured(): boolean {
-  return !!(firebaseConfig.storageBucket && firebaseConfig.storageBucket.trim().length > 0);
 }
 
 /**
@@ -91,34 +99,52 @@ export async function uploadFileToStorage(
 
   const fileType = file.type || 'application/octet-stream';
 
-  // Use uploadBytesResumable if progress reporting is requested
-  if (options.onProgress) {
-    const uploadTask = uploadBytesResumable(storageRef, file, {
-      contentType: fileType,
-      customMetadata,
+  try {
+    const uploadPromise = new Promise<void>((resolve, reject) => {
+      if (options.onProgress) {
+        const uploadTask = uploadBytesResumable(storageRef, file, {
+          contentType: fileType,
+          customMetadata,
+        });
+
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            options.onProgress?.(percent, snapshot);
+          },
+          (error) => {
+            disableCloudStorageDirect();
+            reject(error);
+          },
+          () => {
+            resolve();
+          }
+        );
+      } else {
+        uploadBytes(storageRef, file, {
+          contentType: fileType,
+          customMetadata,
+        })
+          .then(() => resolve())
+          .catch((err) => {
+            disableCloudStorageDirect();
+            reject(err);
+          });
+      }
     });
 
-    await new Promise<void>((resolve, reject) => {
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          options.onProgress?.(percent, snapshot);
-        },
-        (error) => {
-          console.error('[GCS Storage] Resumable upload failed:', error);
-          reject(error);
-        },
-        () => {
-          resolve();
-        }
-      );
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => {
+        disableCloudStorageDirect();
+        reject(new Error('Firebase Storage timeout: direct cloud storage bucket is unconfigured or blocked by CORS.'));
+      }, 4000);
     });
-  } else {
-    await uploadBytes(storageRef, file, {
-      contentType: fileType,
-      customMetadata,
-    });
+
+    await Promise.race([uploadPromise, timeoutPromise]);
+  } catch (err: any) {
+    disableCloudStorageDirect();
+    throw err;
   }
 
   // Retrieve permanent download URL
