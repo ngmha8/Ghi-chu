@@ -248,7 +248,12 @@ export const FilesView: React.FC<FilesViewProps> = ({
     isSyncAll?: boolean;
     notice?: string;
   } | null>(null);
-  const [showOriginHelp, setShowOriginHelp] = useState(false);
+  const [showOriginHelp, setShowOriginHelp] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !window.location.origin.includes('localhost');
+    }
+    return false;
+  });
   const [copiedOrigin, setCopiedOrigin] = useState(false);
 
   // Initialize Google Auth state listener
@@ -422,6 +427,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
       } else {
         setAuthError(`Lỗi đăng nhập Google Admin: ${msg}`);
       }
+      setShowOriginHelp(true);
     } finally {
       setIsLoggingInGoogle(false);
     }

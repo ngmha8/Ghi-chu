@@ -269,6 +269,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [oauthStatusMsg, setOauthStatusMsg] = useState<string | null>(null);
   const [customClientIdInput, setCustomClientIdInput] = useState(() => getActiveGoogleClientId());
   const [clientIdSavedSuccess, setClientIdSavedSuccess] = useState(false);
+  const [copiedOrigin, setCopiedOrigin] = useState(false);
 
   // Listen to Google Auth
   useEffect(() => {
@@ -1602,13 +1603,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   onClick={() => {
                     if (typeof window !== 'undefined') {
                       navigator.clipboard?.writeText(window.location.origin);
-                      alert(`Đã sao chép: ${window.location.origin}`);
+                      setCopiedOrigin(true);
+                      setTimeout(() => setCopiedOrigin(false), 2500);
                     }
                   }}
-                  className="px-2 py-1 bg-[#222] hover:bg-[#333] text-white rounded text-[10px] flex items-center gap-1 font-mono shrink-0 cursor-pointer"
+                  className="px-2.5 py-1 bg-[#222] hover:bg-[#333] text-white rounded text-[10px] flex items-center gap-1 font-mono shrink-0 cursor-pointer"
                 >
-                  <Copy className="w-3 h-3 text-[#D4AF37]" />
-                  <span>Sao chép Origin</span>
+                  {copiedOrigin ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span className="text-emerald-400">Đã sao chép</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 text-[#D4AF37]" />
+                      <span>Sao chép Origin</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
