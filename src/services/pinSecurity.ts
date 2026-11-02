@@ -172,17 +172,34 @@ export async function setAutolockMinutes(minutes: number): Promise<void> {
   }
 }
 
+export interface VerifyPinResult {
+  isValid: boolean;
+  isLocked?: boolean;
+  retryAfterSeconds?: number;
+  remainingAttempts?: number;
+  error?: string;
+}
+
 /**
- * Async verify PIN using Server API with fallback to local SHA-256 cryptographic digest
+ * Detailed async verification returning lockout state & remaining attempts
  */
-export async function verifyPinAsync(inputPin: string): Promise<boolean> {
-  if (typeof window === 'undefined') return inputPin === DEFAULT_PIN;
+export async function verifyPinDetailedAsync(inputPin: string): Promise<VerifyPinResult> {
+  if (typeof window === 'undefined') {
+    return { isValid: inputPin === DEFAULT_PIN };
+  }
 
   try {
-    // 1. Verify directly with Server (authoritative source across all machines & browsers)
     const result = await api.verifySecurityPin(inputPin);
+    if (result.isLocked) {
+      return {
+        isValid: false,
+        isLocked: true,
+        retryAfterSeconds: result.retryAfterSeconds || 30,
+        error: result.error || 'Mã PIN đã bị tạm khóa. Vui lòng đợi 30 giây.',
+      };
+    }
+
     if (result.isValid) {
-      // Refresh local hash on successful verify
       const salt = generateSalt();
       const hashed = await hashPin(inputPin, salt);
       const quickHash = quickSyncHash(inputPin, salt);
@@ -190,33 +207,28 @@ export async function verifyPinAsync(inputPin: string): Promise<boolean> {
       localStorage.setItem(STORAGE_PIN_HASH_KEY, hashed);
       localStorage.setItem('ai_app_security_pin_quick', quickHash);
       localStorage.setItem(STORAGE_HAS_CUSTOM_PIN_KEY, inputPin !== DEFAULT_PIN ? 'true' : 'false');
-      return true;
+      return { isValid: true };
     } else {
-      // Server is online and explicitly stated the PIN is incorrect
-      return false;
+      return {
+        isValid: false,
+        remainingAttempts: result.remainingAttempts,
+        error: result.error,
+      };
     }
-  } catch {
-    // In case server is temporarily unreachable (offline mode), fallback to local cache
+  } catch (e) {
+    // Offline / Network fallback
   }
 
-  // 2. Offline / Local fallback check
-  const hasCustom = localStorage.getItem(STORAGE_HAS_CUSTOM_PIN_KEY) === 'true';
-  const savedHash = localStorage.getItem(STORAGE_PIN_HASH_KEY);
-  const salt = localStorage.getItem(STORAGE_PIN_SALT_KEY);
-  const legacyPin = localStorage.getItem(STORAGE_PIN_LEGACY_KEY);
+  const ok = verifyPin(inputPin);
+  return { isValid: ok };
+}
 
-  if (hasCustom && !savedHash) {
-    // If a custom PIN is active on server, reject default 1234
-    return false;
-  }
-
-  if (!savedHash || !salt) {
-    if (legacyPin) return inputPin === legacyPin;
-    return inputPin === DEFAULT_PIN;
-  }
-
-  const inputHash = await hashPin(inputPin, salt);
-  return inputHash === savedHash;
+/**
+ * Async verify PIN using Server API with fallback to local SHA-256 cryptographic digest
+ */
+export async function verifyPinAsync(inputPin: string): Promise<boolean> {
+  const res = await verifyPinDetailedAsync(inputPin);
+  return res.isValid;
 }
 
 /**

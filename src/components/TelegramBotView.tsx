@@ -23,7 +23,10 @@ import {
   CornerDownRight,
   MousePointerClick,
   BellRing,
-  Timer
+  Timer,
+  Copy,
+  Check,
+  Cloud
 } from 'lucide-react';
 
 export interface TelegramBotViewProps {
@@ -112,6 +115,60 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
       setActionStatus({ type: 'error', message: `❌ Lỗi kết nối: ${err.message}` });
     } finally {
       setIsSwitchingPolling(false);
+    }
+  };
+
+  // Webhook 24/7 & Cloud Scheduler State
+  const [isActivatingWebhook, setIsActivatingWebhook] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [copiedSchedulerUrl, setCopiedSchedulerUrl] = useState(false);
+  const [isTestingScheduler, setIsTestingScheduler] = useState(false);
+  const [schedulerTestResult, setSchedulerTestResult] = useState<string | null>(null);
+
+  // Activate Webhook 24/7 targeting current domain
+  const handleActivateWebhook = async () => {
+    setIsActivatingWebhook(true);
+    setActionStatus(null);
+    try {
+      const webhookUrl = `${window.location.origin}/api/telegram/webhook`;
+      const res = await fetch('/api/telegram/set-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhookUrl }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionStatus({
+          type: 'success',
+          message: '✅ Đã kích hoạt Webhook 2 chiều 24/7 thành công! Cloud Run sẽ tự động thức dậy tức thì khi có tin nhắn/voice.',
+        });
+        if (onUpdateConfig) {
+          onUpdateConfig({ webhookUrl });
+        }
+      } else {
+        setActionStatus({ type: 'error', message: '❌ ' + (data.error || 'Không thể kích hoạt Webhook') });
+      }
+    } catch (err: any) {
+      setActionStatus({ type: 'error', message: `❌ Lỗi: ${err.message}` });
+    } finally {
+      setIsActivatingWebhook(false);
+    }
+  };
+
+  // Test Cloud Scheduler wake-up check
+  const handleTriggerSchedulerCheck = async () => {
+    setIsTestingScheduler(true);
+    setSchedulerTestResult(null);
+    const startMs = Date.now();
+    try {
+      const res = await fetch('/api/scheduler/check');
+      const data = await res.json();
+      const elapsed = Date.now() - startMs;
+      setSchedulerTestResult(`✅ Server phản hồi (${elapsed}ms): ${data.message || 'Lịch trình hoạt động ổn định'} lúc ${new Date().toLocaleTimeString('vi-VN')}`);
+    } catch (err: any) {
+      setSchedulerTestResult(`❌ Lỗi kiểm tra: ${err.message}`);
+    } finally {
+      setIsTestingScheduler(false);
     }
   };
 
@@ -296,6 +353,136 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
           <p className="text-[11px] text-[#A0A0A0] leading-relaxed">
             Tự động gửi nhắc nhở định kỳ ({telegramConfig.overdueReminderIntervalMinutes || 30}p/lần) khi quá hạn chưa hoàn thành hoặc gia hạn, leo thang cảnh báo AI.
           </p>
+        </div>
+      </div>
+
+      {/* 24/7 Cloud Run & Google Cloud Scheduler Control Panel */}
+      <div className="bg-[#151515] border border-[#2A2A2A] rounded-sm p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#2A2A2A] pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30">
+              <Cloud className="w-4 h-4 text-[#D4AF37]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-editorial-serif font-bold text-white uppercase tracking-wider">
+                  Hạ Tầng 24/7: Telegram Webhook & Cloud Scheduler
+                </h2>
+                <span className={`text-[10px] px-2 py-0.5 rounded-sm font-mono font-bold border ${
+                  telegramConfig.webhookUrl
+                    ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/60'
+                    : 'bg-amber-950/60 text-amber-300 border-amber-800/60'
+                }`}>
+                  {telegramConfig.webhookUrl ? '● Webhook 24/7 Active' : '○ Long-Polling Mode'}
+                </span>
+              </div>
+              <p className="text-[11px] text-[#888888] italic">
+                Cơ chế kích hoạt 2 chiều và giữ nhịp định kỳ, đảm bảo trợ lý hoạt động 24/7 kể cả khi máy chủ Cloud Run ngủ đông
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleActivateWebhook}
+              disabled={isActivatingWebhook || !telegramConfig.botToken}
+              className="px-3 py-1.5 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              title="Kích hoạt Webhook 2 chiều trên máy chủ Telegram"
+            >
+              <Zap className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>{isActivatingWebhook ? 'Đang kích hoạt...' : 'Kích Hoạt Webhook 24/7'}</span>
+            </button>
+            <button
+              onClick={handleDeleteWebhookToPolling}
+              disabled={isSwitchingPolling || !telegramConfig.botToken}
+              className="px-3 py-1.5 rounded-sm bg-[#0C0C0C] hover:bg-rose-950/40 text-rose-300 border border-rose-800/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              title="Chuyển sang chế độ Long-Polling thông thường"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>{isSwitchingPolling ? 'Đang chuyển...' : 'Chuyển Sang Polling'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 2-Column Info Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+          {/* Left: Webhook URL & Auto Wake-up */}
+          <div className="p-3.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[#D4AF37] uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 text-[#D4AF37]" />
+                1. Webhook Endpoint (Tự đánh thức Cloud Run khi có tin nhắn)
+              </span>
+              <span className="text-[10px] text-[#888888] font-mono">POST HTTPS</span>
+            </div>
+            <p className="text-[11px] text-[#AAAAAA] leading-relaxed">
+              Mỗi khi bạn gửi voice, tin nhắn hoặc bấm nút phản hồi trên Telegram, máy chủ Telegram sẽ lập tức gửi POST request đánh thức Cloud Run container dậy trong vài mili-giây.
+            </p>
+            <div className="flex items-center gap-2 bg-[#151515] p-2 rounded-sm border border-[#2A2A2A]">
+              <code className="text-[10px] font-mono text-[#CCCCCC] truncate flex-1">
+                {typeof window !== 'undefined' ? `${window.location.origin}/api/telegram/webhook` : '/api/telegram/webhook'}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/api/telegram/webhook`);
+                  setCopiedWebhook(true);
+                  setTimeout(() => setCopiedWebhook(false), 2000);
+                }}
+                className="p-1 text-[#888888] hover:text-[#D4AF37] transition-colors cursor-pointer shrink-0"
+                title="Sao chép Webhook URL"
+              >
+                {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Cloud Scheduler Ping for Deadlines & Briefings */}
+          <div className="p-3.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-amber-400 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                2. Google Cloud Scheduler (Nhắc việc & Bản tin sáng/tối đúng giờ)
+              </span>
+              <span className="text-[10px] text-[#888888] font-mono">CRON: */10 * * * *</span>
+            </div>
+            <p className="text-[11px] text-[#AAAAAA] leading-relaxed">
+              Cấu hình Google Cloud Scheduler ping định kỳ 5-10 phút để quét hạn chót công việc, cảnh báo dồn ứ và phát hành Bản Tin Sáng/Tối chính xác theo giờ Việt Nam.
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-[#151515] px-2 py-1.5 rounded-sm border border-[#2A2A2A] flex-1 min-w-0">
+                <span className="text-[10px] text-[#888888] shrink-0">URL:</span>
+                <code className="text-[10px] font-mono text-[#CCCCCC] truncate flex-1">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/api/scheduler/check` : '/api/scheduler/check'}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/api/scheduler/check`);
+                    setCopiedSchedulerUrl(true);
+                    setTimeout(() => setCopiedSchedulerUrl(false), 2000);
+                  }}
+                  className="p-1 text-[#888888] hover:text-[#D4AF37] transition-colors cursor-pointer shrink-0"
+                  title="Sao chép Scheduler URL"
+                >
+                  {copiedSchedulerUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+
+              <button
+                onClick={handleTriggerSchedulerCheck}
+                disabled={isTestingScheduler}
+                className="px-3 py-1.5 rounded-sm bg-[#1A1A1A] hover:bg-[#D4AF37] hover:text-black text-[#D4AF37] border border-[#D4AF37]/40 text-[11px] font-bold uppercase tracking-wider shrink-0 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                title="Bắn request kiểm tra quét lịch trình ngay lập tức"
+              >
+                <Zap className="w-3 h-3" />
+                <span>{isTestingScheduler ? 'Đang quét...' : 'Test Quét Ngay'}</span>
+              </button>
+            </div>
+            {schedulerTestResult && (
+              <p className="text-[10px] text-emerald-400 font-mono bg-[#151515] p-1.5 rounded border border-emerald-900/50">
+                {schedulerTestResult}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 

@@ -105,6 +105,10 @@ router.post('/test', async (req: Request, res: Response) => {
       isConnected: true,
       folderName: result.folderName,
       lastTestedAt: new Date().toISOString(),
+      driveType: result.driveType,
+      isSharedDrive: result.isSharedDrive,
+      canUploadDirectlyWithRobot: result.canUploadDirectlyWithRobot,
+      diagnosticAdvice: result.diagnosticAdvice,
       errorMessage: undefined,
     });
 

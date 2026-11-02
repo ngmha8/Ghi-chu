@@ -27,7 +27,18 @@ import {
   GripVertical,
   ArrowUpDown,
   Layers,
-  Check
+  Check,
+  Maximize2,
+  Mic,
+  Download,
+  AlertTriangle,
+  ExternalLink,
+  Flame,
+  FileText,
+  FileCheck,
+  Lightbulb,
+  Tag,
+  Bot
 } from 'lucide-react';
 
 export interface TasksViewProps {
@@ -54,109 +65,6 @@ export type TaskSortOption =
   | 'created_asc'
   | 'title_asc';
 
-const priorityWeights: Record<string, number> = {
-  high: 3,
-  medium: 2,
-  low: 1,
-};
-
-export const sortTasksByOption = (taskList: Task[], option: TaskSortOption): Task[] => {
-  return [...taskList].sort((a, b) => {
-    switch (option) {
-      case 'deadline_asc': {
-        const timeA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-        const timeB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-        const validA = !isNaN(timeA) && timeA !== Infinity;
-        const validB = !isNaN(timeB) && timeB !== Infinity;
-        if (validA && validB) {
-          if (timeA !== timeB) return timeA - timeB;
-        } else if (validA && !validB) {
-          return -1;
-        } else if (!validA && validB) {
-          return 1;
-        }
-        return (a.order ?? 0) - (b.order ?? 0);
-      }
-      case 'deadline_desc': {
-        const timeA = a.deadline ? new Date(a.deadline).getTime() : -Infinity;
-        const timeB = b.deadline ? new Date(b.deadline).getTime() : -Infinity;
-        const validA = !isNaN(timeA) && timeA !== -Infinity;
-        const validB = !isNaN(timeB) && timeB !== -Infinity;
-        if (validA && validB) {
-          if (timeA !== timeB) return timeB - timeA;
-        } else if (validA && !validB) {
-          return -1;
-        } else if (!validA && validB) {
-          return 1;
-        }
-        return (a.order ?? 0) - (b.order ?? 0);
-      }
-      case 'priority_desc': {
-        const weightA = priorityWeights[a.priority] || 0;
-        const weightB = priorityWeights[b.priority] || 0;
-        if (weightB !== weightA) return weightB - weightA;
-        const timeA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-        const timeB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-        if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) return timeA - timeB;
-        return (a.order ?? 0) - (b.order ?? 0);
-      }
-      case 'priority_asc': {
-        const weightA = priorityWeights[a.priority] || 0;
-        const weightB = priorityWeights[b.priority] || 0;
-        if (weightA !== weightB) return weightA - weightB;
-        const timeA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-        const timeB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-        if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) return timeA - timeB;
-        return (a.order ?? 0) - (b.order ?? 0);
-      }
-      case 'created_desc': {
-        const timeA = new Date(a.createdAt || 0).getTime();
-        const timeB = new Date(b.createdAt || 0).getTime();
-        if (timeB !== timeA) return timeB - timeA;
-        return (a.order ?? 0) - (b.order ?? 0);
-      }
-      case 'created_asc': {
-        const timeA = new Date(a.createdAt || 0).getTime();
-        const timeB = new Date(b.createdAt || 0).getTime();
-        if (timeA !== timeB) return timeA - timeB;
-        return (a.order ?? 0) - (b.order ?? 0);
-      }
-      case 'title_asc': {
-        const comp = a.title.localeCompare(b.title, 'vi', { sensitivity: 'base' });
-        if (comp !== 0) return comp;
-        return (a.order ?? 0) - (b.order ?? 0);
-      }
-      case 'custom':
-      default:
-        return (a.order ?? 0) - (b.order ?? 0);
-    }
-  });
-};
-
-const getSortLabel = (option: TaskSortOption): string => {
-  switch (option) {
-    case 'deadline_asc':
-      return 'Hạn chót gần nhất';
-    case 'deadline_desc':
-      return 'Hạn chót xa nhất';
-    case 'priority_desc':
-      return 'Ưu tiên: Cao → Thấp';
-    case 'priority_asc':
-      return 'Ưu tiên: Thấp → Cao';
-    case 'created_desc':
-      return 'Mới nhất';
-    case 'created_asc':
-      return 'Cũ nhất';
-    case 'title_asc':
-      return 'Tiêu đề (A-Z)';
-    case 'custom':
-    default:
-      return 'Tùy chỉnh / Kéo thả';
-  }
-};
-
-type DateRangePreset = 'all' | 'today' | 'next7' | 'month' | 'overdue' | 'custom';
-
 export const TasksView: React.FC<TasksViewProps> = ({
   tasks: propTasks,
   files: propFiles,
@@ -170,7 +78,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
   editTask: propEditTask,
   onAnalyzeTask: propOnAnalyzeTask,
 }) => {
-  // Store slices
+  // Store subscriptions
   const storeTasks = useTaskStore(s => s.tasks);
   const storeCreateTask = useTaskStore(s => s.createTask);
   const storeUpdateTask = useTaskStore(s => s.updateTask);
@@ -179,11 +87,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const storeOpenTaskModal = useTaskStore(s => s.openTaskModal);
   const storeSetAnalyzingTask = useTaskStore(s => s.setAnalyzingTask);
 
-  const storeFiles = useFileStore(s => s.files);
   const storeNotes = useNoteStore(s => s.notes);
+  const storeFiles = useFileStore(s => s.files);
   const storeOpenAiDrawer = useSystemStore(s => s.openAiDrawer);
+  const storeOpenVoiceFocus = useSystemStore(s => s.openVoiceFocus);
+  const storeSendChatMessage = useSystemStore(s => s.sendChatMessage);
+  const storeSendTelegramCommand = useSystemStore(s => s.sendTelegramCommand);
 
-  // Resolved values
+  // Fallbacks
   const tasks = propTasks ?? storeTasks;
   const files = propFiles ?? storeFiles;
   const notes = propNotes ?? storeNotes;
@@ -195,767 +106,924 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const openNewTaskModal = propOpenNewTaskModal ?? (() => storeOpenTaskModal(null));
   const editTask = propEditTask ?? ((task: Task) => storeOpenTaskModal(task));
   const onAnalyzeTask = propOnAnalyzeTask ?? storeSetAnalyzingTask;
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterPriority, setFilterPriority] = useState<string>('all');
-  const [selectedTag, setSelectedTag] = useState<string>('all');
-  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('all');
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
+
+  // View & Filter States
+  const [viewMode, setViewMode] = useState<'list' | 'matrix' | 'kanban' | 'calendar'>('list');
   const [search, setSearch] = useState<string>('');
-  const [sortBy, setSortBy] = useState<TaskSortOption>('custom');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterQuadrant, setFilterQuadrant] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<TaskSortOption>('deadline_asc');
+  const [isCompletedCollapsed, setIsCompletedCollapsed] = useState<boolean>(false);
+  const [quickAddTitle, setQuickAddTitle] = useState<string>('');
+  const [quickAddTag, setQuickAddTag] = useState<string>('');
+  const [quickAddDeadline, setQuickAddDeadline] = useState<string>('');
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar'>('list');
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
-  const [dragOverPosition, setDragOverPosition] = useState<'before' | 'after' | null>(null);
-  const [dragOverStatus, setDragOverStatus] = useState<Task['status'] | null>(null);
-  const [draggedOverCol, setDraggedOverCol] = useState<string | null>(null);
 
-  const resetDragState = () => {
-    setDraggedTaskId(null);
-    setDragOverTaskId(null);
-    setDragOverPosition(null);
-    setDragOverStatus(null);
-    setDraggedOverCol(null);
-  };
+  // Active Task Inspector
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
-  const reorderTasksList = (allTasks: Task[], sourceId: string, targetId: string, position: 'before' | 'after'): Task[] => {
-    const sourceTask = allTasks.find(t => t.id === sourceId);
-    if (!sourceTask) return allTasks;
-
-    const withoutSource = allTasks.filter(t => t.id !== sourceId);
-    const targetIndex = withoutSource.findIndex(t => t.id === targetId);
-    if (targetIndex === -1) return allTasks;
-
-    const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-    const copy = [...withoutSource];
-    copy.splice(insertIndex, 0, sourceTask);
-    return copy.map((t, idx) => ({ ...t, order: idx }));
-  };
-
-  const moveAndReorderTask = (
-    allTasks: Task[],
-    sourceId: string,
-    newStatus: Task['status'],
-    targetId?: string,
-    position: 'before' | 'after' = 'after'
-  ): Task[] => {
-    const sourceTask = allTasks.find(t => t.id === sourceId);
-    if (!sourceTask) return allTasks;
-
-    const updatedTask = { ...sourceTask, status: newStatus };
-    const withoutSource = allTasks.filter(t => t.id !== sourceId);
-
-    if (!targetId) {
-      const copy = [...withoutSource, updatedTask];
-      return copy.map((t, idx) => ({ ...t, order: idx }));
+  // Inspector draft edit state
+  const activeSelectedTask = useMemo(() => {
+    if (selectedTaskId) {
+      const found = tasks.find(t => t.id === selectedTaskId);
+      if (found) return found;
     }
+    // Default to first active task
+    return tasks.find(t => t.status !== 'completed' && t.status !== 'canceled') || tasks[0] || null;
+  }, [tasks, selectedTaskId]);
 
-    const targetIndex = withoutSource.findIndex(t => t.id === targetId);
-    if (targetIndex === -1) {
-      const copy = [...withoutSource, updatedTask];
-      return copy.map((t, idx) => ({ ...t, order: idx }));
+  const [inspectorTitle, setInspectorTitle] = useState('');
+  const [inspectorChecklist, setInspectorChecklist] = useState<Array<{ id: string; text: string; done: boolean }>>([
+    { id: '1', text: 'Thu thập liều kế từ các phòng chụp', done: true },
+    { id: '2', text: 'Đóng gói và gửi đơn vị kiểm định Trung ương', done: false },
+  ]);
+  const [newChecklistText, setNewChecklistText] = useState('');
+
+  // Sync title when active task changes
+  React.useEffect(() => {
+    if (activeSelectedTask) {
+      setInspectorTitle(activeSelectedTask.title);
     }
+  }, [activeSelectedTask?.id]);
 
-    const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-    const copy = [...withoutSource];
-    copy.splice(insertIndex, 0, updatedTask);
-    return copy.map((t, idx) => ({ ...t, order: idx }));
+  // Quadrant classification logic
+  const getTaskQuadrant = (task: Task): 'Q1' | 'Q2' | 'Q3' | 'Q4' => {
+    const deadlineDate = new Date(task.deadline);
+    const diffHours = isNaN(deadlineDate.getTime()) ? 999 : (deadlineDate.getTime() - Date.now()) / (1000 * 3600);
+    const isUrgent = diffHours <= 48 || (task.tags && task.tags.some(t => t.toLowerCase().includes('khẩn') || t.toLowerCase().includes('q1')));
+    const isImportant = task.priority === 'high' || task.priority === 'medium';
+
+    if (isUrgent && isImportant) return 'Q1';
+    if (!isUrgent && isImportant) return 'Q2';
+    if (isUrgent && !isImportant) return 'Q3';
+    return 'Q4';
   };
 
-  // Collect all unique available tags with usage counts
-  const tagCounts = useMemo(() => {
-    const map = new Map<string, number>();
-    tasks.forEach(t => {
-      t.tags?.forEach(tag => {
-        const clean = tag.trim();
-        if (clean) map.set(clean, (map.get(clean) || 0) + 1);
-      });
-    });
-    return map;
-  }, [tasks]);
+  // Metrics
+  const totalTasks = tasks.length;
+  const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
+  const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  const q1Tasks = tasks.filter(t => getTaskQuadrant(t) === 'Q1');
+  const q2Tasks = tasks.filter(t => getTaskQuadrant(t) === 'Q2');
+  const overdueTasks = tasks.filter(t => {
+    if (t.status === 'completed' || t.status === 'canceled' || !t.deadline) return false;
+    return new Date(t.deadline).getTime() < Date.now();
+  });
+  const onTimeRate = totalTasks > 0 ? Math.max(0, Math.round(((totalTasks - overdueTasks.length) / totalTasks) * 100)) : 100;
 
-  const availableTags = useMemo(() => {
-    const set = new Set<string>();
-    const defaults = ['Công việc', 'Báo cáo', 'Tài chính', 'Họp', 'Quan trọng', 'Khẩn cấp', 'Dự án', 'Cá nhân'];
-    defaults.forEach(t => set.add(t));
-    tasks.forEach(t => t.tags?.forEach(tag => tag && set.add(tag.trim())));
-    notes?.forEach(n => n.tags?.forEach(tag => tag && set.add(tag.trim())));
-    return Array.from(set).filter(Boolean);
-  }, [tasks, notes]);
-
-  // Multi-dimensional filtering and sorting logic
+  // Filter & Sort
   const filteredTasks = useMemo(() => {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    return tasks.filter(t => {
+      // Status
+      if (filterStatus === 'in_progress' && t.status !== 'in_progress') return false;
+      if (filterStatus === 'completed' && t.status !== 'completed') return false;
+      if (filterStatus === 'todo' && t.status !== 'todo') return false;
 
-    const sevenDaysEnd = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-
-    const matching = tasks.filter(task => {
-      // 1. Status filter
-      if (filterStatus !== 'all' && task.status !== filterStatus) return false;
-
-      // 2. Priority filter
-      if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
-
-      // 3. Tag filter
-      if (selectedTag !== 'all') {
-        const hasTag = task.tags?.some(t => t.toLowerCase() === selectedTag.toLowerCase());
-        if (!hasTag) return false;
+      // Quadrant
+      if (filterQuadrant !== 'all') {
+        if (getTaskQuadrant(t) !== filterQuadrant) return false;
       }
 
-      // 4. Date Range Filter
-      const taskDeadline = task.deadline ? new Date(task.deadline) : null;
-      if (taskDeadline && !isNaN(taskDeadline.getTime())) {
-        if (dateRangePreset === 'today') {
-          if (taskDeadline < todayStart || taskDeadline > todayEnd) return false;
-        } else if (dateRangePreset === 'next7') {
-          if (taskDeadline < todayStart || taskDeadline > sevenDaysEnd) return false;
-        } else if (dateRangePreset === 'month') {
-          if (taskDeadline < todayStart || taskDeadline > monthEnd) return false;
-        } else if (dateRangePreset === 'overdue') {
-          if (taskDeadline >= now || task.status === 'completed' || task.status === 'canceled') return false;
-        } else if (dateRangePreset === 'custom') {
-          if (customStartDate && taskDeadline < new Date(customStartDate)) return false;
-          if (customEndDate && taskDeadline > new Date(customEndDate + 'T23:59:59')) return false;
-        }
-      }
-
-      // 5. Search Text Filter (with #tag query support)
+      // Search
       if (search.trim()) {
-        const q = search.toLowerCase();
-        const tagQueries = q.match(/#([\w\p{L}]+)/gu)?.map(t => t.slice(1).toLowerCase()) || [];
-        const nonTagQ = q.replace(/#([\w\p{L}]+)/gu, '').trim();
-
-        const matchTitle = !nonTagQ || task.title.toLowerCase().includes(nonTagQ);
-        const matchDesc = !nonTagQ || task.description.toLowerCase().includes(nonTagQ);
-        const matchText = matchTitle || matchDesc;
-
-        const matchAllTags = tagQueries.length === 0 || tagQueries.every(tq => 
-          task.tags.some(t => t.toLowerCase().includes(tq))
-        );
-
-        const matchAnyTag = task.tags.some(t => t.toLowerCase().includes(q));
-
-        return (matchText && matchAllTags) || matchAnyTag;
+        const query = search.toLowerCase();
+        const matchesTitle = t.title.toLowerCase().includes(query);
+        const matchesDesc = t.description?.toLowerCase().includes(query);
+        const matchesTags = t.tags?.some(tag => tag.toLowerCase().includes(query));
+        if (!matchesTitle && !matchesDesc && !matchesTags) return false;
       }
 
       return true;
+    }).sort((a, b) => {
+      if (sortBy === 'deadline_asc') {
+        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+      }
+      if (sortBy === 'priority_desc') {
+        const pWeight = { high: 3, medium: 2, low: 1 };
+        return (pWeight[b.priority] || 0) - (pWeight[a.priority] || 0);
+      }
+      return 0;
+    });
+  }, [tasks, filterStatus, filterQuadrant, search, sortBy]);
+
+  // Tasks in progress vs completed
+  const activeTasksList = useMemo(() => {
+    return filteredTasks.filter(t => t.status !== 'completed' && t.status !== 'canceled');
+  }, [filteredTasks]);
+
+  const completedTasksList = useMemo(() => {
+    return filteredTasks.filter(t => t.status === 'completed');
+  }, [filteredTasks]);
+
+  // Quick Inline Add Task Handler
+  const handleQuickAdd = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!quickAddTitle.trim()) return;
+
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const defaultDeadline = quickAddDeadline || `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}T18:00`;
+
+    await onTaskCreate({
+      title: quickAddTitle.trim(),
+      description: '',
+      deadline: defaultDeadline,
+      priority: 'medium',
+      status: 'in_progress',
+      tags: quickAddTag.trim() ? [quickAddTag.trim()] : ['Công việc'],
+      attachedFileIds: [],
+      reminderOffsetMinutes: 15,
+      recurring: { type: 'none' }
     });
 
-    return sortTasksByOption(matching, sortBy);
-  }, [tasks, filterStatus, filterPriority, selectedTag, dateRangePreset, customStartDate, customEndDate, search, sortBy]);
-
-  const hasActiveFilters = filterStatus !== 'all' || filterPriority !== 'all' || selectedTag !== 'all' || dateRangePreset !== 'all' || search.trim() !== '' || sortBy !== 'custom';
-
-  const handleResetFilters = () => {
-    setFilterStatus('all');
-    setFilterPriority('all');
-    setSelectedTag('all');
-    setDateRangePreset('all');
-    setCustomStartDate('');
-    setCustomEndDate('');
-    setSearch('');
-    setSortBy('custom');
+    setQuickAddTitle('');
+    setQuickAddTag('');
+    setQuickAddDeadline('');
+    setSaveNotice('Đã thêm công việc thành công!');
+    setTimeout(() => setSaveNotice(null), 3000);
   };
 
-  const handleApplySortPermanently = () => {
-    if (!onReorderTasks) return;
-    const sorted = sortTasksByOption(tasks, sortBy);
-    const reorderedWithOrder = sorted.map((t, idx) => ({ ...t, order: idx }));
-    onReorderTasks(reorderedWithOrder);
-    setSortBy('custom');
-    setSaveNotice('Đã lưu thứ tự sắp xếp mới vào danh sách!');
-    setTimeout(() => {
-      setSaveNotice(null);
-    }, 3000);
-  };
-
-  // Unified Drag and Drop Handlers
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
-    e.dataTransfer.setData('text/plain', taskId);
-    setDraggedTaskId(taskId);
-  };
-
-  const handleCardDragOver = (e: React.DragEvent, targetTaskId: string) => {
-    e.preventDefault();
-    if (draggedTaskId === targetTaskId) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const midY = rect.top + rect.height / 2;
-    const pos = e.clientY < midY ? 'before' : 'after';
-    if (dragOverTaskId !== targetTaskId || dragOverPosition !== pos) {
-      setDragOverTaskId(targetTaskId);
-      setDragOverPosition(pos);
+  // Inspector Quick Save
+  const handleInspectorSave = () => {
+    if (!activeSelectedTask) return;
+    if (inspectorTitle.trim() && inspectorTitle !== activeSelectedTask.title) {
+      onTaskUpdate(activeSelectedTask.id, { title: inspectorTitle.trim() });
     }
+    setSaveNotice('Đã lưu thay đổi!');
+    setTimeout(() => setSaveNotice(null), 2500);
   };
 
-  const handleCardDropInList = (e: React.DragEvent, targetTaskId: string) => {
-    e.preventDefault();
-    const sourceId = e.dataTransfer.getData('text/plain') || draggedTaskId;
-    if (sourceId && sourceId !== targetTaskId) {
-      const pos = dragOverPosition || 'after';
-      const reordered = reorderTasksList(tasks, sourceId, targetTaskId, pos);
-      if (onReorderTasks) {
-        onReorderTasks(reordered);
-      }
-      if (sortBy !== 'custom') {
-        setSortBy('custom');
-      }
-    }
-    resetDragState();
+  // Add checklist item
+  const handleAddChecklistItem = () => {
+    if (!newChecklistText.trim()) return;
+    setInspectorChecklist(prev => [
+      ...prev,
+      { id: String(Date.now()), text: newChecklistText.trim(), done: false }
+    ]);
+    setNewChecklistText('');
   };
 
-  const handleCardDropInKanban = (
-    e: React.DragEvent,
-    targetTaskId: string,
-    colStatus: Task['status']
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const sourceId = e.dataTransfer.getData('text/plain') || draggedTaskId;
-    if (sourceId) {
-      const pos = dragOverPosition || 'after';
-      const reordered = moveAndReorderTask(tasks, sourceId, colStatus, targetTaskId, pos);
-      if (onReorderTasks) {
-        onReorderTasks(reordered);
-      }
-      const sourceTask = tasks.find(t => t.id === sourceId);
-      if (sourceTask && sourceTask.status !== colStatus) {
-        onTaskUpdate(sourceId, { status: colStatus });
-      }
-    }
-    resetDragState();
-  };
-
-  const handleDragOverColumn = (e: React.DragEvent, colStatus: string) => {
-    e.preventDefault();
-    if (draggedOverCol !== colStatus) {
-      setDraggedOverCol(colStatus);
-    }
-  };
-
-  const handleDragLeaveColumn = () => {
-    setDraggedOverCol(null);
-  };
-
-  const handleColumnDrop = (e: React.DragEvent, colStatus: Task['status']) => {
-    e.preventDefault();
-    setDraggedOverCol(null);
-    const sourceId = e.dataTransfer.getData('text/plain') || draggedTaskId;
-    if (sourceId) {
-      const sourceTask = tasks.find(t => t.id === sourceId);
-      const reordered = moveAndReorderTask(tasks, sourceId, colStatus);
-      if (onReorderTasks) {
-        onReorderTasks(reordered);
-      }
-      if (sourceTask && sourceTask.status !== colStatus) {
-        onTaskUpdate(sourceId, { status: colStatus });
-      }
-    }
-    resetDragState();
+  // Toggle checklist item
+  const handleToggleChecklist = (id: string) => {
+    setInspectorChecklist(prev =>
+      prev.map(item => item.id === id ? { ...item, done: !item.done } : item)
+    );
   };
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Editorial Header Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#151515] border border-[#2A2A2A] p-5 rounded-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30">
-            <CheckCircle2 className="w-5 h-5 text-[#D4AF37]" />
+    <div className="w-full pb-16 animate-fadeIn">
+      {/* 1. Top Page Operational Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="p-1 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 flex items-center">
+              <CheckCircle2 className="w-5 h-5" />
+            </span>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Quản lý Công việc
+            </h1>
+            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-[#1E1E1E] dark:text-[#D4AF37] text-xs font-semibold">
+              Workspace Pro
+            </span>
           </div>
-          <div>
-            <h1 className="text-xl font-editorial-serif font-bold text-white">Quản lý công việc (Task Management)</h1>
-            <p className="text-xs text-[#888888] italic">Optimistic 0ms UI • Lọc đa chiều • Kéo thả Kanban • Tự động nhắc Telegram</p>
-          </div>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-[#888]">
+            Theo dõi tiến độ, phân loại Ma trận Eisenhower và tối ưu hóa nhịp độ làm việc tập trung
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* View Mode Switcher */}
-          <div className="flex items-center bg-[#0C0C0C] p-1 rounded-sm border border-[#2A2A2A]">
+        {/* Actions & View Switcher */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {/* View Switcher Segmented Control */}
+          <div className="flex items-center bg-white dark:bg-[#151515] p-1 rounded-lg border border-slate-200 dark:border-[#2A2A2A] shadow-xs">
             <button
               onClick={() => setViewMode('list')}
-              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider rounded-sm transition-all cursor-pointer ${
-                viewMode === 'list' ? 'bg-[#D4AF37] text-black' : 'text-[#888888] hover:text-[#E0E0E0]'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-[#2A2A2A] dark:text-[#D4AF37] font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-[#888] dark:hover:text-white'
               }`}
             >
-              Danh sách
+              <FileCheck className="w-3.5 h-3.5" />
+              <span>Danh sách</span>
+            </button>
+            <button
+              onClick={() => setViewMode('matrix')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                viewMode === 'matrix'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-[#2A2A2A] dark:text-[#D4AF37] font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-[#888] dark:hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Ma trận 4x4</span>
             </button>
             <button
               onClick={() => setViewMode('kanban')}
-              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider rounded-sm transition-all cursor-pointer ${
-                viewMode === 'kanban' ? 'bg-[#D4AF37] text-black' : 'text-[#888888] hover:text-[#E0E0E0]'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                viewMode === 'kanban'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-[#2A2A2A] dark:text-[#D4AF37] font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-[#888] dark:hover:text-white'
               }`}
             >
-              Kanban
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Kanban</span>
             </button>
             <button
               onClick={() => setViewMode('calendar')}
-              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider rounded-sm transition-all cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'calendar' ? 'bg-[#D4AF37] text-black' : 'text-[#888888] hover:text-[#E0E0E0]'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                viewMode === 'calendar'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-[#2A2A2A] dark:text-[#D4AF37] font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-[#888] dark:hover:text-white'
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>Lịch (Calendar)</span>
+              <span className="hidden sm:inline">Lịch</span>
             </button>
           </div>
 
-          <button
-            onClick={openNewTaskModal}
-            className="px-4 py-2 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>Tạo Task</span>
-          </button>
+          {/* Quick Actions */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => storeOpenVoiceFocus()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] text-slate-700 dark:text-[#DDD] text-xs font-medium hover:bg-slate-50 dark:hover:bg-[#202020] transition-colors shadow-xs"
+            >
+              <Mic className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
+              <span className="hidden md:inline">Nhập Voice / AI</span>
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] text-slate-700 dark:text-[#DDD] text-xs font-medium hover:bg-slate-50 dark:hover:bg-[#202020] transition-colors shadow-xs"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Xuất báo cáo</span>
+            </button>
+            <button
+              onClick={openNewTaskModal}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:text-black dark:hover:bg-[#c29f2e] text-xs font-semibold transition-colors shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Thêm Task</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Multi-Dimensional Filter Bar */}
-      <div className="bg-[#151515] p-4 rounded-sm border border-[#2A2A2A] space-y-3.5">
-        
-        {/* Row 1: Search and Select dropdowns */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-          <div className="flex-1">
-            <TagSearchInput
-              placeholder="Lọc công việc theo từ khóa hoặc gõ # để chọn tag..."
-              value={search}
-              onChange={setSearch}
-              availableTags={availableTags}
-            />
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status Filter */}
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37] cursor-pointer"
-            >
-              <option value="all">Tất cả Trạng thái</option>
-              <option value="todo">Đang chờ (Todo)</option>
-              <option value="in_progress">Đang làm (In Progress)</option>
-              <option value="completed">Đã xong (Completed)</option>
-              <option value="canceled">Đã hủy (Canceled)</option>
-            </select>
-
-            {/* Priority Filter */}
-            <select
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value)}
-              className="px-3 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37] cursor-pointer"
-            >
-              <option value="all">Tất cả Độ ưu tiên</option>
-              <option value="high">🔴 Ưu tiên Cao (High)</option>
-              <option value="medium">🟡 Ưu tiên Trung bình (Medium)</option>
-              <option value="low">🟢 Ưu tiên Thấp (Low)</option>
-            </select>
-
-            {/* Date Range Preset Selector */}
-            <select
-              value={dateRangePreset}
-              onChange={(e) => setDateRangePreset(e.target.value as DateRangePreset)}
-              className="px-3 py-1.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37] cursor-pointer"
-            >
-              <option value="all">📅 Tất cả ngày</option>
-              <option value="today">Hôm nay</option>
-              <option value="next7">7 ngày tới</option>
-              <option value="month">Tháng này</option>
-              <option value="overdue">⚠️ Quá hạn</option>
-              <option value="custom">Tùy chỉnh khoảng ngày...</option>
-            </select>
-
-            {/* Sorting Control Dropdown */}
-            <div className="flex items-center gap-1.5 bg-[#0C0C0C] px-2.5 py-1.5 border border-[#2A2A2A] rounded-sm focus-within:border-[#D4AF37] transition-colors">
-              <ArrowUpDown className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as TaskSortOption)}
-                className="bg-transparent text-xs text-[#E0E0E0] focus:outline-none focus:text-[#D4AF37] cursor-pointer"
-                title="Sắp xếp danh sách công việc theo hạn chót, độ ưu tiên hoặc ngày tạo"
-              >
-                <option value="custom" className="bg-[#151515] text-[#E0E0E0]">Thứ tự kéo thả (Tùy chỉnh)</option>
-                <option value="deadline_asc" className="bg-[#151515] text-[#E0E0E0]">📅 Hạn chót: Gần nhất trước</option>
-                <option value="deadline_desc" className="bg-[#151515] text-[#E0E0E0]">📅 Hạn chót: Xa nhất trước</option>
-                <option value="priority_desc" className="bg-[#151515] text-[#E0E0E0]">🔴 Ưu tiên: Cao đến Thấp</option>
-                <option value="priority_asc" className="bg-[#151515] text-[#E0E0E0]">🟢 Ưu tiên: Thấp đến Cao</option>
-                <option value="created_desc" className="bg-[#151515] text-[#E0E0E0]">✨ Ngày tạo: Mới nhất</option>
-                <option value="created_asc" className="bg-[#151515] text-[#E0E0E0]">⏳ Ngày tạo: Cũ nhất</option>
-                <option value="title_asc" className="bg-[#151515] text-[#E0E0E0]">🔤 Tiêu đề (A → Z)</option>
-              </select>
+      {/* 2. Summary KPI Ribbon */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {/* Metric 1: Total Tasks */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 dark:text-[#888] uppercase tracking-wider mb-1">
+              Tổng công việc
             </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">{totalTasks}</span>
+              <span className="text-xs text-slate-500 dark:text-[#777]">nhiệm vụ</span>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-[#777] mt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+              <span>{inProgressTasks} đang làm • {completedTasks} xong</span>
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-[#202020] flex items-center justify-center text-blue-600 dark:text-[#D4AF37] shrink-0">
+            <FileText className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Row 2: Custom Date Range Pickers (if custom selected) */}
-        {dateRangePreset === 'custom' && (
-          <div className="flex items-center gap-3 bg-[#0C0C0C] p-3 rounded-sm border border-[#2A2A2A] text-xs">
-            <span className="text-[#888888] font-bold">Từ ngày:</span>
-            <input
-              type="date"
-              value={customStartDate}
-              onChange={(e) => setCustomStartDate(e.target.value)}
-              className="px-2 py-1 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
-            />
-            <span className="text-[#888888] font-bold">Đến ngày:</span>
-            <input
-              type="date"
-              value={customEndDate}
-              onChange={(e) => setCustomEndDate(e.target.value)}
-              className="px-2 py-1 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] focus:outline-none focus:border-[#D4AF37]"
-            />
+        {/* Metric 2: Urgent Q1 */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-rose-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Flame className="w-3.5 h-3.5" />
+              <span>Cần xử lý ngay (Q1)</span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">{q1Tasks.length}</span>
+              <span className="text-xs text-emerald-600 font-semibold">{q1Tasks.length === 0 ? 'An toàn' : 'Cần xử lý'}</span>
+            </div>
+            <div className="text-xs text-slate-500 dark:text-[#777] mt-1">
+              {q1Tasks.length === 0 ? 'Không có việc khẩn cấp tồn đọng' : 'Tập trung giải quyết dứt điểm'}
+            </div>
           </div>
-        )}
+          <div className="w-10 h-10 rounded-lg bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center text-rose-600 shrink-0">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+        </div>
 
-        {/* Row 3: Tag Chips Quick-Filter */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-[#222222]">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#777777] shrink-0">Tags:</span>
-          
-          <button
-            onClick={() => setSelectedTag('all')}
-            className={`px-2.5 py-1 text-[11px] rounded-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              selectedTag === 'all'
-                ? 'bg-[#D4AF37] text-black font-bold'
-                : 'bg-[#0C0C0C] text-[#888888] hover:text-white border border-[#2A2A2A]'
-            }`}
-          >
-            Tất cả ({tasks.length})
-          </button>
+        {/* Metric 3: Strategic Q2 */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Chiến lược (Q2)</span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-amber-600">{q2Tasks.length}</span>
+              <span className="text-xs text-amber-600 font-semibold">Trọng điểm</span>
+            </div>
+            <div className="text-xs text-slate-500 dark:text-[#777] mt-1">
+              Đầu tư 60% năng lượng
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-600 shrink-0">
+            <Clock className="w-5 h-5" />
+          </div>
+        </div>
 
-          {Array.from(tagCounts.entries()).map(([tag, count]) => (
+        {/* Metric 4: On-Time Rate */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 dark:text-[#888] uppercase tracking-wider mb-1">
+              Tỷ lệ đúng hạn
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">{onTimeRate}%</span>
+              <span className="text-xs text-emerald-600 font-semibold">Tối ưu</span>
+            </div>
+            <div className="text-xs text-slate-500 dark:text-[#777] mt-1 flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              <span>{overdueTasks.length === 0 ? 'Không có task trễ hạn' : `${overdueTasks.length} task quá hạn`}</span>
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-[#202020] flex items-center justify-center text-emerald-600 shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Search and Segmented Filter Bar */}
+      <div className="bg-white dark:bg-[#151515] p-3 rounded-xl border border-slate-200 dark:border-[#2A2A2A] shadow-xs mb-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Search */}
+        <div className="flex-1 relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm kiếm công việc theo tên, tag, ghi chú liên quan..."
+            className="w-full pl-9 pr-12 py-2 text-xs rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
+          />
+          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-slate-200 dark:bg-[#222] text-slate-500 text-[10px] font-mono">
+            ⌘K
+          </kbd>
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Status Segmented */}
+          <div className="inline-flex p-1 rounded-lg bg-slate-100 dark:bg-[#0C0C0C]">
             <button
-              key={tag}
-              onClick={() => setSelectedTag(selectedTag === tag ? 'all' : tag)}
-              className={`px-2.5 py-1 text-[11px] rounded-sm whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer border ${
-                selectedTag === tag
-                  ? 'bg-[#D4AF37] text-black font-bold border-[#D4AF37]'
-                  : 'bg-[#0C0C0C] text-[#AAAAAA] hover:text-white border-[#2A2A2A] hover:border-[#444444]'
+              onClick={() => setFilterStatus('all')}
+              className={`px-3 py-1 rounded-md text-xs transition-all ${
+                filterStatus === 'all'
+                  ? 'bg-white dark:bg-[#2A2A2A] text-blue-600 dark:text-[#D4AF37] font-semibold shadow-xs'
+                  : 'text-slate-600 dark:text-[#888]'
               }`}
             >
-              <span>#{tag}</span>
-              <span className={`text-[9px] px-1 rounded-full ${selectedTag === tag ? 'bg-black/30 text-black' : 'bg-[#1A1A1A] text-[#777777]'}`}>
-                {count}
-              </span>
+              Tất cả ({totalTasks})
             </button>
-          ))}
-        </div>
-
-        {/* Active Filter Summary Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#222222] text-xs">
-          <div className="flex items-center gap-2 flex-wrap text-[#888888]">
-            <span>Hiển thị <strong className="text-[#D4AF37]">{filteredTasks.length}</strong> / {tasks.length} công việc</span>
-            {hasActiveFilters && (
-              <span className="text-[10px] bg-[#D4AF37]/10 text-[#D4AF37] px-2 py-0.5 rounded-sm border border-[#D4AF37]/20">
-                Bộ lọc đang kích hoạt
-              </span>
-            )}
-            {sortBy !== 'custom' && (
-              <span className="text-[10px] bg-[#D4AF37]/15 text-[#D4AF37] px-2 py-0.5 rounded-sm border border-[#D4AF37]/30 flex items-center gap-1 font-medium">
-                <ArrowUpDown className="w-2.5 h-2.5" />
-                <span>Xếp theo: {getSortLabel(sortBy)}</span>
-              </span>
-            )}
+            <button
+              onClick={() => setFilterStatus('in_progress')}
+              className={`px-3 py-1 rounded-md text-xs transition-all ${
+                filterStatus === 'in_progress'
+                  ? 'bg-white dark:bg-[#2A2A2A] text-blue-600 dark:text-[#D4AF37] font-semibold shadow-xs'
+                  : 'text-slate-600 dark:text-[#888]'
+              }`}
+            >
+              Đang làm ({inProgressTasks})
+            </button>
+            <button
+              onClick={() => setFilterStatus('completed')}
+              className={`px-3 py-1 rounded-md text-xs transition-all ${
+                filterStatus === 'completed'
+                  ? 'bg-white dark:bg-[#2A2A2A] text-blue-600 dark:text-[#D4AF37] font-semibold shadow-xs'
+                  : 'text-slate-600 dark:text-[#888]'
+              }`}
+            >
+              Đã xong ({completedTasks})
+            </button>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {saveNotice && (
-              <span className="text-[11px] text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded-sm flex items-center gap-1">
-                <Check className="w-3 h-3 stroke-[2.5]" />
-                {saveNotice}
-              </span>
-            )}
+          {/* Matrix Dropdown */}
+          <select
+            value={filterQuadrant}
+            onChange={(e) => setFilterQuadrant(e.target.value)}
+            className="px-3 py-1.5 rounded-lg text-xs bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] text-slate-700 dark:text-[#DDD]"
+          >
+            <option value="all">Tất cả Ma trận</option>
+            <option value="Q1">Q1 • Làm ngay</option>
+            <option value="Q2">Q2 • Chiến lược</option>
+            <option value="Q3">Q3 • Ủy quyền</option>
+            <option value="Q4">Q4 • Loại bỏ</option>
+          </select>
 
-            {sortBy !== 'custom' && onReorderTasks && (
-              <button
-                type="button"
-                onClick={handleApplySortPermanently}
-                className="text-[11px] bg-[#1A1A1A] hover:bg-[#D4AF37] hover:text-black text-[#D4AF37] border border-[#D4AF37]/40 px-2.5 py-1 rounded-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Lưu thứ tự sắp xếp hiện tại thành thứ tự mặc định cho danh sách công việc"
-              >
-                <Check className="w-3 h-3 stroke-[2.5]" />
-                <span>Lưu làm thứ tự gốc</span>
-              </button>
-            )}
-
-            {hasActiveFilters && (
-              <button
-                onClick={handleResetFilters}
-                className="text-[11px] text-[#AAAAAA] hover:text-rose-400 flex items-center gap-1 cursor-pointer transition-colors"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Xóa tất cả bộ lọc</span>
-              </button>
-            )}
-          </div>
+          {/* Sort Dropdown */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-1.5 rounded-lg text-xs bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] text-slate-700 dark:text-[#DDD]"
+          >
+            <option value="deadline_asc">Hạn chót: Gần nhất</option>
+            <option value="priority_desc">Ưu tiên: Cao → Thấp</option>
+          </select>
         </div>
       </div>
 
-      {/* 1. LIST VIEW MODE */}
-      {viewMode === 'list' && (
-        <div className="space-y-3">
-          {/* Quick Status Drop Bar in List View */}
-          <div className="space-y-1.5 mb-1">
-            <div className="flex flex-wrap items-center justify-between text-[11px] text-[#888888] gap-2">
-              <span className="flex items-center gap-1.5 font-medium">
-                <ArrowUpDown className="w-3 h-3 text-[#D4AF37]" />
-                <span>Kéo thả để sắp xếp thứ tự hoặc chọn sắp xếp nhanh:</span>
-              </span>
-
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] text-[#666666] uppercase font-bold">Xếp nhanh:</span>
-                <button
-                  type="button"
-                  onClick={() => setSortBy(sortBy === 'deadline_asc' ? 'deadline_desc' : 'deadline_asc')}
-                  className={`px-2 py-0.5 rounded-sm text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer border ${
-                    sortBy === 'deadline_asc' || sortBy === 'deadline_desc'
-                      ? 'bg-[#D4AF37] text-black border-[#D4AF37] font-bold'
-                      : 'bg-[#0C0C0C] text-[#888888] border-[#2A2A2A] hover:text-[#E0E0E0] hover:border-[#444444]'
-                  }`}
-                  title="Sắp xếp theo hạn chót (nhấn để đổi chiều gần/xa)"
-                >
-                  <Calendar className="w-2.5 h-2.5" />
-                  <span>Hạn chót {sortBy === 'deadline_asc' ? '↑' : sortBy === 'deadline_desc' ? '↓' : ''}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSortBy(sortBy === 'priority_desc' ? 'priority_asc' : 'priority_desc')}
-                  className={`px-2 py-0.5 rounded-sm text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer border ${
-                    sortBy === 'priority_desc' || sortBy === 'priority_asc'
-                      ? 'bg-[#D4AF37] text-black border-[#D4AF37] font-bold'
-                      : 'bg-[#0C0C0C] text-[#888888] border-[#2A2A2A] hover:text-[#E0E0E0] hover:border-[#444444]'
-                  }`}
-                  title="Sắp xếp theo độ ưu tiên (nhấn để đổi chiều cao/thấp)"
-                >
-                  <SlidersHorizontal className="w-2.5 h-2.5" />
-                  <span>Ưu tiên {sortBy === 'priority_desc' ? '↓' : sortBy === 'priority_asc' ? '↑' : ''}</span>
-                </button>
-
-                {sortBy !== 'custom' && (
-                  <button
-                    type="button"
-                    onClick={() => setSortBy('custom')}
-                    className="px-2 py-0.5 rounded-sm text-[10px] font-semibold bg-[#1A1A1A] text-[#AAAAAA] hover:text-white border border-[#2A2A2A] transition-all cursor-pointer"
-                    title="Khôi phục thứ tự kéo thả ban đầu"
-                  >
-                    Mặc định
-                  </button>
-                )}
-
-                {draggedTaskId && (
-                  <span className="text-[10px] text-[#D4AF37] font-semibold animate-pulse ml-2">
-                    Đang kéo task...
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { status: 'todo' as const, label: 'Todo (Chờ)', icon: Clock, color: 'text-amber-400 border-amber-500/30' },
-                { status: 'in_progress' as const, label: 'Đang làm', icon: Sparkles, color: 'text-sky-400 border-sky-500/30' },
-                { status: 'completed' as const, label: 'Hoàn thành', icon: CheckCircle2, color: 'text-emerald-400 border-emerald-500/30' },
-                { status: 'canceled' as const, label: 'Đã hủy', icon: X, color: 'text-rose-400 border-rose-500/30' },
-              ].map(cat => {
-                const Icon = cat.icon;
-                const isDropActive = dragOverStatus === cat.status;
-                return (
-                  <div
-                    key={cat.status}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (dragOverStatus !== cat.status) setDragOverStatus(cat.status);
-                    }}
-                    onDragLeave={() => {
-                      if (dragOverStatus === cat.status) setDragOverStatus(null);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
-                      if (taskId) {
-                        onTaskUpdate(taskId, { status: cat.status });
-                      }
-                      resetDragState();
-                    }}
-                    className={`p-2 rounded-sm border transition-all text-center flex flex-col items-center justify-center gap-0.5 select-none ${
-                      isDropActive
-                        ? 'bg-[#D4AF37]/20 border-[#D4AF37] ring-1 ring-[#D4AF37] scale-[1.02]'
-                        : draggedTaskId
-                        ? 'bg-[#151515] border-dashed border-[#555555] hover:border-[#D4AF37]'
-                        : 'bg-[#0E0E0E] border-[#222222]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Icon className={`w-3.5 h-3.5 ${cat.color.split(' ')[0]}`} />
-                      <span className="text-[11px] font-bold text-white uppercase tracking-wider">{cat.label}</span>
-                    </div>
-                    <span className="text-[9px] text-[#777777]">
-                      {isDropActive ? 'Thả để chuyển' : 'Kéo task vào đây'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {filteredTasks.length === 0 ? (
-            <div className="p-12 text-center rounded-sm bg-[#151515] border border-[#2A2A2A]">
-              <Clock className="w-8 h-8 text-[#666666] mx-auto mb-3" />
-              <p className="text-[#E0E0E0] font-editorial-serif text-sm">Không tìm thấy công việc phù hợp.</p>
-              <p className="text-xs text-[#777777] mt-1">Hãy tạo công việc mới hoặc điều chỉnh bộ lọc đa chiều phía trên.</p>
-            </div>
-          ) : (
-            filteredTasks.map(task => {
-              const isOverdue = new Date(task.deadline) < new Date() && task.status !== 'completed' && task.status !== 'canceled';
-              const deadlineInfo = getDeadlineStatusInfo(task.deadline, task.status);
-
-              return (
-                <div
-                  key={task.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, task.id)}
-                  onDragEnd={resetDragState}
-                  onDragOver={(e) => handleCardDragOver(e, task.id)}
-                  onDragLeave={(e) => {
-                    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-                    if (dragOverTaskId === task.id) {
-                      setDragOverTaskId(null);
-                      setDragOverPosition(null);
-                    }
-                  }}
-                  onDrop={(e) => handleCardDropInList(e, task.id)}
-                  className={`p-4 rounded-sm border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-grab active:cursor-grabbing relative ${
-                    draggedTaskId === task.id
-                      ? 'opacity-30 border-dashed border-[#D4AF37]'
-                      : isOverdue
-                      ? 'bg-rose-950/20 border-rose-900/60'
-                      : task.status === 'completed'
-                      ? 'bg-[#0C0C0C] border-[#2A2A2A] opacity-60'
-                      : 'bg-[#151515] border-[#2A2A2A] hover:border-[#333333]'
-                  } ${
-                    dragOverTaskId === task.id && dragOverPosition === 'before'
-                      ? 'border-t-2 border-t-[#D4AF37]'
-                      : dragOverTaskId === task.id && dragOverPosition === 'after'
-                      ? 'border-b-2 border-b-[#D4AF37]'
-                      : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className="pt-1 text-[#555555] hover:text-[#D4AF37] cursor-grab shrink-0" title="Kéo để sắp xếp thứ tự hoặc đổi trạng thái">
-                      <GripVertical className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={task.status === 'completed'}
-                      onChange={(e) => onTaskUpdate(task.id, { status: e.target.checked ? 'completed' : 'todo' })}
-                      className="mt-1 w-4 h-4 rounded-sm border-[#2A2A2A] bg-[#0C0C0C] text-[#D4AF37] focus:ring-[#D4AF37] cursor-pointer"
-                    />
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-sm ${
-                          task.priority === 'high' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-                          task.priority === 'medium' ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30' :
-                          'bg-[#2A2A2A] text-[#AAAAAA]'
-                        }`}>
-                          {task.priority.toUpperCase()}
-                        </span>
-
-                        <span className={`text-[9px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-sm ${
-                          task.status === 'completed' ? 'bg-emerald-500/20 text-emerald-300' :
-                          task.status === 'in_progress' ? 'bg-sky-500/20 text-sky-300' :
-                          task.status === 'canceled' ? 'bg-[#2A2A2A] text-[#888888]' :
-                          'bg-[#D4AF37]/20 text-[#D4AF37]'
-                        }`}>
-                          {task.status}
-                        </span>
-
-                        {task.recurring && task.recurring.type !== 'none' && (
-                          <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-sky-300 border border-sky-500/30 flex items-center gap-1" title={task.recurring.completedCycles ? `Đã hoàn thành ${task.recurring.completedCycles} chu kỳ` : 'Tự động dời lịch khi hoàn thành'}>
-                            <Repeat className="w-3 h-3 text-sky-400" />
-                            <span>{formatRecurringLabel(task.recurring)}</span>
-                            {task.recurring.completedCycles ? (
-                              <span className="text-[8px] bg-sky-950 px-1 py-0.2 rounded-xs border border-sky-700/50 text-sky-200">
-                                #{task.recurring.completedCycles}
-                              </span>
-                            ) : null}
-                          </span>
-                        )}
-
-                        {/* Official Deadline Display */}
-                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] text-xs">
-                          <Clock className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
-                          <span className="text-[#888888] font-medium">Hạn chót chính thức:</span>
-                          <span className="text-[#E0E0E0] font-semibold">
-                            {formatOfficialDeadline(task.deadline)}
-                          </span>
-                        </div>
-
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm border ${deadlineInfo.badgeClass}`}>
-                          {deadlineInfo.label}
-                        </span>
-                      </div>
-
-                      <h3 className={`text-sm font-editorial-serif font-bold ${task.status === 'completed' ? 'line-through text-[#777777]' : 'text-white'}`}>
-                        {task.title}
-                      </h3>
-
-                      <p className="text-xs text-[#888888] line-clamp-2 leading-relaxed">{task.description}</p>
-
-                      <div className="flex items-center gap-2 pt-1 flex-wrap">
-                        {task.tags.map((tag, idx) => (
-                          <span key={idx} className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm bg-[#0C0C0C] text-[#AAAAAA] border border-[#2A2A2A]">
-                            #{tag}
-                          </span>
-                        ))}
-                        {task.attachedFileIds.length > 0 && (
-                          <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 flex items-center gap-1">
-                            <Paperclip className="w-3 h-3" />
-                            <span>{task.attachedFileIds.length} tệp đính kèm</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => {
-                        if (onAnalyzeTask) {
-                          onAnalyzeTask(task);
-                        } else {
-                          openAiChatWithPrompt(`Hãy phân tích và đánh giá toàn diện công việc: "${task.title}". Mô tả: ${task.description}. Đưa ra đánh giá chuyên sâu và lộ trình từng bước, KHÔNG hỏi ngược lại người dùng.`);
-                        }
-                      }}
-                      className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 hover:bg-[#D4AF37] hover:text-black transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Tự động phân tích và đánh giá công việc bằng AI mà không cần hỏi"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Phân tích AI</span>
-                    </button>
-                    <button
-                      onClick={() => editTask(task)}
-                      className="p-1.5 rounded-sm bg-[#1A1A1A] border border-[#2A2A2A] hover:border-[#D4AF37] text-[#E0E0E0] transition-colors cursor-pointer"
-                      title="Sửa"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => onTaskDelete(task.id)}
-                      className="p-1.5 rounded-sm bg-[#1A1A1A] border border-[#2A2A2A] hover:bg-rose-950/50 hover:border-rose-500 text-rose-400 transition-colors cursor-pointer"
-                      title="Xóa"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
+      {saveNotice && (
+        <div className="mb-4 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2">
+          <Check className="w-4 h-4" />
+          <span>{saveNotice}</span>
         </div>
       )}
 
-      {/* 2. KANBAN BOARD VIEW MODE (with 0ms Drag & Drop & Visual Reordering) */}
+      {/* 4. MAIN WORKSPACE: 2-COLUMN LAYOUT (LIST & INSPECTOR) */}
+      {viewMode === 'list' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* LEFT COLUMN: Tasks List (7 cols) */}
+          <div className="lg:col-span-7 flex flex-col gap-6">
+            {/* Section: IN PROGRESS */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-[#888]">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  <span className="font-bold uppercase tracking-wider text-slate-700 dark:text-white">
+                    ĐANG THỰC HIỆN (IN PROGRESS)
+                  </span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-700 dark:bg-[#222] dark:text-[#D4AF37] font-bold text-[10px]">
+                    {activeTasksList.length}
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-400">Kéo thả để sắp xếp lại</span>
+              </div>
+
+              {activeTasksList.length === 0 ? (
+                <div className="p-8 text-center rounded-xl bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A]">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Không có công việc nào đang chờ!</p>
+                  <p className="text-xs text-slate-500 dark:text-[#888] mt-1">Tuyệt vời, bạn đã hoàn thành hết mục tiêu.</p>
+                </div>
+              ) : (
+                activeTasksList.map(task => {
+                  const quadrant = getTaskQuadrant(task);
+                  const deadlineInfo = getDeadlineStatusInfo(task.deadline, task.status);
+                  const isSelected = activeSelectedTask?.id === task.id;
+
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={() => setSelectedTaskId(task.id)}
+                      className={`p-4 rounded-xl bg-white dark:bg-[#151515] border transition-all cursor-pointer shadow-xs hover:shadow-md ${
+                        isSelected
+                          ? 'border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/30'
+                          : 'border-slate-200 dark:border-[#2A2A2A] hover:border-slate-300 dark:hover:border-[#333]'
+                      }`}
+                    >
+                      {/* Meta Tags Row */}
+                      <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          task.priority === 'high' ? 'bg-rose-100 text-rose-800' :
+                          task.priority === 'medium' ? 'bg-amber-100 text-amber-800' :
+                          'bg-slate-100 text-slate-700'
+                        }`}>
+                          • {task.priority.toUpperCase()}
+                        </span>
+
+                        {task.recurring && task.recurring.type !== 'none' && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-[#222] text-slate-700 dark:text-[#CCC] flex items-center gap-1">
+                            <Repeat className="w-3 h-3 text-blue-500" />
+                            <span>{formatRecurringLabel(task.recurring)}</span>
+                          </span>
+                        )}
+
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{deadlineInfo.label}</span>
+                        </span>
+
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                          quadrant === 'Q1' ? 'bg-rose-50 text-rose-700' :
+                          quadrant === 'Q2' ? 'bg-amber-50 text-amber-800' :
+                          quadrant === 'Q3' ? 'bg-sky-50 text-sky-800' :
+                          'bg-slate-100 text-slate-700'
+                        }`}>
+                          • {quadrant} • {quadrant === 'Q1' ? 'Làm ngay' : quadrant === 'Q2' ? 'Lên kế hoạch' : quadrant === 'Q3' ? 'Ủy quyền' : 'Loại bỏ'}
+                        </span>
+
+                        <div className="ml-auto flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAnalyzeTask(task);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 dark:bg-[#222] dark:hover:bg-[#333] text-blue-600 dark:text-[#D4AF37] text-xs font-semibold transition-colors"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>Phân tích AI</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              editTask(task);
+                            }}
+                            className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTaskDelete(task.id);
+                            }}
+                            className="p-1 rounded text-slate-400 hover:text-rose-600"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Main Title & Checkbox */}
+                      <div className="flex items-start gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={task.status === 'completed'}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            onTaskUpdate(task.id, { status: e.target.checked ? 'completed' : 'todo' });
+                          }}
+                          className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-0 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-semibold text-slate-900 dark:text-white leading-tight">
+                            {task.title}
+                          </h4>
+                          {task.description && (
+                            <p className="text-xs text-slate-600 dark:text-[#888] mt-1 line-clamp-2 leading-relaxed">
+                              {task.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Footer Info */}
+                      <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-100 dark:border-[#222] text-xs text-slate-500 dark:text-[#888]">
+                        <div className="flex items-center gap-1.5 text-slate-600 dark:text-[#AAA]">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{formatOfficialDeadline(task.deadline)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {task.tags?.map((t, idx) => (
+                            <span key={idx} className="font-mono text-[10px] text-blue-600 dark:text-[#D4AF37]">
+                              #{t}
+                            </span>
+                          ))}
+                          {task.attachedFileIds?.length > 0 && (
+                            <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                              <Paperclip className="w-3 h-3" />
+                              <span>{task.attachedFileIds.length}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Section: COMPLETED RECENTLY */}
+            {completedTasksList.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-[#888]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="font-bold uppercase tracking-wider text-slate-700 dark:text-white">
+                      HOÀN THÀNH GẦN ĐÂY (COMPLETED)
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 dark:bg-[#222] dark:text-emerald-400 font-bold text-[10px]">
+                      {completedTasksList.length}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setIsCompletedCollapsed(!isCompletedCollapsed)}
+                    className="text-blue-600 dark:text-[#D4AF37] font-semibold hover:underline"
+                  >
+                    {isCompletedCollapsed ? 'Hiện danh sách đã xong' : 'Ẩn danh sách đã xong'}
+                  </button>
+                </div>
+
+                {!isCompletedCollapsed && (
+                  <div className="space-y-2">
+                    {completedTasksList.map(task => (
+                      <div
+                        key={task.id}
+                        onClick={() => setSelectedTaskId(task.id)}
+                        className="p-3 rounded-xl bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#222] hover:bg-white dark:hover:bg-[#161616] transition-all flex items-center justify-between gap-3 group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-medium text-slate-600 dark:text-[#AAA] line-through truncate">
+                              {task.title}
+                            </h4>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                              <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 dark:bg-[#222] dark:text-amber-300">
+                                {getTaskQuadrant(task)} • KẾ HOẠCH
+                              </span>
+                              <span>{formatOfficialDeadline(task.deadline).split(',')[0]}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onTaskUpdate(task.id, { status: 'in_progress' });
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-xs text-blue-600 dark:text-[#D4AF37] hover:underline shrink-0"
+                        >
+                          Khôi phục
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Quick Inline Add Task Bar */}
+            <form onSubmit={handleQuickAdd} className="bg-white dark:bg-[#151515] rounded-xl p-2.5 shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex items-center gap-2">
+              <Plus className="w-5 h-5 text-blue-600 dark:text-[#D4AF37] ml-1" />
+              <input
+                type="text"
+                value={quickAddTitle}
+                onChange={(e) => setQuickAddTitle(e.target.value)}
+                placeholder="+ Thêm nhanh công việc mới (Nhập tiêu đề và ấn Enter)..."
+                className="flex-1 bg-transparent py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none"
+              />
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={quickAddTag}
+                  onChange={(e) => setQuickAddTag(e.target.value)}
+                  placeholder="# Tag"
+                  className="w-16 px-2 py-1 text-[11px] rounded bg-slate-100 dark:bg-[#222] text-slate-700 dark:text-[#DDD] outline-none"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:text-black dark:hover:bg-[#c29f2e] text-xs font-semibold transition-colors"
+                >
+                  Thêm
+                </button>
+              </div>
+            </form>
+
+            {/* Eisenhower Covey Note Banner */}
+            <div className="p-4 rounded-xl bg-blue-50/60 dark:bg-[#141414] border border-blue-100 dark:border-[#2A2A2A] text-slate-800 dark:text-[#CCC] flex items-start gap-3">
+              <Lightbulb className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="text-xs leading-relaxed">
+                <strong className="text-blue-900 dark:text-[#D4AF37] block font-semibold mb-0.5">
+                  Nguyên lý Covey & Eisenhower:
+                </strong>
+                Dành ít nhất 60% thời lượng cho <strong>Q2 (Quan trọng • Không khẩn cấp)</strong> để kiến tạo năng lực bền vững và loại trừ triệt để tình trạng khủng hoảng dồn ứ thời hạn.
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: TASK INSPECTOR PANEL (5 cols) */}
+          <div className="lg:col-span-5 flex flex-col gap-4 sticky top-20">
+            {activeSelectedTask ? (
+              <div className="bg-white dark:bg-[#151515] rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] p-5 flex flex-col gap-4">
+                {/* Inspector Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#222]">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600 dark:text-[#D4AF37]" />
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">Chi tiết Công việc</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => editTask(activeSelectedTask)}
+                      className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#222] text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                      title="Mở toàn màn hình"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Task Title */}
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    TÊN NHIỆM VỤ
+                  </span>
+                  <input
+                    type="text"
+                    value={inspectorTitle}
+                    onChange={(e) => setInspectorTitle(e.target.value)}
+                    onBlur={handleInspectorSave}
+                    className="w-full text-sm font-semibold text-slate-900 dark:text-white bg-slate-50 dark:bg-[#0C0C0C] px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2A2A2A] focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Status & Priority Selectors */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-50 dark:bg-[#0C0C0C] p-2.5 rounded-lg border border-slate-200 dark:border-[#2A2A2A]">
+                    <span className="text-[10px] text-slate-400 block mb-1">Trạng thái</span>
+                    <select
+                      value={activeSelectedTask.status}
+                      onChange={(e) => onTaskUpdate(activeSelectedTask.id, { status: e.target.value as any })}
+                      className="w-full bg-transparent text-xs font-semibold text-blue-600 dark:text-[#D4AF37] outline-none cursor-pointer"
+                    >
+                      <option value="todo">ĐANG CHỜ (Todo)</option>
+                      <option value="in_progress">ĐANG LÀM</option>
+                      <option value="completed">HOÀN THÀNH</option>
+                      <option value="canceled">ĐÃ HỦY</option>
+                    </select>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-[#0C0C0C] p-2.5 rounded-lg border border-slate-200 dark:border-[#2A2A2A]">
+                    <span className="text-[10px] text-slate-400 block mb-1">Độ ưu tiên</span>
+                    <select
+                      value={activeSelectedTask.priority}
+                      onChange={(e) => onTaskUpdate(activeSelectedTask.id, { priority: e.target.value as any })}
+                      className="w-full bg-transparent text-xs font-semibold text-amber-600 outline-none cursor-pointer"
+                    >
+                      <option value="high">🔴 CAO (High)</option>
+                      <option value="medium">🟡 TRUNG BÌNH (Medium)</option>
+                      <option value="low">🟢 THẤP (Low)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Eisenhower Quadrant Selector */}
+                <div className="bg-slate-50 dark:bg-[#0C0C0C] p-2.5 rounded-lg border border-slate-200 dark:border-[#2A2A2A]">
+                  <span className="text-[10px] text-slate-400 block mb-1">Phân loại Ma trận Eisenhower</span>
+                  <div className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                    • {getTaskQuadrant(activeSelectedTask)} • Kế hoạch Chiến lược (Quan trọng • Không khẩn cấp)
+                  </div>
+                </div>
+
+                {/* AI Suggestion Card */}
+                <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-[#1A1A1A] border border-blue-100 dark:border-[#333] space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 dark:text-[#D4AF37]">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
+                    <span>Trí tuệ nhân tạo (AI Suggestion)</span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-[#AAA] leading-relaxed">
+                    Nhiệm vụ có chu kỳ lặp lại dài ({taskRecurringLabel(activeSelectedTask)}). Đã cấu hình Telegram Bot tự động kích hoạt nhắc nhở trước 7 ngày.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={() => {
+                        storeSendTelegramCommand(`/task ${activeSelectedTask.id}`);
+                        setSaveNotice('Đã ping thử nghiệm tới Telegram!');
+                        setTimeout(() => setSaveNotice(null), 3000);
+                      }}
+                      className="px-2.5 py-1 rounded bg-white dark:bg-[#222] border border-blue-200 dark:border-[#444] text-[11px] font-semibold text-blue-700 dark:text-white hover:bg-blue-50 transition-colors flex items-center gap-1"
+                    >
+                      <Bot className="w-3 h-3" />
+                      <span>Tạo Bot ping</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        openAiChatWithPrompt(`Hãy tóm tắt và phác thảo mẫu biên bản/kế hoạch thực hiện cho công việc: "${activeSelectedTask.title}".`);
+                      }}
+                      className="px-2.5 py-1 rounded bg-white dark:bg-[#222] border border-blue-200 dark:border-[#444] text-[11px] font-semibold text-blue-700 dark:text-white hover:bg-blue-50 transition-colors flex items-center gap-1"
+                    >
+                      <FileText className="w-3 h-3" />
+                      <span>Tóm tắt mẫu biên bản</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Checklist */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      CHECKLIST / CÁC BƯỚC THỰC HIỆN ({inspectorChecklist.filter(i => i.done).length}/{inspectorChecklist.length})
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 mb-2">
+                    {inspectorChecklist.map(item => (
+                      <div
+                        key={item.id}
+                        onClick={() => handleToggleChecklist(item.id)}
+                        className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-100 dark:border-[#222] text-xs cursor-pointer hover:bg-slate-100 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={item.done}
+                          onChange={() => {}}
+                          className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0"
+                        />
+                        <span className={`flex-1 ${item.done ? 'line-through text-slate-400' : 'text-slate-800 dark:text-[#DDD]'}`}>
+                          {item.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={newChecklistText}
+                      onChange={(e) => setNewChecklistText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddChecklistItem();
+                        }
+                      }}
+                      placeholder="+ Thêm mục checklist..."
+                      className="flex-1 px-2.5 py-1 text-xs rounded bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none"
+                    />
+                    <button
+                      onClick={handleAddChecklistItem}
+                      className="px-2.5 py-1 rounded bg-slate-200 dark:bg-[#222] text-xs font-semibold text-slate-700 dark:text-white"
+                    >
+                      Thêm
+                    </button>
+                  </div>
+                </div>
+
+                {/* Linked Documents & Notes */}
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                    TÀI LIỆU & GHI CHÚ LIÊN KẾT
+                  </span>
+
+                  <div className="space-y-2">
+                    {files.slice(0, 2).map((file, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-100 dark:border-[#222] flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Paperclip className="w-4 h-4 text-blue-600 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="font-medium text-slate-900 dark:text-white truncate block">
+                              {file.name}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {(file.size / (1024 * 1024)).toFixed(2)} MB • Google Drive Sync
+                            </span>
+                          </div>
+                        </div>
+                        {file.webViewLink && (
+                          <a
+                            href={file.webViewLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 text-slate-400 hover:text-blue-600"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bottom Action Buttons */}
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-[#222] gap-2">
+                  <button
+                    onClick={() => onTaskDelete(activeSelectedTask.id)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#2A2A2A] text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Xóa</span>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onTaskUpdate(activeSelectedTask.id, {
+                        status: activeSelectedTask.status === 'completed' ? 'in_progress' : 'completed'
+                      })}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors flex items-center gap-1"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{activeSelectedTask.status === 'completed' ? 'Mở lại' : 'Đánh dấu xong'}</span>
+                    </button>
+                    <button
+                      onClick={handleInspectorSave}
+                      className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:text-black text-xs font-semibold transition-colors"
+                    >
+                      Lưu
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-8 text-center rounded-xl bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A]">
+                <FileText className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                <p className="text-xs text-slate-500">Chọn một công việc để xem chi tiết</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 5. KANBAN BOARD VIEW MODE */}
       {viewMode === 'kanban' && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {(['todo', 'in_progress', 'completed', 'canceled'] as const).map(colStatus => {
@@ -967,23 +1035,16 @@ export const TasksView: React.FC<TasksViewProps> = ({
               canceled: 'Đã hủy (Canceled)'
             };
 
-            const isColDraggedOver = draggedOverCol === colStatus;
-
             return (
               <div
                 key={colStatus}
-                onDragOver={(e) => handleDragOverColumn(e, colStatus)}
-                onDragLeave={handleDragLeaveColumn}
-                onDrop={(e) => handleColumnDrop(e, colStatus)}
-                className={`p-4 rounded-sm bg-[#151515] border transition-all space-y-3 ${
-                  isColDraggedOver ? 'border-[#D4AF37] bg-[#1A1810]' : 'border-[#2A2A2A]'
-                }`}
+                className="p-4 rounded-xl bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] shadow-xs space-y-3"
               >
-                <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
-                  <h3 className="text-xs font-editorial-serif font-bold text-white uppercase tracking-wider">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#2A2A2A] pb-2">
+                  <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                     {colTitleMap[colStatus]}
                   </h3>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#2A2A2A]">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-[#1A1A1A] dark:text-[#D4AF37]">
                     {colTasks.length}
                   </span>
                 </div>
@@ -992,96 +1053,32 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   {colTasks.map(task => (
                     <div
                       key={task.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, task.id)}
-                      onDragEnd={resetDragState}
-                      onDragOver={(e) => handleCardDragOver(e, task.id)}
-                      onDragLeave={(e) => {
-                        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-                        if (dragOverTaskId === task.id) {
-                          setDragOverTaskId(null);
-                          setDragOverPosition(null);
-                        }
+                      onClick={() => {
+                        setSelectedTaskId(task.id);
+                        editTask(task);
                       }}
-                      onDrop={(e) => handleCardDropInKanban(e, task.id, colStatus)}
-                      className={`p-3 rounded-sm bg-[#0C0C0C] border space-y-2 hover:border-[#D4AF37]/50 transition-all cursor-grab active:cursor-grabbing relative ${
-                        draggedTaskId === task.id
-                          ? 'opacity-30 border-dashed border-[#D4AF37]'
-                          : 'border-[#2A2A2A]'
-                      } ${
-                        dragOverTaskId === task.id && dragOverPosition === 'before'
-                          ? 'border-t-2 border-t-[#D4AF37]'
-                          : dragOverTaskId === task.id && dragOverPosition === 'after'
-                          ? 'border-b-2 border-b-[#D4AF37]'
-                          : ''
-                      }`}
+                      className="p-3 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] space-y-2 hover:border-blue-400 transition-all cursor-pointer shadow-xs"
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <GripVertical className="w-3.5 h-3.5 text-[#555555] hover:text-[#D4AF37] shrink-0" />
-                          <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm ${
-                            task.priority === 'high' ? 'bg-rose-500/20 text-rose-300' : 'bg-[#1A1A1A] text-[#888888]'
-                          }`}>
-                            {task.priority.toUpperCase()}
-                          </span>
-                          {task.recurring && task.recurring.type !== 'none' && (
-                            <span className="text-[8px] px-1 py-0.5 rounded-xs bg-[#1A1A1A] text-sky-300 border border-sky-500/30 flex items-center gap-0.5" title={formatRecurringLabel(task.recurring)}>
-                              <Repeat className="w-2.5 h-2.5 text-sky-400" />
-                              <span>{formatRecurringLabel(task.recurring)}</span>
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-[#D4AF37] font-semibold flex items-center gap-1">
+                        <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                          task.priority === 'high' ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {task.priority.toUpperCase()}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           <span>{formatOfficialDeadline(task.deadline).split(',')[0]}</span>
                         </span>
                       </div>
-                      <h4 className="text-xs font-editorial-serif font-bold text-white leading-snug">{task.title}</h4>
-                      <p className="text-[11px] text-[#888888] line-clamp-2">{task.description}</p>
-                      
-                      <div className="text-[10px] text-zinc-400 bg-[#151515] p-1.5 rounded-sm border border-zinc-800/80 space-y-0.5">
-                        <span className="text-zinc-500 font-medium block">Hạn chót chính thức:</span>
-                        <span className="text-zinc-200 font-semibold block">{formatOfficialDeadline(task.deadline)}</span>
-                      </div>
-                      <div className="flex items-center justify-between pt-1 border-t border-[#2A2A2A]">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => editTask(task)}
-                            className="text-[10px] font-bold uppercase text-[#D4AF37] hover:underline cursor-pointer"
-                          >
-                            Chi tiết
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (onAnalyzeTask) {
-                                onAnalyzeTask(task);
-                              } else {
-                                openAiChatWithPrompt(`Hãy phân tích và đánh giá toàn diện công việc: "${task.title}". Mô tả: ${task.description}. Không hỏi ngược lại.`);
-                              }
-                            }}
-                            className="text-[10px] font-bold uppercase text-amber-400 hover:text-amber-300 flex items-center gap-0.5 cursor-pointer"
-                            title="Tự động phân tích AI"
-                          >
-                            <Sparkles className="w-2.5 h-2.5" />
-                            <span>Phân tích</span>
-                          </button>
-                        </div>
-                        <select
-                          value={task.status}
-                          onChange={(e) => onTaskUpdate(task.id, { status: e.target.value as any })}
-                          className="text-[10px] bg-[#1A1A1A] border border-[#2A2A2A] text-[#E0E0E0] rounded-sm px-1 py-0.5 cursor-pointer"
-                        >
-                          <option value="todo">Todo</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="completed">Done</option>
-                          <option value="canceled">Canceled</option>
-                        </select>
-                      </div>
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-snug">{task.title}</h4>
+                      {task.description && (
+                        <p className="text-[11px] text-slate-500 line-clamp-2">{task.description}</p>
+                      )}
                     </div>
                   ))}
                   {colTasks.length === 0 && (
-                    <div className="h-28 border border-dashed border-[#2A2A2A] rounded-sm flex items-center justify-center text-[#555555] text-xs">
-                      Kéo thả task vào đây
+                    <div className="h-28 border border-dashed border-slate-200 dark:border-[#2A2A2A] rounded-lg flex items-center justify-center text-slate-400 text-xs">
+                      Không có task
                     </div>
                   )}
                 </div>
@@ -1091,7 +1088,59 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
       )}
 
-      {/* 3. CALENDAR MONTH VIEW MODE */}
+      {/* 6. MATRIX 4x4 VIEW MODE */}
+      {viewMode === 'matrix' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(['Q1', 'Q2', 'Q3', 'Q4'] as const).map(q => {
+            const qTasks = filteredTasks.filter(t => getTaskQuadrant(t) === q);
+            const qTitle = q === 'Q1' ? 'Q1 • Làm Ngay (Do First)' :
+                           q === 'Q2' ? 'Q2 • Lên Kế Hoạch (Schedule)' :
+                           q === 'Q3' ? 'Q3 • Ủy Quyền (Delegate)' :
+                           'Q4 • Loại Bỏ (Eliminate)';
+            const qColor = q === 'Q1' ? 'border-rose-300 text-rose-700' :
+                           q === 'Q2' ? 'border-amber-300 text-amber-700' :
+                           q === 'Q3' ? 'border-sky-300 text-sky-700' :
+                           'border-slate-300 text-slate-700';
+
+            return (
+              <div
+                key={q}
+                className="p-4 rounded-xl bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] shadow-xs space-y-3"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#222]">
+                  <span className={`text-xs font-bold ${qColor}`}>{qTitle}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-[#222] font-semibold text-slate-600">
+                    {qTasks.length} việc
+                  </span>
+                </div>
+                <div className="space-y-2 min-h-[160px]">
+                  {qTasks.map(task => (
+                    <div
+                      key={task.id}
+                      onClick={() => editTask(task)}
+                      className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-100 dark:border-[#222] hover:bg-slate-100 transition-colors cursor-pointer flex items-center justify-between"
+                    >
+                      <span className="text-xs font-semibold text-slate-800 dark:text-white truncate">
+                        {task.title}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {formatOfficialDeadline(task.deadline).split(',')[0]}
+                      </span>
+                    </div>
+                  ))}
+                  {qTasks.length === 0 && (
+                    <div className="h-24 flex items-center justify-center text-xs text-slate-400 italic">
+                      Trống
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 7. CALENDAR VIEW MODE */}
       {viewMode === 'calendar' && (
         <TaskCalendarView
           tasks={filteredTasks}
@@ -1104,3 +1153,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
     </div>
   );
 };
+
+function taskRecurringLabel(task: Task): string {
+  if (!task.recurring || task.recurring.type === 'none') return 'không lặp';
+  return formatRecurringLabel(task.recurring);
+}

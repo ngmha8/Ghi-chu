@@ -889,3 +889,33 @@ export async function saveDbAiPersonaConfig(config: Partial<AiPersonaConfig>): P
   return cachedAiPersonaConfig;
 }
 
+// -------------------------------------------------------------
+// CLOUD EMBEDDINGS (CLOUD FIRESTORE VECTOR STORE)
+// -------------------------------------------------------------
+export async function getDbEmbeddings(): Promise<any[]> {
+  if (!firestoreDb) return [];
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'embeddings'));
+    const items: any[] = [];
+    snap.forEach(d => {
+      items.push({ ...d.data(), id: d.id });
+    });
+    return items;
+  } catch (err: any) {
+    console.warn('Firestore getDbEmbeddings warning:', err?.message);
+    return [];
+  }
+}
+
+export async function saveDbEmbedding(item: any): Promise<void> {
+  if (!firestoreDb || !item || !item.id) return;
+  const docKey = item.type ? `${item.type}-${item.id}` : item.id;
+  await firestoreSetDoc('embeddings', docKey, item);
+}
+
+export async function deleteDbEmbedding(docKey: string): Promise<void> {
+  if (!firestoreDb || !docKey) return;
+  await firestoreDeleteDoc('embeddings', docKey);
+}
+
+

@@ -19,6 +19,7 @@ export type AppTab =
   | 'tasks'
   | 'notes'
   | 'files'
+  | 'analytics'
   | 'telegram'
   | 'ai-learning'
   | 'settings'

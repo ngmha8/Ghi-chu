@@ -135,6 +135,10 @@ export async function testServiceAccountFolderAccess(
   canEdit: boolean;
   owners: string[];
   message: string;
+  driveType: 'personal_drive' | 'shared_drive';
+  isSharedDrive: boolean;
+  canUploadDirectlyWithRobot: boolean;
+  diagnosticAdvice: string;
 }> {
   const token = await getServiceAccountAccessToken(config.clientEmail, config.privateKey, true);
 
@@ -176,15 +180,30 @@ export async function testServiceAccountFolderAccess(
 
   const canEdit = !!(folderData.capabilities?.canAddChildren || folderData.capabilities?.canEdit);
   const owners = folderData.owners?.map((o: any) => o.displayName || o.emailAddress) || [];
+  const isSharedDrive = Boolean(folderData.driveId || folderData.sharedDriveId);
+  const isPersonalGmail = owners.some((owner: string) => String(owner).toLowerCase().includes('@gmail.com'));
+  const driveType: 'personal_drive' | 'shared_drive' = isSharedDrive ? 'shared_drive' : 'personal_drive';
+  const canUploadDirectlyWithRobot = isSharedDrive && canEdit;
+
+  let diagnosticAdvice = '';
+  if (isSharedDrive) {
+    diagnosticAdvice = 'Thư mục thuộc Bộ nhớ dùng chung (Google Workspace Shared Drive). Robot Service Account có quyền ghi trực tiếp và tự động đồng bộ tệp 100% mà không bị phụ thuộc tài khoản cá nhân!';
+  } else {
+    diagnosticAdvice = 'Thư mục thuộc Google Drive Cá nhân (@gmail.com). Robot Service Account tự động quét và nạp file từ Drive về app; để đẩy file mới từ app lên Drive cá nhân, Google yêu cầu đăng nhập tài khoản Google Admin (Chủ sở hữu thư mục).';
+  }
 
   return {
     success: true,
     folderName: folderData.name || 'Google Drive Shared Folder',
     canEdit,
     owners,
+    driveType,
+    isSharedDrive,
+    canUploadDirectlyWithRobot,
     message: canEdit
-      ? `Đã liên kết thành công với thư mục "${folderData.name}". Service Account có toàn quyền đọc và tải tệp lên.`
+      ? `Đã liên kết thành công với thư mục "${folderData.name}".`
       : `Đã kết nối được thư mục "${folderData.name}", nhưng Service Account chỉ có quyền Xem (Viewer). Hãy cấp quyền Người chỉnh sửa (Editor) trên Google Drive để tải file lên.`,
+    diagnosticAdvice,
   };
 }
 

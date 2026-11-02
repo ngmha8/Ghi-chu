@@ -1,7 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import { getGeminiClient } from './aiService.ts';
-import { getDbNotes, getDbFiles } from './firebaseDb.ts';
+import {
+  getDbNotes,
+  getDbFiles,
+  getDbEmbeddings,
+  saveDbEmbedding,
+  deleteDbEmbedding,
+} from './firebaseDb.ts';
 import type { Note, DriveFile } from '../src/types/index.ts';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
@@ -320,7 +326,7 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
 }
 
 // -------------------------------------------------------------
-// 3. CACHE STORAGE MANAGEMENT
+// 3. CACHE STORAGE MANAGEMENT (CLOUD FIRESTORE + LOCAL PERSISTENCE)
 // -------------------------------------------------------------
 export function loadEmbeddingCacheFromDisk() {
   try {
@@ -328,16 +334,50 @@ export function loadEmbeddingCacheFromDisk() {
       const data = JSON.parse(fs.readFileSync(EMBEDDING_CACHE_FILE, 'utf-8'));
       if (Array.isArray(data)) {
         for (const item of data) {
-          // Validate model & dimension compatibility (768D)
           if (item.id && Array.isArray(item.vector) && item.vector.length === EMBEDDING_DIMENSIONS) {
-            vectorCache.set(item.id, item);
+            const key = item.type ? `${item.type}-${item.id}` : item.id;
+            vectorCache.set(key, item);
           }
         }
-        console.log(`🧠 [Hybrid RAG Store] Loaded ${vectorCache.size} dense vectors (${PRIMARY_EMBEDDING_MODEL}) from disk.`);
+        console.log(`🧠 [Hybrid RAG Store] Loaded ${vectorCache.size} dense vectors (${PRIMARY_EMBEDDING_MODEL}) from disk cache.`);
       }
     }
   } catch (err) {
-    // Gracefully handle cache load failure
+    // Gracefully handle local cache load failure
+  }
+}
+
+/**
+ * Load vector embeddings from Cloud Firestore (primary cross-device source of truth)
+ * with fast fallback to local disk cache.
+ */
+export async function loadEmbeddingCache() {
+  // 1. Instant warm boot from local disk
+  loadEmbeddingCacheFromDisk();
+
+  // 2. Synchronize authoritative embeddings from Cloud Firestore
+  try {
+    const cloudVectors = await getDbEmbeddings();
+    if (Array.isArray(cloudVectors) && cloudVectors.length > 0) {
+      let loadedCount = 0;
+      for (const item of cloudVectors) {
+        if (item.id && Array.isArray(item.vector) && item.vector.length === EMBEDDING_DIMENSIONS) {
+          const key = item.type ? `${item.type}-${item.id}` : item.id;
+          vectorCache.set(key, item);
+          loadedCount++;
+        }
+      }
+      console.log(`☁️ [Cloud Firestore Vector Store] Loaded ${loadedCount} embeddings (${PRIMARY_EMBEDDING_MODEL}).`);
+      saveEmbeddingCacheToDisk();
+    } else if (vectorCache.size > 0) {
+      // Seed existing local vectors to Cloud Firestore
+      console.log(`☁️ [Cloud Firestore Vector Store] Seeding ${vectorCache.size} embeddings to Firestore...`);
+      for (const item of vectorCache.values()) {
+        saveDbEmbedding(item).catch(() => {});
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Embedding Cloud Sync] Notice:', err?.message || err);
   }
 }
 
@@ -391,17 +431,17 @@ export async function syncAndVectorizeAllDocuments(): Promise<number> {
 
     let updatedCount = 0;
 
-    // 1. Vectorize Notes
+    // 1. Vectorize Notes & Persist to Cloud Firestore
     for (const note of notes) {
       const combinedText = `Tiêu đề: ${note.title}\nThẻ: ${(note.tags || []).join(', ')}\nNội dung: ${note.content}`;
       const hash = computeTextHash(combinedText);
       const cached = vectorCache.get(`note-${note.id}`);
 
-      // Re-index if hash changed or if vector dimension is not 768
+      // Re-index if hash changed or if vector dimension is not 3072
       if (!cached || cached.hash !== hash || cached.vector.length !== EMBEDDING_DIMENSIONS) {
         const { vector, model } = await generateEmbedding(combinedText);
         if (vector) {
-          vectorCache.set(`note-${note.id}`, {
+          const vectorDoc: DocumentVector = {
             id: note.id,
             type: 'note',
             title: note.title,
@@ -411,14 +451,17 @@ export async function syncAndVectorizeAllDocuments(): Promise<number> {
             model,
             hash,
             updatedAt: note.updatedAt || new Date().toISOString(),
-          });
+          };
+          vectorCache.set(`note-${note.id}`, vectorDoc);
+          // Persist to Cloud Firestore
+          await saveDbEmbedding(vectorDoc);
           updatedCount++;
           await new Promise(r => setTimeout(r, 60));
         }
       }
     }
 
-    // 2. Vectorize Files
+    // 2. Vectorize Files & Persist to Cloud Firestore
     for (const file of files) {
       const fileNotes = file.notes || file.description || '';
       const fileText = `Tên tài liệu: ${file.name}\nPhân loại: ${file.classification || 'Chưa phân loại'}\nĐịnh dạng: ${file.category}\nThẻ: ${(file.tags || []).join(', ')}\n${fileNotes ? `Chú thích / Ghi chú: ${fileNotes}\n` : ''}${file.textContent ? `Nội dung: ${file.textContent.slice(0, 2000)}` : ''}`;
@@ -428,7 +471,7 @@ export async function syncAndVectorizeAllDocuments(): Promise<number> {
       if (!cached || cached.hash !== hash || cached.vector.length !== EMBEDDING_DIMENSIONS) {
         const { vector, model } = await generateEmbedding(fileText);
         if (vector) {
-          vectorCache.set(`file-${file.id}`, {
+          const vectorDoc: DocumentVector = {
             id: file.id,
             type: 'file',
             title: file.name,
@@ -440,16 +483,31 @@ export async function syncAndVectorizeAllDocuments(): Promise<number> {
             model,
             hash,
             updatedAt: file.uploadedAt || new Date().toISOString(),
-          });
+          };
+          vectorCache.set(`file-${file.id}`, vectorDoc);
+          // Persist to Cloud Firestore
+          await saveDbEmbedding(vectorDoc);
           updatedCount++;
           await new Promise(r => setTimeout(r, 60));
         }
       }
     }
 
+    // 3. Prune deleted notes/files from vectorCache and Cloud Firestore
+    const validKeys = new Set([
+      ...notes.map(n => `note-${n.id}`),
+      ...files.map(f => `file-${f.id}`),
+    ]);
+    for (const key of Array.from(vectorCache.keys())) {
+      if (!validKeys.has(key)) {
+        vectorCache.delete(key);
+        deleteDbEmbedding(key).catch(() => {});
+      }
+    }
+
     if (updatedCount > 0) {
       saveEmbeddingCacheToDisk();
-      console.log(`✨ [Hybrid RAG] Vectorized ${updatedCount} documents with ${PRIMARY_EMBEDDING_MODEL} (${EMBEDDING_DIMENSIONS}D).`);
+      console.log(`✨ [Cloud RAG Store] Synchronized ${updatedCount} document vectors to Cloud Firestore (${EMBEDDING_DIMENSIONS}D).`);
     }
 
     return vectorCache.size;

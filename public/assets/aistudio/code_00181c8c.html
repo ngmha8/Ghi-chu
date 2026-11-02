@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config={"darkMode":"class","theme":{"extend":{"colors":{"on-primary-fixed-variant":"#003ea8","surface":"#f8f9ff","primary-fixed-dim":"#b4c5ff","surface-tint":"#0053db","tertiary-fixed":"#ffddb8","on-error":"#ffffff","on-secondary-fixed-variant":"#004c6e","on-primary":"#ffffff","primary-container":"#2563eb","surface-bright":"#f8f9ff","secondary-container":"#39b8fd","on-secondary-fixed":"#001e2f","surface-container-lowest":"#ffffff","outline-variant":"#c3c6d7","on-background":"#0b1c30","primary-fixed":"#dbe1ff","surface-container-highest":"#d3e4fe","on-tertiary-container":"#ffeedd","on-tertiary-fixed":"#2a1700","on-primary-container":"#eeefff","background":"#f8f9ff","on-secondary":"#ffffff","error":"#ba1a1a","tertiary-container":"#996100","surface-container-high":"#dce9ff","primary":"#004ac6","error-container":"#ffdad6","tertiary-fixed-dim":"#ffb95f","outline":"#737686","on-primary-fixed":"#00174b","secondary-fixed":"#c9e6ff","surface-container":"#e5eeff","surface-container-low":"#eff4ff","on-secondary-container":"#004666","inverse-on-surface":"#eaf1ff","on-tertiary":"#ffffff","inverse-primary":"#b4c5ff","surface-variant":"#d3e4fe","on-surface-variant":"#434655","tertiary":"#784b00","secondary-fixed-dim":"#89ceff","on-error-container":"#93000a","inverse-surface":"#213145","on-surface":"#0b1c30","surface-dim":"#cbdbf5","secondary":"#006591","on-tertiary-fixed-variant":"#653e00"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"space-md":"0.75rem","space-sm":"0.5rem","margin":"1.5rem","margin-mobile":"1rem","space-xs":"0.25rem","gutter":"1rem","gutter-lg":"1.5rem","space-xl":"1.5rem","space-lg":"1rem"},"fontFamily":{"label-regular":["Inter"],"headline-lg":["Inter"],"display-hero":["Inter"],"label-bold":["Inter"],"label-caps":["Inter"],"headline-sm":["Inter"],"caption":["Inter"],"body-sm":["Inter"],"body-md":["Inter"],"headline-md":["Inter"],"body-lg":["Inter"]},"fontSize":{"label-regular":["12px",{"lineHeight":"16px","fontWeight":"500"}],"headline-lg":["22px",{"lineHeight":"28px","letterSpacing":"-0.02em","fontWeight":"700"}],"display-hero":["30px",{"lineHeight":"38px","letterSpacing":"-0.025em","fontWeight":"700"}],"label-bold":["12px",{"lineHeight":"16px","fontWeight":"600"}],"label-caps":["11px",{"lineHeight":"14px","letterSpacing":"0.06em","fontWeight":"700"}],"headline-sm":["15px",{"lineHeight":"20px","fontWeight":"600"}],"caption":["11px",{"lineHeight":"14px","fontWeight":"500"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"body-md":["13px",{"lineHeight":"18px","fontWeight":"400"}],"headline-md":["18px",{"lineHeight":"24px","letterSpacing":"-0.015em","fontWeight":"600"}],"body-lg":["15px",{"lineHeight":"22px","fontWeight":"400"}]}}}};</script></head><body class="bg-surface font-body-md text-on-surface antialiased min-h-screen"><header class="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest border-b border-outline-variant/30 shadow-[0_1px_8px_rgba(0,0,0,0.03)]"><div class="h-28 w-full px-gutter-lg flex flex-col justify-between"><div class="h-16 flex items-center justify-between gap-gutter"><div class="flex items-center gap-space-md shrink-0"><div class="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-on-primary font-headline-sm text-headline-sm shadow-sm">A</div><div class="flex flex-col"><div class="flex items-center gap-space-xs"><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Architect.OS</span><span class="px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-caps text-label-caps">PRO</span></div><span class="font-caption text-caption text-outline">V2.4.0 • Enterprise Core</span></div></div><div class="flex-1 max-w-md mx-space-lg hidden md:block"><div class="relative flex items-center w-full"><span class="material-symbols-outlined absolute left-space-md text-outline text-[18px]">search</span><input class="w-full h-9 pl-9 pr-12 rounded-lg bg-surface-container-low border border-outline-variant/40 font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary focus:bg-surface-container-lowest transition-all" placeholder="Tìm kiếm không gian, tác vụ, tài liệu (Ctrl+K)..." type="text"/><kbd class="absolute right-space-sm px-1.5 py-0.5 rounded bg-surface-container-highest/60 text-outline font-label-caps text-label-caps">⌘K</kbd></div></div><div class="flex items-center gap-space-sm shrink-0"><div class="hidden xl:flex items-center gap-space-xs mr-space-xs"><div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-low border border-outline-variant/30 font-caption text-caption text-on-surface"><span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>Firestore • Active</div><div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-low border border-outline-variant/30 font-caption text-caption text-on-surface"><span class="w-2 h-2 rounded-full bg-secondary"></span>Drive • Active</div></div><div class="flex items-center gap-space-xs"><button class="h-8 px-3 rounded-lg bg-primary hover:bg-surface-tint text-on-primary font-label-bold text-label-bold flex items-center gap-1.5 transition-colors shadow-sm" type="button"><span class="material-symbols-outlined text-[16px]">add_task</span><span class="hidden sm:inline">+ Thêm Task</span></button><button class="h-8 px-3 rounded-lg bg-surface-container-low hover:bg-surface-container hover:text-on-surface text-on-surface border border-outline-variant/40 font-label-bold text-label-bold flex items-center gap-1.5 transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">edit_note</span><span class="hidden sm:inline">+ Ghi Chú</span></button></div><div class="h-6 w-px bg-outline-variant/40 mx-space-xs hidden sm:block"></div><div class="flex items-center gap-1"><button aria-label="Khóa PIN" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" id="btn-quick-pin" type="button"><span class="material-symbols-outlined text-[18px]">lock</span></button><button aria-label="Đổi giao diện" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[18px]">light_mode</span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-sm cursor-pointer"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div><nav class="h-12 flex items-center gap-gutter overflow-x-auto border-t border-outline-variant/20" data-active-classes="text-primary font-label-bold border-b-2 border-primary"><a class="h-full inline-flex items-center px-1 font-label-regular text-label-regular text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap" data-path="dashboard" href="#">Dashboard</a><a class="h-full inline-flex items-center px-1 gap-1.5 font-label-regular text-label-regular text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap" data-path="cong-viec" href="#"><span>Công việc</span><span class="px-1.5 py-0.2 rounded-full bg-surface-container font-label-caps text-label-caps text-on-surface-variant">1</span></a><a class="h-full inline-flex items-center px-1 gap-1.5 font-label-regular text-label-regular text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap" data-path="ghi-chu" href="#"><span>Ghi chú</span><span class="px-1.5 py-0.2 rounded-full bg-surface-container font-label-caps text-label-caps text-on-surface-variant">5</span></a><a class="h-full inline-flex items-center px-1 gap-1.5 font-label-regular text-label-regular text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap" data-path="google-drive" href="#"><span>Google Drive</span><span class="px-1.5 py-0.2 rounded-full bg-surface-container font-label-caps text-label-caps text-on-surface-variant">19</span></a><a class="h-full inline-flex items-center px-1 font-label-regular text-label-regular text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap" data-path="thong-ke-phan-tich" href="#">Thống kê &amp; Phân tích</a><a class="h-full inline-flex items-center px-1 font-label-bold text-label-bold text-primary border-b-2 border-primary whitespace-nowrap" data-path="cai-dat" href="#">Cài đặt</a></nav></div></header><main class="w-full pt-28 min-h-screen bg-surface"><div class="flex flex-col w-full">
+<div class="w-full px-gutter-lg py-space-xl flex flex-col gap-space-xl">
+<!-- SUB-HEADER CONTEXT BAR -->
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="font-label-caps text-label-caps text-primary uppercase tracking-wider">Hệ thống &amp; Cấu hình</span>
+<span class="text-outline-variant text-body-sm">/</span>
+<span class="font-label-caps text-label-caps text-outline uppercase tracking-wider">Quản trị trải nghiệm</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Cài đặt Hệ thống</h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-3xl">
+          Cấu hình tài khoản, điều chỉnh trọng số Ma trận Eisenhower, quản lý khóa bảo mật PIN và các kết nối tự động hóa (Google Drive, Firestore, Telegram Bot).
+        </p>
+</div>
+<div class="flex items-center gap-space-sm self-start lg:self-center shrink-0">
+<button class="h-9 px-3.5 rounded-lg bg-surface-container-lowest text-on-surface shadow-sm hover:bg-surface-container-low font-label-bold text-label-bold flex items-center gap-1.5 transition-all" id="btn-reset" type="button">
+<span class="material-symbols-outlined text-[18px] text-outline">refresh</span>
+<span>Khôi phục mặc định</span>
+</button>
+<button class="h-9 px-4 rounded-lg bg-primary hover:bg-surface-tint text-on-primary shadow-sm font-label-bold text-label-bold flex items-center gap-1.5 transition-all" id="btn-save-top" type="button">
+<span class="material-symbols-outlined text-[18px]">check</span>
+<span>Lưu thay đổi</span>
+</button>
+</div>
+</div>
+<!-- OVERVIEW HEALTH / STATUS KPI CARDS -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md">
+<!-- KPI 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-outline">TRẠNG THÁI HỆ THỐNG</span>
+<div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-baseline gap-2">
+<span class="font-display-hero text-display-hero text-on-surface">Đồng bộ 100%</span>
+</div>
+<span class="font-caption text-caption text-secondary flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary inline-block"></span>
+            Tất cả dịch vụ đang chạy bình thường
+          </span>
+</div>
+</div>
+<!-- KPI 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-outline">KẾT NỐI TÍCH HỢP</span>
+<div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[18px]">hub</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-baseline gap-2">
+<span class="font-display-hero text-display-hero text-on-surface">4 / 4 Kích hoạt</span>
+</div>
+<span class="font-caption text-caption text-on-surface-variant">Drive API, Firestore, Telegram, RAG</span>
+</div>
+</div>
+<!-- KPI 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-outline">MÃ HÓA &amp; BẢO MẬT</span>
+<div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[18px]">lock</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-baseline gap-2">
+<span class="font-display-hero text-display-hero text-on-surface">AES-256 + PIN</span>
+</div>
+<span class="font-caption text-caption text-on-surface-variant">Xác thực 2 lớp bảo vệ phiên làm việc</span>
+</div>
+</div>
+<!-- KPI 4 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-outline">PHIÊN BẢN HỆ ĐIỀU HÀNH</span>
+<div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">terminal</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-baseline gap-2">
+<span class="font-display-hero text-display-hero text-on-surface">v2.4.0 Pro</span>
+</div>
+<span class="font-caption text-caption text-outline">Build 2026.10-Enterprise</span>
+</div>
+</div>
+</div>
+<!-- MAIN 2-COLUMN SETTINGS WORKSPACE -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+<!-- LEFT COLUMN: CATEGORIES NAVIGATION TABS -->
+<aside class="lg:col-span-3 xl:col-span-3 bg-surface-container-lowest rounded-xl p-space-sm shadow-sm sticky top-32 flex flex-col gap-1">
+<div class="px-space-md py-space-sm font-label-caps text-label-caps text-outline uppercase tracking-wider">
+          Danh mục cấu hình
+        </div>
+<nav class="flex flex-col gap-1" id="settings-nav">
+<a class="nav-tab active flex items-center gap-space-sm px-space-md py-2.5 rounded-lg bg-surface-container-low text-primary font-label-bold text-label-bold transition-all" href="#sec-profile">
+<span class="material-symbols-outlined text-[18px]">account_circle</span>
+<span class="truncate">Hồ sơ &amp; Danh tính</span>
+</a>
+<a class="nav-tab flex items-center gap-space-sm px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-label-regular text-label-regular transition-all" href="#sec-matrix">
+<span class="material-symbols-outlined text-[18px]">grid_view</span>
+<span class="truncate">Ma trận &amp; Năng suất</span>
+</a>
+<a class="nav-tab flex items-center gap-space-sm px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-label-regular text-label-regular transition-all" href="#sec-cloud">
+<span class="material-symbols-outlined text-[18px]">cloud_sync</span>
+<span class="truncate">Tích hợp &amp; Đám mây</span>
+</a>
+<a class="nav-tab flex items-center gap-space-sm px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-label-regular text-label-regular transition-all" href="#sec-telegram">
+<span class="material-symbols-outlined text-[18px]">send</span>
+<span class="truncate">Telegram &amp; Tự động hóa</span>
+</a>
+<a class="nav-tab flex items-center gap-space-sm px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-label-regular text-label-regular transition-all" href="#sec-security">
+<span class="material-symbols-outlined text-[18px]">security</span>
+<span class="truncate">Bảo mật &amp; Khóa PIN</span>
+</a>
+<a class="nav-tab flex items-center gap-space-sm px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-label-regular text-label-regular transition-all" href="#sec-interface">
+<span class="material-symbols-outlined text-[18px]">palette</span>
+<span class="truncate">Giao diện &amp; Chủ đề</span>
+</a>
+<a class="nav-tab flex items-center gap-space-sm px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface font-label-regular text-label-regular transition-all" href="#sec-backup">
+<span class="material-symbols-outlined text-[18px]">database</span>
+<span class="truncate">Sao lưu &amp; Dữ liệu JSON</span>
+</a>
+</nav>
+<div class="mt-space-md p-space-md rounded-lg bg-surface-container-low flex flex-col gap-2">
+<div class="flex items-center gap-2 text-on-surface font-label-bold text-label-bold">
+<span class="material-symbols-outlined text-[16px] text-primary">cloud_done</span>
+<span>Cloud Sync Status</span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant leading-relaxed">
+            Dữ liệu đồng bộ mã hóa đầu cuối với Firestore và sao lưu dự phòng vào Drive mỗi 6 giờ.
+          </p>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 88%"></div>
+</div>
+<span class="font-caption text-caption text-outline">Dung lượng sử dụng: 88% hạn mức</span>
+</div>
+</aside>
+<!-- RIGHT COLUMN: DETAILED CONFIGURATION FORMS -->
+<main class="lg:col-span-9 xl:col-span-9 flex flex-col gap-space-lg pb-24">
+<!-- SECTION 1: PROFILE & WORKSPACE -->
+<section class="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg" id="sec-profile">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">badge</span>
+<span>Thông tin người dùng &amp; Workspace</span>
+</h2>
+<span class="px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant font-label-caps text-label-caps">
+                Enterprise Core
+              </span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Thông tin nhận diện điều hành và phân quyền truy cập trong không gian làm việc.
+            </p>
+</div>
+<div class="flex flex-col sm:flex-row items-start sm:items-center gap-space-lg p-space-lg bg-surface-container-low rounded-xl">
+<div class="relative shrink-0">
+<div class="w-20 h-20 rounded-2xl bg-surface-container-high overflow-hidden shadow-sm flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[44px]">shield_person</span>
+</div>
+<button aria-label="Đổi ảnh đại diện" class="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-primary text-on-primary flex items-center justify-center shadow-md hover:bg-surface-tint transition-colors" type="button">
+<span class="material-symbols-outlined text-[16px]">photo_camera</span>
+</button>
+</div>
+<div class="flex-1 flex flex-col gap-1 min-w-0">
+<div class="flex flex-wrap items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm text-on-surface truncate">Admin Workspace</h3>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-primary font-label-caps text-label-caps">Super Admin</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">admin@architect-os.vn</p>
+<div class="flex items-center gap-2 text-caption font-caption text-outline mt-1">
+<span>Chức vụ: Bác sĩ / Kỹ sư Trưởng</span>
+<span>•</span>
+<span>ID: #ADM-88219</span>
+</div>
+</div>
+<div class="shrink-0 flex sm:flex-col gap-2">
+<button class="h-8 px-3 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container font-label-bold text-label-bold shadow-sm transition-colors text-center" type="button">
+                Đổi ảnh đại diện
+              </button>
+<button class="h-8 px-3 rounded-lg bg-surface-container-lowest text-outline hover:text-on-surface font-label-bold text-label-bold transition-colors text-center" type="button">
+                Gỡ ảnh
+              </button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="inp-disp-name">Tên hiển thị Workspace</label>
+<input class="h-10 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:outline-none transition-all shadow-inner" id="inp-disp-name" type="text" value="Admin Workspace (Bác sĩ / Kỹ sư Trưởng)"/>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="inp-email">Địa chỉ Email quản trị</label>
+<input class="h-10 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:outline-none transition-all shadow-inner" id="inp-email" type="email" value="admin@architect-os.vn"/>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface">Vai trò &amp; Quyền hạn</label>
+<div class="h-10 px-3 rounded-lg bg-surface-container text-on-surface font-body-md text-body-md flex items-center justify-between">
+<span>Quản trị viên Hệ thống (Super Admin)</span>
+<span class="material-symbols-outlined text-[18px] text-outline">verified</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface">Chế độ vận hành</label>
+<div class="h-10 px-3 rounded-lg bg-surface-container text-on-surface font-body-md text-body-md flex items-center justify-between">
+<span>Doanh nghiệp (Enterprise Core) - License v2.4.0</span>
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-primary font-label-caps text-label-caps">Active</span>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 2: EISENHOWER MATRIX & PRODUCTIVITY METRICS -->
+<section class="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg" id="sec-matrix">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">view_quilt</span>
+<span>Cấu hình Ma trận Eisenhower &amp; Năng suất</span>
+</h2>
+<span class="font-caption text-caption text-outline">Eisenhower Matrix Engine</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Tùy biến trọng số phân bổ ưu tiên công việc và chỉ tiêu thời gian làm việc sâu (Deep Work).
+            </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+<!-- Q1 Card Config -->
+<div class="p-space-lg rounded-xl bg-surface-container-low flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-error"></span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Q1 • Khẩn cấp &amp; Quan trọng</span>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-container text-error font-label-caps text-label-caps">Ưu tiên cao</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                Tác vụ kiểm định, liều kế quá hạn hoặc sự cố bức xạ cần can thiệp trong chu kỳ ngắn.
+              </p>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="sel-deadline-alert">Ngưỡng cảnh báo trước Deadline</label>
+<div class="relative">
+<select class="w-full h-10 px-3 pr-8 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none appearance-none shadow-sm cursor-pointer" id="sel-deadline-alert">
+<option value="24">Trước 24 giờ (Khuyến nghị)</option>
+<option selected="" value="48">Trước 48 giờ (Mặc định)</option>
+<option value="72">Trước 72 giờ</option>
+</select>
+<span class="material-symbols-outlined absolute right-2.5 top-2.5 text-outline pointer-events-none text-[18px]">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Q2 Card Config -->
+<div class="p-space-lg rounded-xl bg-surface-container-low flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-primary"></span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Q2 • Chiến lược / Kế hoạch</span>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-container text-primary font-label-caps text-label-caps">Tập trung lõi</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                Đào tạo an toàn, bảo dưỡng định kỳ và quy hoạch hệ thống RAG không gian dữ liệu.
+              </p>
+<div class="flex flex-col gap-1.5">
+<div class="flex justify-between items-center">
+<label class="font-label-bold text-label-bold text-on-surface" for="rng-q2-focus">Tỷ lệ năng lượng Covey khuyến nghị</label>
+<span class="font-label-bold text-label-bold text-primary" id="q2-val">60%</span>
+</div>
+<input class="w-full accent-primary h-2 bg-surface-container rounded-lg cursor-pointer" id="rng-q2-focus" max="85" min="40" oninput="document.getElementById('q2-val').innerText = this.value + '%'" type="range" value="60"/>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-md pt-space-xs">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="inp-deep-work">Mục tiêu Giờ Focus AI mỗi tuần</label>
+<div class="relative flex items-center">
+<input class="w-full h-10 px-3 pr-28 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:outline-none transition-all shadow-inner" id="inp-deep-work" type="text" value="25.0"/>
+<span class="absolute right-3 font-caption text-caption text-outline">giờ / tuần</span>
+</div>
+<span class="font-caption text-caption text-outline">Tự động tổng hợp dữ liệu từ Pomodoro &amp; phiên làm việc tập trung.</span>
+</div>
+<div class="flex flex-col justify-between p-space-md rounded-xl bg-surface-container-low">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-0.5">
+<span class="font-label-bold text-label-bold text-on-surface">Tự động phân loại AI (Auto-Tagging)</span>
+<span class="font-caption text-caption text-on-surface-variant">Nhận diện văn bản kiểm định, liều kế để gán vào Q1/Q2</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" id="toggle-autotag" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 3: CLOUD INTEGRATIONS & DATABASE -->
+<section class="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg" id="sec-cloud">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">cloud</span>
+<span>Tích hợp Đám mây &amp; Cơ sở dữ liệu</span>
+</h2>
+<span class="font-caption text-caption text-secondary">Cloud Services Active</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Quản trị luồng liên kết API với Google Drive và Google Cloud Firestore.
+            </p>
+</div>
+<div class="flex flex-col gap-space-md">
+<!-- GOOGLE DRIVE ITEM -->
+<div class="p-space-lg rounded-xl bg-surface-container-low flex flex-col gap-space-md">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">folder_special</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface">Google Workspace Drive API</span>
+<span class="flex items-center gap-1 font-caption text-caption text-secondary">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                        Đã kết nối
+                      </span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Dung lượng: 106.41 MB / 15 GB (Gói Cloud Enterprise)</span>
+</div>
+</div>
+<div class="flex items-center gap-2 self-start sm:self-center">
+<button class="h-8 px-3 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container font-label-bold text-label-bold shadow-sm transition-colors flex items-center gap-1 text-center" type="button">
+<span class="material-symbols-outlined text-[16px]">network_check</span>
+<span>Kiểm tra kết nối</span>
+</button>
+<button class="h-8 px-3 rounded-lg bg-surface-container-lowest text-primary hover:bg-surface-container font-label-bold text-label-bold shadow-sm transition-colors flex items-center gap-1 text-center" id="btn-open-oauth-modal" type="button">
+<span class="material-symbols-outlined text-[16px]">key</span>
+<span>OAuth 2.0</span>
+</button>
+</div>
+</div>
+<div class="pt-space-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Thư mục gốc đồng bộ hóa:</span>
+<span class="font-label-bold text-label-bold text-on-surface bg-surface-container-lowest px-3 py-1.5 rounded-lg shadow-sm">
+                  Drive/An toàn bức xạ &amp; Hồ sơ pháp lý
+                </span>
+</div>
+</div>
+<!-- GOOGLE CLOUD FIRESTORE ITEM -->
+<div class="p-space-lg rounded-xl bg-surface-container-low flex flex-col gap-space-md">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[24px]">database</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface">Google Cloud Firestore</span>
+<span class="flex items-center gap-1 font-caption text-caption text-secondary">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                        Đang hoạt động
+                      </span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Endpoint: asia-southeast1 (projects/architect-os-prod)</span>
+</div>
+</div>
+<div class="flex items-center gap-2 self-start sm:self-center">
+<span class="px-2.5 py-1 rounded bg-surface-container text-on-surface-variant font-label-caps text-label-caps">
+                    Tức thì (WebSocket)
+                  </span>
+</div>
+</div>
+<div class="pt-space-xs flex flex-wrap items-center justify-between gap-2">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Collections đang lắng nghe (Real-time):</span>
+<div class="flex flex-wrap gap-1.5">
+<span class="px-2 py-0.5 rounded bg-surface-container-lowest text-on-surface font-caption text-caption shadow-sm">tasks</span>
+<span class="px-2 py-0.5 rounded bg-surface-container-lowest text-on-surface font-caption text-caption shadow-sm">notes</span>
+<span class="px-2 py-0.5 rounded bg-surface-container-lowest text-on-surface font-caption text-caption shadow-sm">drive_files</span>
+<span class="px-2 py-0.5 rounded bg-surface-container-lowest text-on-surface font-caption text-caption shadow-sm">analytics</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 4: TELEGRAM BOT & 2-WAY AUTOMATION -->
+<section class="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg" id="sec-telegram">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">smart_toy</span>
+<span>Telegram Bot &amp; Cảnh báo 2 Chiều</span>
+</h2>
+<span class="font-caption text-caption text-secondary">Webhook Active (&lt;200ms)</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Tự động hóa thông báo sự cố, nhắc việc Q1 và giao tiếp AI prompt qua kênh Telegram bảo mật.
+            </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+<div class="p-space-lg rounded-xl bg-surface-container-low flex flex-col gap-space-sm">
+<span class="font-label-caps text-label-caps text-outline">BOT HANDLE &amp; STATUS</span>
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface">@ArchitectOS_AssistBot</span>
+<span class="px-2 py-0.5 rounded bg-surface-container text-secondary font-label-caps text-label-caps">Active</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                Webhook URL tiếp nhận lệnh đã thiết lập và sẵn sàng nhận prompt xử lý tài liệu.
+              </p>
+</div>
+<div class="p-space-lg rounded-xl bg-surface-container-low flex flex-col gap-space-sm">
+<span class="font-label-caps text-label-caps text-outline">CHAT ID TIẾP NHẬN</span>
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface tracking-wider">8491****56</span>
+<button class="h-7 px-2.5 rounded bg-surface-container-lowest text-primary hover:bg-surface-container font-label-bold text-label-bold text-caption shadow-sm transition-colors" type="button">
+                  Kiểm tra gửi tin
+                </button>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                Chỉ định tài khoản Telegram duy nhất có thẩm quyền gửi/nhận lệnh hệ thống.
+              </p>
+</div>
+</div>
+<div class="flex flex-col gap-space-sm">
+<span class="font-label-bold text-label-bold text-on-surface">Cấu hình kịch bản thông báo tự động</span>
+<div class="flex flex-col gap-2">
+<label class="flex items-start gap-3 p-space-md rounded-lg bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors">
+<input checked="" class="mt-0.5 rounded text-primary focus:ring-0 w-4 h-4 cursor-pointer" type="checkbox"/>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-semibold">Nhắc nhở công việc Q1 trước 08:00 sáng hàng ngày</span>
+<span class="font-caption text-caption text-on-surface-variant">Gửi danh sách 3 công việc quan trọng nhất cần giải quyết ngay khi bắt đầu ngày làm việc.</span>
+</div>
+</label>
+<label class="flex items-start gap-3 p-space-md rounded-lg bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors">
+<input checked="" class="mt-0.5 rounded text-primary focus:ring-0 w-4 h-4 cursor-pointer" type="checkbox"/>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-semibold">Báo cáo tổng kết tuần vào 19:00 Chủ Nhật</span>
+<span class="font-caption text-caption text-on-surface-variant">Phân tích tỷ lệ phân bổ Eisenhower, số giờ Deep Work thực tế so với mục tiêu đặt ra.</span>
+</div>
+</label>
+<label class="flex items-start gap-3 p-space-md rounded-lg bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors">
+<input checked="" class="mt-0.5 rounded text-primary focus:ring-0 w-4 h-4 cursor-pointer" type="checkbox"/>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-semibold">Cảnh báo khi phát hiện tệp kiểm định quá hạn 3 tháng</span>
+<span class="font-caption text-caption text-on-surface-variant">Kích hoạt bot gửi tin nhắn khẩn cấp kèm liên kết mở nhanh tài liệu tương ứng trên Drive.</span>
+</div>
+</label>
+</div>
+</div>
+</section>
+<!-- SECTION 5: SECURITY & SESSION PIN LOCK -->
+<section class="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg" id="sec-security">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">lock</span>
+<span>Khóa bảo mật &amp; Quyền riêng tư</span>
+</h2>
+<span class="px-2 py-0.5 rounded bg-surface-container text-primary font-label-caps text-label-caps">PIN Protected</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Thiết lập mã PIN truy cập nhanh, tự động khóa phiên làm việc và dọn dẹp dữ liệu lưu tạm.
+            </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="inp-pin">Mã PIN truy cập nhanh (6 chữ số)</label>
+<div class="flex gap-2">
+<input class="flex-1 h-10 px-3 rounded-lg bg-surface-container-low text-on-surface tracking-widest font-mono text-body-lg focus:outline-none shadow-inner" id="inp-pin" readonly="" type="password" value="123456"/>
+<button class="h-10 px-4 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container font-label-bold text-label-bold shadow-sm transition-colors cursor-pointer" id="btn-open-pin-modal" type="button">
+                  Đổi mã PIN
+                </button>
+</div>
+<span class="font-caption text-caption text-outline">Mã PIN dùng để mở khóa khi tạm rời màn hình mà không cần đăng nhập lại.</span>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="sel-auto-lock">Tự động khóa màn hình</label>
+<div class="relative">
+<select class="w-full h-10 px-3 pr-8 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:outline-none appearance-none shadow-inner cursor-pointer" id="sel-auto-lock">
+<option value="5">Sau 5 phút không hoạt động</option>
+<option selected="" value="15">Sau 15 phút không hoạt động (Mặc định)</option>
+<option value="30">Sau 30 phút không hoạt động</option>
+<option value="60">Sau 1 giờ không hoạt động</option>
+</select>
+<span class="material-symbols-outlined absolute right-2.5 top-2.5 text-outline pointer-events-none text-[18px]">expand_more</span>
+</div>
+<span class="font-caption text-caption text-outline">Tự động chuyển về giao diện khóa PIN khi không có thao tác chuột hoặc bàn phím.</span>
+</div>
+</div>
+<div class="p-space-lg rounded-xl bg-surface-container-low flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-error">
+<span class="material-symbols-outlined text-[24px]">delete_sweep</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Xóa bộ nhớ đệm cục bộ &amp; Dữ liệu nhạy cảm</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Giải phóng 14.8 MB dữ liệu Index lưu trữ tạm trên trình duyệt hiện tại.</span>
+</div>
+</div>
+<button class="h-9 px-4 rounded-lg bg-surface-container-lowest text-error hover:bg-error hover:text-on-error font-label-bold text-label-bold shadow-sm transition-all self-start sm:self-center shrink-0" type="button">
+              Xóa Cache Ngay
+            </button>
+</div>
+</section>
+<!-- SECTION 6: INTERFACE & THEME -->
+<section class="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg" id="sec-interface">
+<div class="flex flex-col gap-space-xs">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">palette</span>
+<span>Giao diện &amp; Trải nghiệm hiển thị</span>
+</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Tùy biến hiển thị theo phong cách Modern Enterprise SaaS.
+            </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-md">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="sel-theme">Chủ đề giao diện</label>
+<div class="relative">
+<select class="w-full h-10 px-3 pr-8 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:outline-none appearance-none shadow-inner cursor-pointer" id="sel-theme">
+<option selected="">Sáng chuẩn (Modern Clean Light)</option>
+<option>Tối (Executive Slate Dark)</option>
+<option>Theo hệ điều hành (Auto)</option>
+</select>
+<span class="material-symbols-outlined absolute right-2.5 top-2.5 text-outline pointer-events-none text-[18px]">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="sel-font">Bộ phông chữ hệ thống</label>
+<div class="relative">
+<select class="w-full h-10 px-3 pr-8 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:outline-none appearance-none shadow-inner cursor-pointer" id="sel-font">
+<option selected="">Inter (Chuẩn thiết kế)</option>
+<option>SF Pro / System</option>
+<option>Roboto Workspace</option>
+</select>
+<span class="material-symbols-outlined absolute right-2.5 top-2.5 text-outline pointer-events-none text-[18px]">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="sel-lang">Ngôn ngữ hiển thị</label>
+<div class="relative">
+<select class="w-full h-10 px-3 pr-8 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:outline-none appearance-none shadow-inner cursor-pointer" id="sel-lang">
+<option selected="">Tiếng Việt (Mặc định)</option>
+<option>English (US)</option>
+</select>
+<span class="material-symbols-outlined absolute right-2.5 top-2.5 text-outline pointer-events-none text-[18px]">expand_more</span>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 7: BACKUP & JSON DATA EXPORT -->
+<section class="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg" id="sec-backup">
+<div class="flex flex-col gap-space-xs">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">cloud_download</span>
+<span>Sao lưu &amp; Dữ liệu JSON</span>
+</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Tải toàn bộ cấu trúc Task, Notes, Drive Index dưới định dạng JSON độc lập hoặc nạp khôi phục.
+            </p>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+<div class="p-space-lg rounded-xl bg-surface-container-low flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-1">
+<span class="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">download</span>
+<span>Xuất dữ liệu toàn bộ (Export JSON)</span>
+</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                  Tập tin JSON đóng gói bao gồm tất cả các task, ghi chú phân loại, liên kết tệp và lịch sử Pomodoro.
+                </p>
+</div>
+<button class="h-9 px-4 rounded-lg bg-surface-container-lowest text-primary hover:bg-surface-container font-label-bold text-label-bold shadow-sm transition-colors flex items-center justify-center gap-1.5" type="button">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>Tải tệp JSON dự phòng</span>
+</button>
+</div>
+<div class="p-space-lg rounded-xl bg-surface-container-low flex flex-col justify-between gap-space-md">
+<div class="flex flex-col gap-1">
+<span class="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary text-[20px]">upload_file</span>
+<span>Khôi phục dữ liệu (Import JSON)</span>
+</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                  Ghi đè hoặc nối dữ liệu từ tệp JSON đã xuất trước đó vào hệ cơ sở dữ liệu Firestore hiện hành.
+                </p>
+</div>
+<button class="h-9 px-4 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container font-label-bold text-label-bold shadow-sm transition-colors flex items-center justify-center gap-1.5" type="button">
+<span class="material-symbols-outlined text-[18px]">upload</span>
+<span>Chọn tệp JSON để khôi phục</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+</div>
+</div>
+<!-- FLOATING ANCHORED ACTION STATUS BAR -->
+<div class="fixed bottom-0 left-0 right-0 z-40 bg-surface-container-lowest/95 backdrop-blur-md shadow-[0_-2px_12px_rgba(0,0,0,0.06)] px-gutter-lg py-space-sm flex items-center justify-between">
+<div class="flex items-center gap-space-md">
+<span class="w-2.5 h-2.5 rounded-full bg-secondary inline-block animate-pulse"></span>
+<span class="font-caption text-caption text-on-surface-variant hidden sm:inline">
+        Trạng thái: <strong class="text-on-surface font-semibold">Đã đồng bộ lần cuối</strong> — Hôm nay, 19:20
+      </span>
+<span class="font-caption text-caption text-on-surface-variant sm:hidden">
+        Đã lưu hôm nay 19:20
+      </span>
+</div>
+<div class="flex items-center gap-space-sm">
+<button class="h-8 px-3.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface font-label-bold text-label-bold transition-colors" id="btn-footer-cancel" type="button">
+        Hủy bỏ
+      </button>
+<button class="h-8 px-4 rounded-lg bg-primary hover:bg-surface-tint text-on-primary shadow-sm font-label-bold text-label-bold flex items-center gap-1.5 transition-colors" id="btn-footer-save" type="button">
+<span class="material-symbols-outlined text-[16px]">done_all</span>
+<span>Lưu tất cả thay đổi</span>
+</button>
+</div>
+</div>
+<!-- ============================================== -->
+<!-- MODAL 1: ĐỔI MÃ PIN BẢO MẬT (CHANGE PIN MODAL) -->
+<!-- ============================================== -->
+<div aria-labelledby="modal-pin-title" aria-modal="true" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-200 hidden" id="modal-change-pin" role="dialog">
+<div class="bg-surface-container-lowest w-full max-w-lg rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden transform transition-all flex flex-col">
+<!-- Modal Header -->
+<div class="px-space-xl py-space-lg border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-lowest">
+<div class="flex items-center gap- space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary shrink-0 mr-3">
+<span class="material-symbols-outlined text-[24px]">lock_reset</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-md text-headline-md text-on-surface" id="modal-pin-title">Đổi mã PIN bảo mật</h3>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-primary font-label-caps text-label-caps">6-DIGIT</span>
+</div>
+<span class="font-caption text-caption text-outline">Xác thực phiên làm việc cấp tốc</span>
+</div>
+</div>
+<button aria-label="Đóng popup" class="modal-close-btn w-8 h-8 rounded-lg flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container transition-colors" data-modal="modal-change-pin" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Modal Body -->
+<div class="p-space-xl flex flex-col gap-space-lg">
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+        Mã PIN 6 chữ số được sử dụng để mở khóa nhanh phiên làm việc và bảo vệ các dữ liệu nhạy cảm khi bạn tạm rời máy.
+      </p>
+<form class="flex flex-col gap-space-md" id="form-change-pin" onsubmit="return false;">
+<!-- Input 1: Mã PIN hiện tại -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="inp-pin-current">Mã PIN hiện tại</label>
+<div class="relative flex items-center">
+<input autocomplete="off" class="w-full h-11 px-3 pr-10 rounded-lg bg-surface-container-low text-on-surface font-mono text-body-lg tracking-widest focus:bg-surface-container-lowest focus:border-primary border border-outline-variant/30 focus:outline-none transition-all shadow-inner" id="inp-pin-current" maxlength="6" placeholder="Nhập PIN cũ..." type="password"/>
+<button class="toggle-pin-visibility absolute right-2 text-outline hover:text-on-surface p-1 rounded transition-colors" data-target="inp-pin-current" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</div>
+</div>
+<!-- Input 2: Mã PIN mới (6 ô số liền mạch hoặc ô ký tự) -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<label class="font-label-bold text-label-bold text-on-surface" for="inp-pin-new">Mã PIN mới (6 chữ số)</label>
+<span class="font-caption text-caption text-outline">Chỉ gồm các chữ số (0-9)</span>
+</div>
+<div class="relative flex items-center">
+<input autocomplete="off" class="w-full h-11 px-3 pr-10 rounded-lg bg-surface-container-low text-on-surface font-mono text-body-lg tracking-widest focus:bg-surface-container-lowest focus:border-primary border border-outline-variant/30 focus:outline-none transition-all shadow-inner" id="inp-pin-new" maxlength="6" placeholder="••••••" type="password"/>
+<button class="toggle-pin-visibility absolute right-2 text-outline hover:text-on-surface p-1 rounded transition-colors" data-target="inp-pin-new" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</div>
+</div>
+<!-- Input 3: Xác nhận mã PIN mới -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-bold text-label-bold text-on-surface" for="inp-pin-confirm">Xác nhận mã PIN mới</label>
+<div class="relative flex items-center">
+<input autocomplete="off" class="w-full h-11 px-3 pr-10 rounded-lg bg-surface-container-low text-on-surface font-mono text-body-lg tracking-widest focus:bg-surface-container-lowest focus:border-primary border border-outline-variant/30 focus:outline-none transition-all shadow-inner" id="inp-pin-confirm" maxlength="6" placeholder="••••••" type="password"/>
+<button class="toggle-pin-visibility absolute right-2 text-outline hover:text-on-surface p-1 rounded transition-colors" data-target="inp-pin-confirm" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</div>
+</div>
+<!-- Gợi ý bảo mật -->
+<div class="p-space-md rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-start gap-space-sm mt-1">
+<span class="material-symbols-outlined text-primary text-[20px] shrink-0 mt-0.5">info</span>
+<p class="font-caption text-caption text-on-surface-variant leading-relaxed">
+<strong class="text-on-surface font-semibold">Gợi ý bảo mật:</strong> Không sử dụng dãy số liên tiếp (123456), số lặp (111111) hoặc ngày sinh nhật dễ đoán.
+          </p>
+</div>
+</form>
+</div>
+<!-- Modal Footer -->
+<div class="px-space-xl py-space-md bg-surface-container-low/60 border-t border-outline-variant/20 flex items-center justify-end gap-space-sm">
+<button class="modal-close-btn h-9 px-4 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container font-label-bold text-label-bold shadow-sm transition-all" data-modal="modal-change-pin" type="button">
+        Hủy bỏ
+      </button>
+<button class="h-9 px-5 rounded-lg bg-primary hover:bg-surface-tint text-on-primary font-label-bold text-label-bold shadow-sm flex items-center gap-1.5 transition-all" id="btn-submit-change-pin" type="button">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span>Xác nhận đổi PIN</span>
+</button>
+</div>
+</div>
+</div>
+<!-- ========================================================================= -->
+<!-- MODAL 2: QUẢN TRỊ & PHÂN QUYỀN OAUTH 2.0 (OAUTH AUTHORIZATION & SCOPES) -->
+<!-- ========================================================================= -->
+<div aria-labelledby="modal-oauth-title" aria-modal="true" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-200 hidden" id="modal-oauth-scopes" role="dialog">
+<div class="bg-surface-container-lowest w-full max-w-2xl rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden transform transition-all flex flex-col max-h-[92vh]">
+<!-- Modal Header -->
+<div class="px-space-xl py-space-lg border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-lowest shrink-0">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary shrink-0 mr-3">
+<span class="material-symbols-outlined text-[24px]">key</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-md text-headline-md text-on-surface" id="modal-oauth-title">Quản lý Quyền OAuth 2.0 (Google Workspace)</h3>
+</div>
+<span class="font-caption text-caption text-outline">Ủy quyền ứng dụng &amp; Kiểm soát phạm vi Scopes</span>
+</div>
+</div>
+<button aria-label="Đóng popup" class="modal-close-btn w-8 h-8 rounded-lg flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container transition-colors" data-modal="modal-oauth-scopes" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Modal Scrollable Content -->
+<div class="p-space-xl flex flex-col gap-space-lg overflow-y-auto">
+<!-- Status Card -->
+<div class="p-space-lg rounded-xl bg-surface-container-low border border-outline-variant/30 flex flex-col sm:flex-row sm:items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="w-11 h-11 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm text-[#ea4335] shrink-0">
+<span class="material-symbols-outlined text-[24px]">cloud_sync</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-label-bold text-label-bold text-on-surface">admin@architect-os.vn</span>
+<span class="px-2 py-0.5 rounded bg-surface-container text-secondary font-label-caps text-label-caps">Enterprise Core</span>
+</div>
+<span class="font-caption text-caption text-secondary flex items-center gap-1.5 mt-0.5">
+<span class="w-2 h-2 rounded-full bg-secondary inline-block"></span>
+              Đã xác thực (Token có hiệu lực • Refresh Token gắn kết)
+            </span>
+</div>
+</div>
+<div class="shrink-0 flex items-center gap-1.5 self-start sm:self-center">
+<span class="px-2.5 py-1 rounded-full bg-surface-container-lowest font-caption text-caption text-outline shadow-xs">
+            Client ID: 4108...apps
+          </span>
+</div>
+</div>
+<!-- Scopes Management List -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-bold text-label-bold text-on-surface uppercase tracking-wider text-caption">Danh sách phạm vi phân quyền (OAuth 2.0 Scopes)</span>
+<span class="font-caption text-caption text-outline">3 / 4 Scopes đang bật</span>
+</div>
+<div class="flex flex-col gap-2.5">
+<!-- Scope 1 -->
+<div class="p-space-md rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-start justify-between gap-3">
+<div class="flex flex-col gap-0.5">
+<div class="flex items-center gap-2">
+<code class="px-2 py-0.5 rounded bg-surface-container-lowest text-primary font-mono text-caption font-semibold">https://www.googleapis.com/auth/drive.readonly</code>
+<span class="px-1.5 py-0.2 rounded bg-surface-container text-secondary font-label-caps text-[10px]">Đang cấp quyền</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold mt-1">Xem và tải tệp hồ sơ lưu trữ</span>
+<span class="font-caption text-caption text-on-surface-variant">Cho phép Architect.OS đọc metadata, nội dung văn bản kiểm định và liều xạ từ kho lưu trữ.</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-10 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<!-- Scope 2 -->
+<div class="p-space-md rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-start justify-between gap-3">
+<div class="flex flex-col gap-0.5">
+<div class="flex items-center gap-2">
+<code class="px-2 py-0.5 rounded bg-surface-container-lowest text-primary font-mono text-caption font-semibold">https://www.googleapis.com/auth/drive.file</code>
+<span class="px-1.5 py-0.2 rounded bg-surface-container text-secondary font-label-caps text-[10px]">Đang cấp quyền</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold mt-1">Tạo và quản lý tệp do Architect.OS khởi tạo</span>
+<span class="font-caption text-caption text-on-surface-variant">Được phép tự động ghi xuất bản tệp JSON, backup nhật ký và biên bản báo cáo vào Google Drive.</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-10 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<!-- Scope 3 -->
+<div class="p-space-md rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-start justify-between gap-3">
+<div class="flex flex-col gap-0.5">
+<div class="flex items-center gap-2">
+<code class="px-2 py-0.5 rounded bg-surface-container-lowest text-primary font-mono text-caption font-semibold">https://www.googleapis.com/auth/drive.metadata.readonly</code>
+<span class="px-1.5 py-0.2 rounded bg-surface-container text-secondary font-label-caps text-[10px]">Đang cấp quyền</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold mt-1">Đọc thông tin metadata và kích thước tệp</span>
+<span class="font-caption text-caption text-on-surface-variant">Hỗ trợ đối chiếu ngày sửa đổi cuối, dung lượng tệp và kiểm tra quá hạn kiểm định định kỳ.</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-10 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<!-- Scope 4 -->
+<div class="p-space-md rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-start justify-between gap-3">
+<div class="flex flex-col gap-0.5">
+<div class="flex items-center gap-2">
+<code class="px-2 py-0.5 rounded bg-surface-container-lowest text-outline font-mono text-caption font-semibold">https://www.googleapis.com/auth/drive.appdata</code>
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-outline font-label-caps text-[10px]">Tùy chọn</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold mt-1">Đồng bộ cấu hình ứng dụng ẩn trong App Data folder</span>
+<span class="font-caption text-caption text-on-surface-variant">Lưu các thiết lập bí mật và trạng thái giao diện riêng tư, không hiển thị trực tiếp trong Drive người dùng.</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-10 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</div>
+</div>
+<!-- Security Note -->
+<div class="p-space-md rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary text-[22px] shrink-0">enhanced_encryption</span>
+<div class="flex flex-col">
+<span class="font-label-bold text-label-bold text-on-surface">Tiêu chuẩn bảo mật PKCE + SHA-256</span>
+<span class="font-caption text-caption text-on-surface-variant">Giao thức PKCE + SHA-256 mã hóa token. Token được tự động làm mới mỗi 3600s mà không lưu trữ Client Secret trên trình duyệt.</span>
+</div>
+</div>
+</div>
+<!-- Modal Footer -->
+<div class="px-space-xl py-space-md bg-surface-container-low/60 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-space-sm shrink-0">
+<button class="h-9 px-3.5 rounded-lg bg-surface-container-lowest text-error hover:bg-error hover:text-on-error font-label-bold text-label-bold shadow-sm transition-all flex items-center gap-1.5" id="btn-revoke-oauth" type="button">
+<span class="material-symbols-outlined text-[16px]">link_off</span>
+<span>Thu hồi quyền (Revoke)</span>
+</button>
+<div class="flex items-center gap-space-sm">
+<button class="modal-close-btn h-9 px-4 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container font-label-bold text-label-bold shadow-sm transition-all" data-modal="modal-oauth-scopes" type="button">
+          Đóng
+        </button>
+<button class="h-9 px-5 rounded-lg bg-primary hover:bg-surface-tint text-on-primary font-label-bold text-label-bold shadow-sm flex items-center gap-1.5 transition-all" id="btn-save-oauth-scopes" type="button">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+<span>Lưu &amp; Cập nhật Scopes</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- INLINE CLIENT MICRO-INTERACTION SCRIPT -->
+<script>
+    (function() {
+      // Tab smooth scroll and active highlighting
+      const navLinks = document.querySelectorAll('#settings-nav a');
+      navLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          const targetId = this.getAttribute('href');
+          const targetEl = document.querySelector(targetId);
+          if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            navLinks.forEach(l => {
+              l.classList.remove('bg-surface-container-low', 'text-primary', 'font-label-bold');
+              l.classList.add('text-on-surface-variant', 'font-label-regular');
+            });
+            this.classList.add('bg-surface-container-low', 'text-primary', 'font-label-bold');
+            this.classList.remove('text-on-surface-variant', 'font-label-regular');
+          }
+        });
+      });
+
+      // Quick feedback on Save buttons
+      function triggerSaveFeedback(btn) {
+        if (!btn) return;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span><span>Đang lưu...</span>';
+        setTimeout(() => {
+          btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">check_circle</span><span>Đã lưu thành công!</span>';
+          setTimeout(() => {
+            btn.innerHTML = originalText;
+          }, 1800);
+        }, 500);
+      }
+
+      const saveTop = document.getElementById('btn-save-top');
+      const saveFooter = document.getElementById('btn-footer-save');
+      if (saveTop) saveTop.addEventListener('click', () => triggerSaveFeedback(saveTop));
+      if (saveFooter) saveFooter.addEventListener('click', () => triggerSaveFeedback(saveFooter));
+
+      // MODAL CONTROLS
+      const modalPin = document.getElementById('modal-change-pin');
+      const modalOAuth = document.getElementById('modal-oauth-scopes');
+      const openPinBtn = document.getElementById('btn-open-pin-modal');
+      const quickPinBtn = document.getElementById('btn-quick-pin');
+      const openOAuthBtn = document.getElementById('btn-open-oauth-modal');
+
+      function openModal(modal) {
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+      }
+
+      function closeModal(modal) {
+        if (!modal) return;
+        modal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+      }
+
+      if (openPinBtn) openPinBtn.addEventListener('click', () => openModal(modalPin));
+      if (quickPinBtn) quickPinBtn.addEventListener('click', () => openModal(modalPin));
+      if (openOAuthBtn) openOAuthBtn.addEventListener('click', () => openModal(modalOAuth));
+
+      // Close buttons inside modals
+      document.querySelectorAll('.modal-close-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const modalId = this.getAttribute('data-modal');
+          const targetModal = document.getElementById(modalId);
+          closeModal(targetModal);
+        });
+      });
+
+      // Close modal on click backdrop
+      [modalPin, modalOAuth].forEach(modal => {
+        if (modal) {
+          modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+              closeModal(this);
+            }
+          });
+        }
+      });
+
+      // Close on ESC key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          closeModal(modalPin);
+          closeModal(modalOAuth);
+        }
+      });
+
+      // Toggle PIN visibility helper
+      document.querySelectorAll('.toggle-pin-visibility').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const targetInputId = this.getAttribute('data-target');
+          const input = document.getElementById(targetInputId);
+          const icon = this.querySelector('.material-symbols-outlined');
+          if (input) {
+            if (input.type === 'password') {
+              input.type = 'text';
+              if (icon) icon.innerText = 'visibility_off';
+            } else {
+              input.type = 'password';
+              if (icon) icon.innerText = 'visibility';
+            }
+          }
+        });
+      });
+
+      // Submit feedback for Change PIN modal
+      const submitPinBtn = document.getElementById('btn-submit-change-pin');
+      if (submitPinBtn) {
+        submitPinBtn.addEventListener('click', function() {
+          const original = this.innerHTML;
+          this.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">sync</span><span>Đang cập nhật...</span>';
+          setTimeout(() => {
+            this.innerHTML = '<span class="material-symbols-outlined text-[18px]">verified</span><span>Đã đổi PIN thành công!</span>';
+            setTimeout(() => {
+              this.innerHTML = original;
+              closeModal(modalPin);
+            }, 1200);
+          }, 600);
+        });
+      }
+
+      // Submit feedback for OAuth Scopes
+      const saveOAuthBtn = document.getElementById('btn-save-oauth-scopes');
+      if (saveOAuthBtn) {
+        saveOAuthBtn.addEventListener('click', function() {
+          const original = this.innerHTML;
+          this.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">sync</span><span>Đang đồng bộ...</span>';
+          setTimeout(() => {
+            this.innerHTML = '<span class="material-symbols-outlined text-[18px]">done_all</span><span>Đã cập nhật Scopes!</span>';
+            setTimeout(() => {
+              this.innerHTML = original;
+              closeModal(modalOAuth);
+            }, 1200);
+          }, 600);
+        });
+      }
+
+      // Revoke OAuth feedback
+      const revokeOAuthBtn = document.getElementById('btn-revoke-oauth');
+      if (revokeOAuthBtn) {
+        revokeOAuthBtn.addEventListener('click', function() {
+          if (confirm('Bạn có chắc chắn muốn thu hồi toàn bộ quyền OAuth 2.0 của Google Drive? Quá trình đồng bộ nền sẽ tạm dừng.')) {
+            alert('Đã thu hồi token thành công.');
+            closeModal(modalOAuth);
+          }
+        });
+      }
+    })();
+  </script>
+</div></main><footer class="w-full bg-surface-container-lowest border-t border-outline-variant/30 py-space-md"><div class="w-full px-gutter-lg flex flex-col md:flex-row items-center justify-between gap-space-sm font-caption text-caption text-outline"><div><span>© 2025 Architect.OS Enterprise Productivity Suite. Bản quyền được bảo hộ.</span></div><div class="flex items-center gap-space-lg"><span>API v2.4.0-stable</span><span class="inline-block w-1.5 h-1.5 rounded-full bg-outline-variant"></span><span>Độ trễ hệ thống: 18ms</span><span class="inline-block w-1.5 h-1.5 rounded-full bg-outline-variant"></span><span>Hỗ trợ kỹ thuật</span></div></div></footer></body></html>

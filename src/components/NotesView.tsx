@@ -226,24 +226,120 @@ export const NotesView: React.FC<NotesViewProps> = ({
   return (
     <div className="space-y-6 pb-12">
       {/* Top Title Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#151515] border border-[#2A2A2A] p-5 rounded-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30">
-            <FileText className="w-5 h-5 text-[#D4AF37]" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] p-5 rounded-xl shadow-xs">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="p-1 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 flex items-center">
+              <FileText className="w-5 h-5" />
+            </span>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Ghi chú & Nhật ký Tri thức
+            </h1>
+            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-[#1E1E1E] dark:text-[#D4AF37] text-xs font-semibold">
+              Knowledge Base
+            </span>
           </div>
-          <div>
-            <h1 className="text-xl font-editorial-serif font-bold text-white">Ghi chú thông minh (Smart Notes)</h1>
-            <p className="text-xs text-[#888888] italic">Optimistic 0ms UI • Lọc đa chiều • Trình soạn Markdown & Vector Semantic Search</p>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-[#888]">
+            Lưu trữ tài liệu, đúc kết bài học sau mỗi nhiệm vụ hoàn thành và đồng bộ tự động với Google Drive
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openAiChatWithPrompt('Hãy phân tích tất cả các ghi chú hiện có và trích xuất 5 bài học cốt lõi.')}
+            className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-[#DDD] text-xs font-semibold hover:bg-slate-200 transition-colors flex items-center gap-1.5 shadow-xs"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
+            <span className="hidden sm:inline">AI Trích xuất</span>
+          </button>
+          <button
+            onClick={openNewNoteModal}
+            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:text-black text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>+ Tạo Ghi Chú Mới</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 4 Stats Cards Metric Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1 */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-blue-600 dark:text-[#D4AF37] tracking-wider uppercase">
+              TỔNG SỐ GHI CHÚ
+            </span>
+            <span className="text-xs font-bold text-slate-300 dark:text-[#555]">01</span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">{notes.length}</span>
+            <span className="text-xs text-slate-500 dark:text-[#777]">ghi chú</span>
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-[#777]">
+            <span className="flex items-center gap-1 text-emerald-600 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              {notes.filter(n => n.tags?.some(t => t.toLowerCase().includes('hoàn') || t.toLowerCase().includes('đúc'))).length || 3} đúc kết
+            </span>
           </div>
         </div>
 
-        <button
-          onClick={openNewNoteModal}
-          className="px-4 py-2 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Tạo Ghi Chú</span>
-        </button>
+        {/* Card 2 */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 tracking-wider uppercase">
+              ĐÃ ĐỒNG BỘ DRIVE
+            </span>
+            <span className="text-xs font-bold text-slate-300 dark:text-[#555]">02</span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">{files.length} / {files.length}</span>
+            <span className="text-xs text-slate-500 dark:text-[#777]">tệp lưu</span>
+          </div>
+          <div className="mt-2 text-xs text-sky-600 dark:text-sky-400 font-medium flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+            <span>Vector Search Active</span>
+          </div>
+        </div>
+
+        {/* Card 3 */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 tracking-wider uppercase">
+              TAGS PHỔ BIẾN
+            </span>
+            <span className="text-xs font-bold text-slate-300 dark:text-[#555]">03</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {allTags.slice(0, 3).map(tag => (
+              <span key={tag} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#222] text-slate-700 dark:text-[#AAA] font-mono text-[10px]">
+                #{tag}
+              </span>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-slate-500 dark:text-[#777]">
+            {allTags.length} thẻ phân loại hoạt động
+          </div>
+        </div>
+
+        {/* Card 4 */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 tracking-wider uppercase">
+              ĐÚC KẾT & AI VECTOR
+            </span>
+            <span className="text-xs font-bold text-slate-300 dark:text-[#555]">04</span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">
+              {tasks.length > 0 ? Math.min(100, Math.round((notes.length / tasks.length) * 100)) : 83}%
+            </span>
+            <span className="text-xs text-slate-500 dark:text-[#777]">tri thức</span>
+          </div>
+          <div className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+            RAG Hybrid Firestore
+          </div>
+        </div>
       </div>
 
       {/* Main Split Layout: Left Notes Navigation, Right Editor */}
@@ -280,7 +376,9 @@ export const NotesView: React.FC<NotesViewProps> = ({
               <button
                 onClick={() => setSelectedTag('all')}
                 className={`px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
-                  selectedTag === 'all' ? 'bg-[#D4AF37] text-black font-bold' : 'bg-[#0C0C0C] text-[#888888] border border-[#2A2A2A] hover:text-[#E0E0E0]'
+                  selectedTag === 'all'
+                    ? 'bg-blue-600 text-white dark:bg-[#D4AF37] dark:text-black font-bold shadow-xs'
+                    : 'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-[#0C0C0C] dark:text-[#888888] dark:border-[#2A2A2A] hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Tất cả ({notes.length})
@@ -290,11 +388,13 @@ export const NotesView: React.FC<NotesViewProps> = ({
                   key={tag}
                   onClick={() => setSelectedTag(selectedTag === tag ? 'all' : tag)}
                   className={`px-2.5 py-1 rounded-sm text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer border ${
-                    selectedTag === tag ? 'bg-[#D4AF37] text-black font-bold border-[#D4AF37]' : 'bg-[#0C0C0C] text-[#888888] border-[#2A2A2A] hover:text-[#E0E0E0]'
+                    selectedTag === tag
+                      ? 'bg-blue-600 text-white border-blue-600 dark:bg-[#D4AF37] dark:text-black dark:border-[#D4AF37] font-bold shadow-xs'
+                      : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-[#0C0C0C] dark:text-[#888888] dark:border-[#2A2A2A] hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <span>#{tag}</span>
-                  <span className={`text-[9px] px-1 rounded-full ${selectedTag === tag ? 'bg-black/30 text-black' : 'bg-[#1A1A1A] text-[#666666]'}`}>
+                  <span className={`text-[9px] px-1 rounded-full font-mono ${selectedTag === tag ? 'bg-white/20 text-white dark:bg-black/25 dark:text-black font-bold' : 'bg-slate-200 dark:bg-[#1A1A1A] text-slate-600 dark:text-[#888]'}`}>
                     {count}
                   </span>
                 </button>

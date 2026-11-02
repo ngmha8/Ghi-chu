@@ -335,6 +335,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const totalFileSizeMb = (files.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024)).toFixed(2);
 
+  // Google Drive & Local Storage Optimization Metrics
+  const driveStats = useMemo(() => {
+    const totalFiles = files.length;
+    const syncedFiles = files.filter(f => f.isSyncedToDrive && f.syncStatus === 'synced');
+    const syncedCount = syncedFiles.length;
+    const localOnlyCount = totalFiles - syncedCount;
+    const syncRatio = totalFiles > 0 ? Math.round((syncedCount / totalFiles) * 100) : 0;
+
+    const totalBytes = files.reduce((acc, f) => acc + (f.size || 0), 0);
+    const totalMb = (totalBytes / (1024 * 1024)).toFixed(2);
+
+    // Saved/purged local storage bytes (files that are backed up to Drive and purged locally)
+    const purgedFiles = files.filter(f => f.isSyncedToDrive && (f.isLocalPurged || f.storageType === 'drive_only' || (!f.data && f.driveFileId)));
+    const savedBytes = purgedFiles.reduce((acc, f) => acc + (f.size || 0), 0);
+    const savedMb = (savedBytes / (1024 * 1024)).toFixed(2);
+
+    return {
+      totalFiles,
+      syncedCount,
+      localOnlyCount,
+      syncRatio,
+      totalMb,
+      savedMb,
+      purgedCount: purgedFiles.length,
+    };
+  }, [files]);
+
   // --- Task Status Analytics for Recharts Pie Chart ---
   const todoCount = tasks.filter(t => t.status === 'todo').length;
   const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
@@ -1499,16 +1526,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Card 3: Notes & Drive Files */}
         <div
-          onClick={() => setActiveTab('notes')}
+          onClick={() => setActiveTab('files')}
           className="border border-[#2A2A2A] p-5 rounded-sm relative overflow-hidden bg-[#151515] hover:border-[#D4AF37]/50 transition-all cursor-pointer group"
         >
           <span className="absolute top-2 right-4 text-[42px] font-editorial-serif text-[#D4AF37]/10 italic pointer-events-none select-none">03</span>
-          <p className="text-[10px] uppercase text-[#D4AF37] tracking-widest font-bold mb-1">Ghi Chú & Drive</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] uppercase text-[#D4AF37] tracking-widest font-bold mb-1">Ghi Chú & Drive</p>
+            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 font-semibold">
+              Drive {driveStats.syncRatio}%
+            </span>
+          </div>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-3xl font-editorial-serif font-bold text-white">{notes.length}</span>
-            <span className="text-xs text-[#A0A0A0]">{files.length} tệp ({totalFileSizeMb} MB)</span>
+            <span className="text-xs text-[#A0A0A0]">{files.length} tệp ({driveStats.totalMb} MB)</span>
           </div>
-          <p className="text-[11px] text-[#777777] mt-3 border-t border-[#2A2A2A] pt-2">Vector Search Active</p>
+          <div className="flex items-center justify-between text-[11px] text-[#777777] mt-3 border-t border-[#2A2A2A] pt-2">
+            <span>Tiết kiệm local: <strong className="text-emerald-400 font-mono">{driveStats.savedMb} MB</strong></span>
+            <span className="text-[#D4AF37] group-hover:underline">Kho tệp →</span>
+          </div>
         </div>
 
         {/* Card 4: Telegram Alerts */}
@@ -3369,17 +3404,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             onClick={() => setSelectedEisenhowerTaskId(t.id)}
                             className={`p-2.5 rounded-sm border transition-all cursor-pointer flex items-center justify-between gap-2.5 text-xs group/item ${
                               selectedEisenhowerTaskId === t.id
-                                ? 'bg-rose-950/80 border-rose-500 text-white shadow-xs'
-                                : 'bg-[#141414] hover:bg-[#1A1A1A] border-[#222222] hover:border-rose-500/50 text-white'
+                                ? 'bg-rose-100 border-rose-500 text-rose-950 shadow-xs dark:bg-rose-950/80 dark:border-rose-500 dark:text-white'
+                                : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-800 dark:bg-[#141414] dark:hover:bg-[#1A1A1A] dark:border-[#222222] dark:hover:border-rose-500/50 dark:text-white'
                             }`}
                           >
                             <div className="truncate flex-1 min-w-0">
-                              <span className="font-semibold truncate block text-white">{t.title}</span>
+                              <span className="font-semibold truncate block text-slate-900 dark:text-white">{t.title}</span>
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-xs font-semibold ${t.isOverdue ? 'text-rose-300 bg-rose-950/80 border border-rose-500/40' : 'text-zinc-400'}`}>
+                                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-xs font-semibold ${t.isOverdue ? 'text-rose-700 bg-rose-100 border border-rose-300 dark:text-rose-300 dark:bg-rose-950/80 dark:border-rose-500/40' : 'text-slate-600 dark:text-zinc-400 bg-slate-100 dark:bg-transparent'}`}>
                                   {t.dueLabel}
                                 </span>
-                                <span className="text-[9px] uppercase px-1 rounded bg-rose-950/80 text-rose-200 border border-rose-800/60 font-bold">
+                                <span className="text-[9px] uppercase px-1 rounded bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-800/60 font-bold">
                                   {t.priority}
                                 </span>
                               </div>
@@ -3483,17 +3518,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             onClick={() => setSelectedEisenhowerTaskId(t.id)}
                             className={`p-2.5 rounded-sm border transition-all cursor-pointer flex items-center justify-between gap-2.5 text-xs group/item ${
                               selectedEisenhowerTaskId === t.id
-                                ? 'bg-amber-950/80 border-[#D4AF37] text-white shadow-xs'
-                                : 'bg-[#141414] hover:bg-[#1A1A1A] border-[#222222] hover:border-[#D4AF37]/50 text-white'
+                                ? 'bg-amber-100 border-amber-500 text-amber-950 shadow-xs dark:bg-amber-950/80 dark:border-[#D4AF37] dark:text-white'
+                                : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-800 dark:bg-[#141414] dark:hover:bg-[#1A1A1A] dark:border-[#222222] dark:hover:border-[#D4AF37]/50 dark:text-white'
                             }`}
                           >
                             <div className="truncate flex-1 min-w-0">
-                              <span className="font-semibold truncate block text-white">{t.title}</span>
+                              <span className="font-semibold truncate block text-slate-900 dark:text-white">{t.title}</span>
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-xs font-semibold text-zinc-400">
+                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-xs font-semibold text-slate-600 dark:text-zinc-400 bg-slate-100 dark:bg-transparent">
                                   {t.dueLabel}
                                 </span>
-                                <span className="text-[9px] uppercase px-1 rounded bg-amber-950/80 text-amber-200 border border-amber-800/60 font-bold">
+                                <span className="text-[9px] uppercase px-1 rounded bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-800/60 font-bold">
                                   {t.priority}
                                 </span>
                               </div>
@@ -3601,17 +3636,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             onClick={() => setSelectedEisenhowerTaskId(t.id)}
                             className={`p-2.5 rounded-sm border transition-all cursor-pointer flex items-center justify-between gap-2.5 text-xs group/item ${
                               selectedEisenhowerTaskId === t.id
-                                ? 'bg-sky-950/80 border-sky-500 text-white shadow-xs'
-                                : 'bg-[#141414] hover:bg-[#1A1A1A] border-[#222222] hover:border-sky-500/50 text-white'
+                                ? 'bg-sky-100 border-sky-500 text-sky-950 shadow-xs dark:bg-sky-950/80 dark:border-sky-500 dark:text-white'
+                                : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-800 dark:bg-[#141414] dark:hover:bg-[#1A1A1A] dark:border-[#222222] dark:hover:border-sky-500/50 dark:text-white'
                             }`}
                           >
                             <div className="truncate flex-1 min-w-0">
-                              <span className="font-semibold truncate block text-white">{t.title}</span>
+                              <span className="font-semibold truncate block text-slate-900 dark:text-white">{t.title}</span>
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-xs font-semibold text-zinc-400">
+                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-xs font-semibold text-slate-600 dark:text-zinc-400 bg-slate-100 dark:bg-transparent">
                                   {t.dueLabel}
                                 </span>
-                                <span className="text-[9px] uppercase px-1 rounded bg-sky-950/80 text-sky-200 border border-sky-800/60 font-bold">
+                                <span className="text-[9px] uppercase px-1 rounded bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 dark:border-sky-800/60 font-bold">
                                   {t.priority}
                                 </span>
                               </div>
@@ -3679,13 +3714,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[10px] font-mono text-slate-300 bg-slate-800 px-2 py-0.5 rounded-xs border border-slate-700 font-bold">
+                        <span className="text-[10px] font-mono text-slate-700 bg-slate-100 dark:text-slate-300 dark:bg-slate-800 px-2 py-0.5 rounded-xs border border-slate-300 dark:border-slate-700 font-bold">
                           {eisenhowerData.q4Tasks.length} ({eisenhowerData.q4Percent}%)
                         </span>
                         <button
                           type="button"
                           onClick={() => handleAddNewTaskInQuadrant('q4')}
-                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
+                          className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
                           title="Thêm nhiệm vụ vào Q4"
                         >
                           + Việc Q4
@@ -3715,17 +3750,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             onClick={() => setSelectedEisenhowerTaskId(t.id)}
                             className={`p-2.5 rounded-sm border transition-all cursor-pointer flex items-center justify-between gap-2.5 text-xs group/item ${
                               selectedEisenhowerTaskId === t.id
-                                ? 'bg-slate-900 border-slate-400 text-white shadow-xs'
-                                : 'bg-[#141414] hover:bg-[#1A1A1A] border-[#222222] hover:border-slate-500/50 text-white'
+                                ? 'bg-slate-100 border-slate-400 text-slate-900 shadow-xs dark:bg-slate-900 dark:border-slate-400 dark:text-white'
+                                : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-800 dark:bg-[#141414] dark:hover:bg-[#1A1A1A] dark:border-[#222222] dark:hover:border-slate-500/50 dark:text-white'
                             }`}
                           >
                             <div className="truncate flex-1 min-w-0">
-                              <span className="font-semibold truncate block text-white">{t.title}</span>
+                              <span className="font-semibold truncate block text-slate-900 dark:text-white">{t.title}</span>
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                <span className="text-[10px] font-mono text-zinc-400 px-1.5 py-0.2 rounded-xs font-semibold bg-slate-800/60">
+                                <span className="text-[10px] font-mono text-slate-600 dark:text-zinc-400 px-1.5 py-0.2 rounded-xs font-semibold bg-slate-100 dark:bg-slate-800/60">
                                   {t.dueLabel}
                                 </span>
-                                <span className="text-[9px] uppercase px-1 rounded bg-slate-800 text-slate-200 border border-slate-700 font-bold">
+                                <span className="text-[9px] uppercase px-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold">
                                   {t.priority}
                                 </span>
                               </div>
@@ -4029,7 +4064,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className="mt-1 px-3 py-1 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-[11px] uppercase tracking-wider rounded-sm cursor-pointer inline-flex items-center gap-1"
                 >
                   <CheckSquare className="w-3 h-3" />
-                  <span>+ Thêm Task</span>
+                  <span>Thêm Task</span>
                 </button>
               </div>
             ) : (
@@ -4380,7 +4415,76 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Widget 3: Google Drive Tệp Mới */}
+      {/* Widget 3: Tóm Tắt Tình Trạng Đồng Bộ Google Drive & Tiết Kiệm Local */}
+      <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-4 sm:p-5 space-y-3.5">
+        <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2.5">
+          <div className="flex items-center gap-2">
+            <HardDrive className="w-4 h-4 text-[#D4AF37]" />
+            <h3 className="text-sm font-editorial-serif font-bold text-white">Đồng Bộ Drive & Bộ Nhớ</h3>
+          </div>
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-sm bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
+            {driveStats.syncRatio}% Đã lên Drive
+          </span>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-[#888888]">Tiến độ lưu trữ đám mây</span>
+            <span className="font-mono text-[#E0E0E0] font-semibold">{driveStats.syncedCount} / {driveStats.totalFiles} tệp</span>
+          </div>
+          <div className="w-full h-2 bg-[#0C0C0C] rounded-full border border-[#2A2A2A] overflow-hidden">
+            <div
+              className="h-full bg-linear-to-r from-[#D4AF37] to-emerald-400 transition-all duration-500 rounded-full"
+              style={{ width: `${Math.max(driveStats.syncRatio, 5)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Highlight Stats: Saved Local vs Total */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm">
+            <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold block">Đã Tiết Kiệm</span>
+            <span className="text-base font-bold font-mono text-emerald-300">{driveStats.savedMb} MB</span>
+            <span className="text-[10px] text-[#777777] block mt-0.5">Dọn dẹp tệp local</span>
+          </div>
+          <div className="p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm">
+            <span className="text-[10px] uppercase tracking-wider text-[#D4AF37] font-bold block">Tổng Kho Tệp</span>
+            <span className="text-base font-bold font-mono text-white">{driveStats.totalMb} MB</span>
+            <span className="text-[10px] text-[#777777] block mt-0.5">{driveStats.totalFiles} tài liệu lưu trữ</span>
+          </div>
+        </div>
+
+        {/* Breakdown Badges */}
+        <div className="flex items-center gap-1.5 flex-wrap text-[10px] pt-0.5">
+          <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] text-emerald-400 border border-emerald-800/40 font-mono">
+            ✓ Đã sync: {driveStats.syncedCount}
+          </span>
+          {driveStats.localOnlyCount > 0 ? (
+            <span className="px-2 py-0.5 rounded-xs bg-amber-950/40 text-amber-300 border border-amber-800/40 font-mono">
+              ⚠ Chỉ local: {driveStats.localOnlyCount}
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] text-[#888888] border border-[#2A2A2A] font-mono">
+              100% Đã an toàn
+            </span>
+          )}
+          <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] text-[#AAAAAA] border border-[#2A2A2A] font-mono">
+            🗑 Đã dọn: {driveStats.purgedCount}
+          </span>
+        </div>
+
+        {/* Quick Link to Files tab */}
+        <button
+          onClick={() => setActiveTab('files')}
+          className="w-full py-2 bg-[#0C0C0C] hover:bg-[#1A1A1A] border border-[#2A2A2A] hover:border-[#D4AF37]/50 text-[#D4AF37] text-xs font-bold uppercase tracking-wider rounded-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <span>Quản Lý & Đồng Bộ Drive Tệp</span>
+          <ArrowUpRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Widget 4: Google Drive Tệp Mới */}
       <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-4 sm:p-5 space-y-3">
         <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
           <div className="flex items-center gap-2">

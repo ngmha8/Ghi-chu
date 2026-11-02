@@ -488,11 +488,86 @@ html.theme-light .font-editorial-serif {
   font-weight: 700 !important;
 }
 
+/* Card headings and text remapped from dark cards to light cards */
 html.theme-light .text-white {
-  color: #0F172A !important;
+  color: #0F172A;
+}
+
+/* Exception: text on saturated buttons, dark badges, status pills, tooltips, and dark gradients MUST remain bright white / light */
+html.theme-light button.bg-blue-600,
+html.theme-light button.bg-blue-600 *,
+html.theme-light .bg-blue-600,
+html.theme-light .bg-blue-600 *,
+html.theme-light button.bg-blue-700,
+html.theme-light button.bg-blue-700 *,
+html.theme-light .bg-blue-700,
+html.theme-light .bg-blue-700 *,
+html.theme-light [class*="bg-blue-600"] .text-white,
+html.theme-light [class*="bg-emerald-600"] .text-white,
+html.theme-light [class*="bg-sky-600"] .text-white,
+html.theme-light [class*="bg-rose-600"] .text-white,
+html.theme-light [class*="bg-purple-600"] .text-white,
+html.theme-light [class*="bg-indigo-600"] .text-white,
+html.theme-light [class*="bg-slate-900"] .text-white,
+html.theme-light [class*="bg-[#064E3B]"] .text-white,
+html.theme-light [class*="from-amber-950"] .text-white,
+html.theme-light .text-white.keep-light,
+html.theme-light .keep-light {
+  color: #FFFFFF !important;
+}
+
+html.theme-light [class*="from-amber-950"],
+html.theme-light [class*="from-amber-950"] span,
+html.theme-light [class*="from-amber-950"] svg {
+  color: #FEF08A !important; /* Bright luminous gold */
+}
+
+html.theme-light [class*="bg-[#064E3B]"] span {
+  color: #FFFFFF !important;
+}
+
+html.theme-light [class*="bg-[#064E3B]"] .text-emerald-300,
+html.theme-light [class*="bg-[#064E3B]"] .text-emerald-400 {
+  color: #6EE7B7 !important;
+}
+
+html.theme-light .bg-slate-900,
+html.theme-light [class*="bg-slate-900"],
+html.theme-light [class*="bg-[#0F172A]"],
+html.theme-light .tooltip-dark {
+  color: #F8FAFC !important;
+}
+
+html.theme-light .bg-slate-900 *,
+html.theme-light [class*="bg-slate-900"] *,
+html.theme-light [class*="bg-[#0F172A]"] *,
+html.theme-light .tooltip-dark * {
+  color: #F8FAFC !important;
+}
+
+html.theme-light .bg-slate-900 .text-sky-400,
+html.theme-light [class*="bg-slate-900"] .text-sky-400,
+html.theme-light [class*="bg-[#0F172A]"] .text-sky-400,
+html.theme-light [class*="bg-slate-900"] .text-blue-500,
+html.theme-light [class*="bg-[#0F172A]"] .text-blue-500 {
+  color: #38BDF8 !important;
+}
+
+html.theme-light .bg-slate-900 .text-emerald-400,
+html.theme-light [class*="bg-slate-900"] .text-emerald-400,
+html.theme-light [class*="bg-[#0F172A]"] .text-emerald-400 {
+  color: #34D399 !important;
+}
+
+html.theme-light .bg-slate-900 .text-amber-400,
+html.theme-light [class*="bg-slate-900"] .text-amber-400,
+html.theme-light [class*="bg-[#0F172A]"] .text-amber-400 {
+  color: #FBBF24 !important;
 }
 
 /* Light Mode Hex Color Remapping for High-Contrast Readability */
+html.theme-light .text-\[\#F5D77F\],
+html.theme-light .text-\[\#F5D77E\],
 html.theme-light .text-\[\#F7D070\],
 html.theme-light .text-\[\#F0F0F0\],
 html.theme-light .text-\[\#EDEDED\],
@@ -645,180 +720,278 @@ html.theme-light .bg-rose-500\/20 {
   color: #BE123C !important;
 }
 
-/* Deadline & Countdown Status Badges in Light Mode */
-html.theme-light .bg-zinc-800\/80,
-html.theme-light .bg-zinc-800,
-html.theme-light .bg-zinc-800\/60,
-html.theme-light .bg-zinc-900 {
-  background-color: #F1F5F9 !important;
-  color: #334155 !important;
-  border-color: #CBD5E1 !important;
-}
+/* ==========================================================================
+   STATUS BADGES, CHIPS & DEADLINE PILLS IN LIGHT THEME
+   Fully converts all opacity variants to soft pastel light surfaces
+   with high-contrast WCAG AAA dark text and borders.
+   ========================================================================== */
 
-html.theme-light .bg-rose-950\/60,
-html.theme-light .bg-rose-950\/40,
-html.theme-light .bg-rose-950\/20,
-html.theme-light .bg-rose-950 {
+/* 1. Rose / Red (Q1, Quá hạn, Khẩn cấp, Lỗi) */
+html.theme-light [class*="bg-rose-950"],
+html.theme-light [class*="bg-rose-900"],
+html.theme-light [class*="bg-rose-800"],
+html.theme-light [class*="bg-red-950"],
+html.theme-light [class*="bg-red-900"],
+html.theme-light [class*="bg-[#180E0E]"] {
   background-color: #FFF1F2 !important;
   color: #BE123C !important;
   border-color: #FECDD3 !important;
 }
 
-html.theme-light .bg-amber-950\/60,
-html.theme-light .bg-amber-950\/40,
-html.theme-light .bg-amber-950 {
+html.theme-light [class*="bg-rose-950"] *,
+html.theme-light [class*="bg-rose-900"] *,
+html.theme-light [class*="bg-rose-800"] *,
+html.theme-light [class*="bg-red-950"] *,
+html.theme-light [class*="bg-red-900"] *,
+html.theme-light [class*="bg-[#180E0E]"] * {
+  color: #BE123C !important;
+}
+
+/* 2. Amber / Yellow (Q2, Sắp tới hạn, Chiến lược, Cảnh báo) */
+html.theme-light [class*="bg-amber-950"]:not(.btn-sync-purge-action):not([class*="from-amber"]):not([style*="background"]),
+html.theme-light [class*="bg-amber-900"]:not(.btn-sync-purge-action):not([class*="from-amber"]):not([style*="background"]),
+html.theme-light [class*="bg-yellow-950"],
+html.theme-light [class*="bg-yellow-900"],
+html.theme-light [class*="bg-[#181408]"],
+html.theme-light [class*="bg-[#1F1607]"] {
   background-color: #FFFBEB !important;
   color: #92400E !important;
   border-color: #FDE68A !important;
 }
 
-html.theme-light .bg-sky-950\/50,
-html.theme-light .bg-sky-950\/40,
-html.theme-light .bg-sky-950 {
-  background-color: #F0F9FF !important;
-  color: #0369A1 !important;
-  border-color: #BAE6FD !important;
+html.theme-light [class*="bg-amber-950"]:not(.btn-sync-purge-action):not([class*="from-amber"]):not([style*="background"]) *,
+html.theme-light [class*="bg-amber-900"]:not(.btn-sync-purge-action):not([class*="from-amber"]):not([style*="background"]) *,
+html.theme-light [class*="bg-yellow-950"] *,
+html.theme-light [class*="bg-yellow-900"] *,
+html.theme-light [class*="bg-[#181408]"] *,
+html.theme-light [class*="bg-[#1F1607]"] * {
+  color: #92400E !important;
 }
 
-html.theme-light .bg-emerald-950\/40,
-html.theme-light .bg-emerald-950 {
+/* 3. Emerald / Green (Hoàn thành, Đồng bộ, Hợp lệ, An toàn) */
+html.theme-light [class*="bg-emerald-950"]:not(.drive-status-pill):not([style*="background"]),
+html.theme-light [class*="bg-emerald-900"]:not(.drive-status-pill):not([style*="background"]),
+html.theme-light [class*="bg-green-950"],
+html.theme-light [class*="bg-green-900"],
+html.theme-light [class*="bg-[#0E1712]"],
+html.theme-light [class*="bg-[#0E1A14]"],
+html.theme-light [class*="bg-[#0F1710]"],
+html.theme-light [class*="bg-[#121E18]"],
+html.theme-light [class*="bg-[#121A14]"],
+html.theme-light [class*="bg-[#080E0B]"] {
   background-color: #ECFDF5 !important;
   color: #047857 !important;
   border-color: #A7F3D0 !important;
 }
 
-html.theme-light .bg-teal-950\/40,
-html.theme-light .bg-teal-950 {
-  background-color: #F0FDFA !important;
-  color: #0F766E !important;
-  border-color: #99F6E4 !important;
+html.theme-light [class*="bg-emerald-950"]:not(.drive-status-pill):not([style*="background"]) *,
+html.theme-light [class*="bg-emerald-900"]:not(.drive-status-pill):not([style*="background"]) *,
+html.theme-light [class*="bg-green-950"] *,
+html.theme-light [class*="bg-green-900"] *,
+html.theme-light [class*="bg-[#0E1712]"] *,
+html.theme-light [class*="bg-[#0E1A14]"] *,
+html.theme-light [class*="bg-[#0F1710]"] *,
+html.theme-light [class*="bg-[#121E18]"] *,
+html.theme-light [class*="bg-[#121A14]"] *,
+html.theme-light [class*="bg-[#080E0B]"] * {
+  color: #047857 !important;
 }
 
-html.theme-light .bg-purple-950\/40,
-html.theme-light .bg-purple-950 {
+/* 4. Sky / Blue (Q3, Đang làm, Thông tin, Ủy quyền) */
+html.theme-light [class*="bg-sky-950"],
+html.theme-light [class*="bg-sky-900"],
+html.theme-light [class*="bg-blue-950"],
+html.theme-light [class*="bg-blue-900"],
+html.theme-light [class*="bg-[#0B1520]"],
+html.theme-light [class*="bg-[#0B151F]"] {
+  background-color: #F0F9FF !important;
+  color: #0369A1 !important;
+  border-color: #BAE6FD !important;
+}
+
+html.theme-light [class*="bg-sky-950"] *,
+html.theme-light [class*="bg-sky-900"] *,
+html.theme-light [class*="bg-blue-950"] *,
+html.theme-light [class*="bg-blue-900"] *,
+html.theme-light [class*="bg-[#0B1520]"] *,
+html.theme-light [class*="bg-[#0B151F]"] * {
+  color: #0369A1 !important;
+}
+
+/* 5. Purple / Indigo / Violet (Q4, Tự học, Trí tuệ AI) */
+html.theme-light [class*="bg-purple-950"],
+html.theme-light [class*="bg-purple-900"],
+html.theme-light [class*="bg-indigo-950"],
+html.theme-light [class*="bg-indigo-900"],
+html.theme-light [class*="bg-violet-950"],
+html.theme-light [class*="bg-violet-900"] {
   background-color: #FAF5FF !important;
   color: #6D28D9 !important;
   border-color: #E9D5FF !important;
 }
 
-html.theme-light .bg-indigo-950\/40,
-html.theme-light .bg-indigo-950 {
-  background-color: #EEF2FF !important;
-  color: #4338CA !important;
-  border-color: #C7D2FE !important;
+html.theme-light [class*="bg-purple-950"] *,
+html.theme-light [class*="bg-purple-900"] *,
+html.theme-light [class*="bg-indigo-950"] *,
+html.theme-light [class*="bg-indigo-900"] *,
+html.theme-light [class*="bg-violet-950"] *,
+html.theme-light [class*="bg-violet-900"] * {
+  color: #6D28D9 !important;
 }
 
-html.theme-light .bg-cyan-950\/40,
-html.theme-light .bg-cyan-950 {
-  background-color: #ECFEFF !important;
-  color: #0E7490 !important;
-  border-color: #A5F3FC !important;
+/* 6. Teal / Cyan */
+html.theme-light [class*="bg-teal-950"],
+html.theme-light [class*="bg-teal-900"],
+html.theme-light [class*="bg-cyan-950"],
+html.theme-light [class*="bg-cyan-900"] {
+  background-color: #F0FDFA !important;
+  color: #0F766E !important;
+  border-color: #99F6E4 !important;
+}
+
+html.theme-light [class*="bg-teal-950"] *,
+html.theme-light [class*="bg-teal-900"] *,
+html.theme-light [class*="bg-cyan-950"] *,
+html.theme-light [class*="bg-cyan-900"] * {
+  color: #0F766E !important;
+}
+
+/* 7. Zinc / Slate / Gray / Neutral chips & badges */
+html.theme-light [class*="bg-zinc-900"]:not(.tooltip-dark):not([style*="background"]),
+html.theme-light [class*="bg-zinc-800"],
+html.theme-light [class*="bg-zinc-700"],
+html.theme-light [class*="bg-slate-900"]:not(.tooltip-dark):not([style*="background"]):not([class*="fixed"]),
+html.theme-light [class*="bg-slate-800"],
+html.theme-light [class*="bg-slate-700"],
+html.theme-light [class*="bg-neutral-900"],
+html.theme-light [class*="bg-neutral-800"],
+html.theme-light [class*="bg-[#262626]"] {
+  background-color: #F1F5F9 !important;
+  color: #334155 !important;
+  border-color: #CBD5E1 !important;
+}
+
+html.theme-light [class*="bg-zinc-900"]:not(.tooltip-dark):not([style*="background"]) *,
+html.theme-light [class*="bg-zinc-800"] *,
+html.theme-light [class*="bg-zinc-700"] *,
+html.theme-light [class*="bg-slate-900"]:not(.tooltip-dark):not([style*="background"]):not([class*="fixed"]) *,
+html.theme-light [class*="bg-slate-800"] *,
+html.theme-light [class*="bg-slate-700"] *,
+html.theme-light [class*="bg-neutral-900"] *,
+html.theme-light [class*="bg-neutral-800"] *,
+html.theme-light [class*="bg-[#262626]"] * {
+  color: #334155 !important;
 }
 
 /* Document Card Annotation Notes, Tags & Inset Blocks in Light Mode */
-html.theme-light .bg-\[\#0B0B0B\],
-html.theme-light .bg-\[\#121008\],
-html.theme-light .bg-\[\#0A0A0A\],
-html.theme-light .bg-\[\#111111\],
-html.theme-light .bg-\[\#0D0D0D\] {
-  background-color: #F8FAFC !important;
+html.theme-light [class*="bg-[#050505]"],
+html.theme-light [class*="bg-[#090909]"],
+html.theme-light [class*="bg-[#0A0A0A]"],
+html.theme-light [class*="bg-[#0B0B0B]"],
+html.theme-light [class*="bg-[#0C0C0C]"],
+html.theme-light [class*="bg-[#0D0D0D]"],
+html.theme-light [class*="bg-[#0E0E0E]"],
+html.theme-light [class*="bg-[#0F0F0F]"],
+html.theme-light [class*="bg-[#101010]"],
+html.theme-light [class*="bg-[#111111]"],
+html.theme-light [class*="bg-[#121212]"],
+html.theme-light [class*="bg-[#131313]"],
+html.theme-light [class*="bg-[#141414]"],
+html.theme-light [class*="bg-[#151515]"],
+html.theme-light [class*="bg-[#161616]"],
+html.theme-light [class*="bg-[#171717]"],
+html.theme-light [class*="bg-[#181818]"],
+html.theme-light [class*="bg-[#1A1A1A]"]:not(button),
+html.theme-light [class*="bg-[#1C1C1C]"],
+html.theme-light [class*="bg-[#1D1D1D]"],
+html.theme-light [class*="bg-[#1E1E1E]"],
+html.theme-light [class*="bg-[#1F1F1F]"],
+html.theme-light [class*="bg-[#202020]"],
+html.theme-light [class*="bg-[#222222]"],
+html.theme-light [class*="bg-[#252525]"],
+html.theme-light [class*="bg-[#2A2A2A]"],
+html.theme-light [class*="bg-[#2D2D2D]"] {
+  background-color: #FFFFFF !important;
   border-color: #E2E8F0 !important;
   color: #0F172A !important;
 }
 
-html.theme-light .bg-\[\#0B0B0B\] p,
-html.theme-light .bg-\[\#121008\] p,
-html.theme-light .bg-\[\#0A0A0A\] p,
-html.theme-light .bg-\[\#111111\] p,
-html.theme-light .bg-\[\#0D0D0D\] p {
+html.theme-light [class*="bg-[#050505]"] p,
+html.theme-light [class*="bg-[#090909]"] p,
+html.theme-light [class*="bg-[#0A0A0A]"] p,
+html.theme-light [class*="bg-[#0B0B0B]"] p,
+html.theme-light [class*="bg-[#0C0C0C]"] p,
+html.theme-light [class*="bg-[#0D0D0D]"] p,
+html.theme-light [class*="bg-[#0E0E0E]"] p,
+html.theme-light [class*="bg-[#0F0F0F]"] p,
+html.theme-light [class*="bg-[#101010]"] p,
+html.theme-light [class*="bg-[#111111]"] p,
+html.theme-light [class*="bg-[#121212]"] p,
+html.theme-light [class*="bg-[#141414]"] p,
+html.theme-light [class*="bg-[#151515]"] p,
+html.theme-light [class*="bg-[#161616]"] p,
+html.theme-light [class*="bg-[#181818]"] p {
   color: #0F172A !important;
 }
 
-html.theme-light .bg-\[\#0B0B0B\] span,
-html.theme-light .bg-\[\#121008\] span,
-html.theme-light .bg-\[\#0A0A0A\] span,
-html.theme-light .bg-\[\#111111\] span,
-html.theme-light .bg-\[\#0D0D0D\] span {
+html.theme-light [class*="bg-[#0C0C0C]"] span,
+html.theme-light [class*="bg-[#0D0D0D]"] span,
+html.theme-light [class*="bg-[#0E0E0E]"] span,
+html.theme-light [class*="bg-[#111111]"] span,
+html.theme-light [class*="bg-[#121212]"] span,
+html.theme-light [class*="bg-[#141414]"] span,
+html.theme-light [class*="bg-[#151515]"] span,
+html.theme-light [class*="bg-[#161616]"] span {
   color: #0F172A !important;
 }
 
-html.theme-light .bg-\[\#262626\] {
-  background-color: #F1F5F9 !important;
+/* Modal header gradients converted to clean light surface in light theme */
+html.theme-light [class*="from-[#1C160B]"],
+html.theme-light [class*="from-[#181818]"],
+html.theme-light [class*="from-[#1C1A14]"],
+html.theme-light [class*="from-[#1E190B]"] {
+  background: linear-gradient(to right, #F8FAFC, #FFFFFF) !important;
   color: #0F172A !important;
-  border-color: #CBD5E1 !important;
+  border-bottom-color: #E2E8F0 !important;
 }
 
-/* Custom dark badge, chip & legend backgrounds remapped for Light Theme */
-html.theme-light .bg-\[\#181408\] {
-  background-color: #FEF3C7 !important; /* amber-100 */
-  border-color: #FDE68A !important;
-  color: #78350F !important; /* amber-900 */
-}
-
-html.theme-light .bg-\[\#181408\] * {
-  color: #78350F !important;
-}
-
-html.theme-light .bg-\[\#0B1520\],
-html.theme-light .bg-\[\#0B151F\] {
-  background-color: #E0F2FE !important; /* sky-100 */
-  border-color: #BAE6FD !important;
-  color: #0369A1 !important; /* sky-700 */
-}
-
-html.theme-light .bg-\[\#0B1520\] *,
-html.theme-light .bg-\[\#0B151F\] * {
-  color: #0369A1 !important;
-}
-
-html.theme-light .bg-\[\#0E1712\],
-html.theme-light .bg-\[\#0E1A14\],
-html.theme-light .bg-\[\#0F1710\],
-html.theme-light .bg-\[\#121E18\] {
-  background-color: #ECFDF5 !important; /* emerald-100 */
-  border-color: #A7F3D0 !important;
-  color: #065F46 !important; /* emerald-800 */
-}
-
-html.theme-light .bg-\[\#0E1712\] *,
-html.theme-light .bg-\[\#0E1A14\] *,
-html.theme-light .bg-\[\#0F1710\] *,
-html.theme-light .bg-\[\#121E18\] * {
-  color: #065F46 !important;
-}
-
-html.theme-light .bg-\[\#180E0E\] {
-  background-color: #FFE4E6 !important; /* rose-100 */
-  border-color: #FECDD3 !important;
-  color: #9F1239 !important; /* rose-800 */
-}
-
-html.theme-light .bg-\[\#180E0E\] * {
-  color: #9F1239 !important;
-}
-
-html.theme-light .bg-\[\#121212\],
-html.theme-light .bg-\[\#131313\],
-html.theme-light .bg-\[\#161616\],
-html.theme-light .bg-\[\#1F1F1F\],
-html.theme-light .bg-\[\#1F1607\],
-html.theme-light .bg-\[\#18150B\],
-html.theme-light .bg-\[\#1A1810\],
-html.theme-light .bg-\[\#161408\] {
-  background-color: #F8FAFC !important;
-  border-color: #CBD5E1 !important;
+html.theme-light [class*="from-[#1C160B]"] *,
+html.theme-light [class*="from-[#181818]"] *,
+html.theme-light [class*="from-[#1C1A14]"] *,
+html.theme-light [class*="from-[#1E190B]"] * {
   color: #0F172A !important;
 }
 
-html.theme-light .bg-\[\#121212\] *,
-html.theme-light .bg-\[\#131313\] *,
-html.theme-light .bg-\[\#161616\] *,
-html.theme-light .bg-\[\#1F1F1F\] *,
-html.theme-light .bg-\[\#1F1607\] *,
-html.theme-light .bg-\[\#18150B\] *,
-html.theme-light .bg-\[\#1A1810\] *,
-html.theme-light .bg-\[\#161408\] * {
-  color: #0F172A !important;
+/* All saturated colored action buttons must have bright pure white text and white icons */
+html.theme-light [class*="bg-blue-600"],
+html.theme-light [class*="bg-blue-700"],
+html.theme-light [class*="bg-emerald-600"],
+html.theme-light [class*="bg-emerald-700"],
+html.theme-light [class*="bg-sky-600"],
+html.theme-light [class*="bg-sky-700"],
+html.theme-light [class*="bg-rose-600"],
+html.theme-light [class*="bg-rose-700"],
+html.theme-light [class*="bg-amber-600"],
+html.theme-light [class*="bg-purple-600"],
+html.theme-light [class*="bg-indigo-600"],
+html.theme-light [class*="bg-teal-600"] {
+  color: #FFFFFF !important;
+}
+
+html.theme-light [class*="bg-blue-600"] *,
+html.theme-light [class*="bg-blue-700"] *,
+html.theme-light [class*="bg-emerald-600"] *,
+html.theme-light [class*="bg-emerald-700"] *,
+html.theme-light [class*="bg-sky-600"] *,
+html.theme-light [class*="bg-sky-700"] *,
+html.theme-light [class*="bg-rose-600"] *,
+html.theme-light [class*="bg-rose-700"] *,
+html.theme-light [class*="bg-amber-600"] *,
+html.theme-light [class*="bg-purple-600"] *,
+html.theme-light [class*="bg-indigo-600"] *,
+html.theme-light [class*="bg-teal-600"] * {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
 }
 
 /* ==========================================================================
@@ -953,4 +1126,36 @@ html.theme-light .chart-legend-container {
   border-color: #CBD5E1 !important;
   box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04) !important;
 }
+
+/* ==========================================================================
+   EXECUTIVE PRECISION (STITCH DESIGN SYSTEM) BORDER RADIUS & ELEVATION
+   Aligns container curvature and micro-contrast with Google Stitch specifications:
+   - Cards / Containers: 12px (rounded-xl)
+   - Controls / Buttons / Inputs: 8px (rounded-lg)
+   - Badges / Small Pills: rounded-full or rounded-md
+   ========================================================================== */
+html.theme-light .rounded-sm:not(button):not(input):not(select):not(textarea):not(span) {
+  border-radius: 0.75rem !important; /* 12px rounded-xl */
+}
+
+html.theme-light button.rounded-sm,
+html.theme-light input.rounded-sm,
+html.theme-light select.rounded-sm,
+html.theme-light textarea.rounded-sm {
+  border-radius: 0.5rem !important; /* 8px rounded-lg */
+}
+
+html.theme-light .shadow-sm {
+  box-shadow: 0 1px 3px 0 rgba(11, 28, 48, 0.04), 0 1px 2px -1px rgba(11, 28, 48, 0.02) !important;
+}
+
+html.theme-light .shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(11, 28, 48, 0.06), 0 2px 4px -2px rgba(11, 28, 48, 0.03) !important;
+}
+
+/* Inter Typography standard in light theme */
+html.theme-light {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+}
+
 

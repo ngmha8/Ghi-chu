@@ -8,6 +8,24 @@ import {
 
 const router = Router();
 
+// Sliding-window failed verification rate-limit tracker
+interface FailedPinTracker {
+  count: number;
+  lockedUntil: number;
+  lastAttemptAt: number;
+}
+const pinRateLimitMap = new Map<string, FailedPinTracker>();
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 30000; // 30-second lockout after 5 consecutive failures
+
+function getClientIdentifier(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || req.socket.remoteAddress || 'global_client';
+}
+
 // GET /api/security/pin
 router.get('/pin', async (_req: Request, res: Response) => {
   try {
@@ -18,13 +36,76 @@ router.get('/pin', async (_req: Request, res: Response) => {
   }
 });
 
-// POST /api/security/verify-pin
+// POST /api/security/verify-pin - Protected with Rate-Limiting & Sliding Lockout
 router.post('/verify-pin', async (req: Request, res: Response) => {
   try {
     const { pin } = req.body;
-    const isValid = await verifyDbSecurityPin(pin);
+    const clientKey = getClientIdentifier(req);
+    const now = Date.now();
     const config = await getDbSecurityPinConfig();
-    res.json({ isValid, isEnabled: config.isEnabled });
+
+    let tracker = pinRateLimitMap.get(clientKey);
+
+    // Clean up tracker if expired (idle for more than 5 minutes and not locked)
+    if (tracker && tracker.lockedUntil <= now && now - tracker.lastAttemptAt > 300000) {
+      pinRateLimitMap.delete(clientKey);
+      tracker = undefined;
+    }
+
+    // Check if client is currently in lockout window
+    if (tracker && tracker.lockedUntil > now) {
+      const remainingSeconds = Math.ceil((tracker.lockedUntil - now) / 1000);
+      return res.status(429).json({
+        isValid: false,
+        isEnabled: config.isEnabled,
+        isLocked: true,
+        retryAfterSeconds: remainingSeconds,
+        error: `Mã PIN đã bị tạm khóa do nhập sai nhiều lần. Vui lòng đợi ${remainingSeconds} giây để thử lại.`,
+      });
+    }
+
+    const isValid = await verifyDbSecurityPin(pin);
+
+    if (isValid) {
+      // Reset rate limit tracker on successful PIN entry
+      pinRateLimitMap.delete(clientKey);
+      return res.json({
+        isValid: true,
+        isEnabled: config.isEnabled,
+        isLocked: false,
+        remainingAttempts: MAX_FAILED_ATTEMPTS,
+      });
+    }
+
+    // Handle failed verification attempt
+    if (!tracker) {
+      tracker = { count: 1, lockedUntil: 0, lastAttemptAt: now };
+    } else {
+      tracker.count += 1;
+      tracker.lastAttemptAt = now;
+    }
+
+    if (tracker.count >= MAX_FAILED_ATTEMPTS) {
+      tracker.lockedUntil = now + LOCKOUT_DURATION_MS;
+      pinRateLimitMap.set(clientKey, tracker);
+      return res.status(429).json({
+        isValid: false,
+        isEnabled: config.isEnabled,
+        isLocked: true,
+        retryAfterSeconds: Math.ceil(LOCKOUT_DURATION_MS / 1000),
+        error: `Đã nhập sai mã PIN ${MAX_FAILED_ATTEMPTS} lần liên tiếp. Hệ thống tạm khóa 30 giây để bảo vệ an toàn.`,
+      });
+    }
+
+    pinRateLimitMap.set(clientKey, tracker);
+    const remaining = MAX_FAILED_ATTEMPTS - tracker.count;
+    return res.json({
+      isValid: false,
+      isEnabled: config.isEnabled,
+      isLocked: false,
+      remainingAttempts: remaining,
+      error: `Mã PIN không đúng (Còn ${remaining} lần thử trước khi tạm khóa)`,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Lỗi kiểm tra mã PIN' });
   }

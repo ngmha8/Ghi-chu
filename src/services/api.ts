@@ -234,6 +234,38 @@ export const api = {
     return res.json();
   },
 
+  syncAndPurgeLocalFiles: async (params?: {
+    fileIds?: string[];
+    folderId?: string;
+    purgeLocalAfterUpload?: boolean;
+    deleteLocalRecord?: boolean;
+  }): Promise<{
+    success: boolean;
+    total: number;
+    syncedCount: number;
+    failedCount: number;
+    syncedFiles: DriveFile[];
+    errors?: { id: string; name: string; error: string }[];
+    requiresAdminLogin?: boolean;
+    message?: string;
+  }> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('google_access_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch('/api/files/sync-and-purge-local', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params || {}),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || 'Lỗi đồng bộ tệp lên Google Drive');
+    }
+    return data;
+  },
+
   // Telegram Config & Webhook Bot Endpoints
   getTelegramConfig: async (): Promise<{ config: TelegramConfig; logs: NotificationLog[] }> => {
     try {
@@ -514,16 +546,37 @@ export const api = {
     }
   },
 
-  verifySecurityPin: async (pin: string): Promise<{ isValid: boolean; isEnabled: boolean }> => {
+  verifySecurityPin: async (pin: string): Promise<{
+    isValid: boolean;
+    isEnabled: boolean;
+    isLocked?: boolean;
+    retryAfterSeconds?: number;
+    remainingAttempts?: number;
+    error?: string;
+  }> => {
     try {
       const res = await fetch('/api/security/verify-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
       });
-      if (!res.ok) return { isValid: false, isEnabled: true };
-      const data = await res.json();
-      return { isValid: Boolean(data.isValid), isEnabled: data.isEnabled !== false };
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 429) {
+        return {
+          isValid: false,
+          isEnabled: data.isEnabled !== false,
+          isLocked: true,
+          retryAfterSeconds: data.retryAfterSeconds || 30,
+          error: data.error || 'Mã PIN đã bị tạm khóa do nhập sai nhiều lần. Vui lòng thử lại sau 30 giây.',
+        };
+      }
+      return {
+        isValid: Boolean(data.isValid),
+        isEnabled: data.isEnabled !== false,
+        isLocked: Boolean(data.isLocked),
+        remainingAttempts: data.remainingAttempts,
+        error: data.error,
+      };
     } catch {
       // Fallback
       return { isValid: false, isEnabled: true };

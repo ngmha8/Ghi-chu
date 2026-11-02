@@ -11,6 +11,7 @@ import { createServer as createViteServer } from 'vite';
 
 // Persistence & Background Services
 import { initializeFirestoreData } from './server/firebaseDb.ts';
+import { loadEmbeddingCache } from './server/embeddingService.ts';
 import { startBackgroundScheduler } from './server/scheduler.ts';
 import { startTelegramPollingDaemon } from './server/telegramBotEngine.ts';
 import { getTelegramEngineContext } from './server/routes/telegram.ts';
@@ -54,9 +55,11 @@ app.get('/favicon.ico', (_req: Request, res: Response) => {
 });
 
 // Initialize Cloud Firestore & Local Backup Synchronization on Boot
-initializeFirestoreData().catch(err => {
-  console.warn('Firebase background sync warning:', err);
-});
+initializeFirestoreData()
+  .then(() => loadEmbeddingCache())
+  .catch(err => {
+    console.warn('Firebase background sync warning:', err);
+  });
 
 // -------------------------------------------------------------
 // MOUNT MODULAR API ROUTERS

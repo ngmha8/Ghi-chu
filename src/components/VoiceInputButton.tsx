@@ -208,19 +208,19 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
       </button>
 
       {permissionError && (
-        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-neutral-900 text-amber-300 border border-amber-500/50 rounded text-[11px] whitespace-nowrap shadow-xl z-50">
+        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-300 dark:bg-neutral-900 dark:text-amber-300 dark:border-amber-500/50 rounded text-[11px] whitespace-nowrap shadow-xl z-50">
           ⚠️ {permissionError}
         </span>
       )}
 
       {isRecording && (
-        <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-red-950 text-red-200 border border-red-700/60 rounded text-[10px] whitespace-nowrap shadow-lg z-50 animate-bounce">
+        <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-rose-50 text-rose-800 border border-rose-300 dark:bg-red-950 dark:text-red-200 dark:border-red-700/60 rounded text-[10px] whitespace-nowrap shadow-lg z-50 animate-bounce">
           🎙️ Đang nghe... Bấm để dừng
         </span>
       )}
 
       {isProcessing && (
-        <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-950 text-amber-200 border border-amber-700/60 rounded text-[10px] whitespace-nowrap shadow-lg z-50">
+        <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-700/60 rounded text-[10px] whitespace-nowrap shadow-lg z-50">
           ✨ Gemini AI đang nhận diện...
         </span>
       )}

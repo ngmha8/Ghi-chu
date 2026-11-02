@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-secondary-fixed":"#001e2f","secondary-fixed":"#c9e6ff","on-error":"#ffffff","surface-container-low":"#eff4ff","inverse-primary":"#b4c5ff","primary-container":"#2563eb","primary-fixed":"#dbe1ff","on-primary-fixed-variant":"#003ea8","on-surface-variant":"#434655","tertiary-fixed-dim":"#ffb95f","on-surface":"#0b1c30","on-primary-container":"#eeefff","on-error-container":"#93000a","secondary-fixed-dim":"#89ceff","secondary-container":"#39b8fd","surface-tint":"#0053db","surface-bright":"#f8f9ff","surface-container-highest":"#d3e4fe","secondary":"#006591","on-secondary":"#ffffff","surface-dim":"#cbdbf5","surface":"#f8f9ff","tertiary-fixed":"#ffddb8","on-primary-fixed":"#00174b","primary":"#004ac6","background":"#f8f9ff","outline":"#737686","on-tertiary":"#ffffff","surface-container-high":"#dce9ff","error-container":"#ffdad6","on-primary":"#ffffff","on-secondary-fixed-variant":"#004c6e","surface-variant":"#d3e4fe","tertiary":"#784b00","inverse-on-surface":"#eaf1ff","surface-container-lowest":"#ffffff","on-tertiary-container":"#ffeedd","error":"#ba1a1a","inverse-surface":"#213145","primary-fixed-dim":"#b4c5ff","outline-variant":"#c3c6d7","on-tertiary-fixed":"#2a1700","surface-container":"#e5eeff","on-tertiary-fixed-variant":"#653e00","on-background":"#0b1c30","on-secondary-container":"#004666","tertiary-container":"#996100"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"margin":"1.5rem","gutter":"1rem","margin-mobile":"1rem","space-sm":"0.5rem","space-md":"0.75rem","gutter-lg":"1.5rem","space-xl":"1.5rem","space-lg":"1rem","space-xs":"0.25rem"},"fontFamily":{"body-sm":["Inter"],"label-regular":["Inter"],"body-lg":["Inter"],"label-caps":["Inter"],"caption":["Inter"],"label-bold":["Inter"],"headline-md":["Inter"],"headline-lg":["Inter"],"body-md":["Inter"],"display-hero":["Inter"],"headline-sm":["Inter"]},"fontSize":{"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"label-regular":["12px",{"lineHeight":"16px","fontWeight":"500"}],"body-lg":["15px",{"lineHeight":"22px","fontWeight":"400"}],"label-caps":["11px",{"lineHeight":"14px","letterSpacing":"0.06em","fontWeight":"700"}],"caption":["11px",{"lineHeight":"14px","fontWeight":"500"}],"label-bold":["12px",{"lineHeight":"16px","fontWeight":"600"}],"headline-md":["18px",{"lineHeight":"24px","letterSpacing":"-0.015em","fontWeight":"600"}],"headline-lg":["22px",{"lineHeight":"28px","letterSpacing":"-0.02em","fontWeight":"700"}],"body-md":["13px",{"lineHeight":"18px","fontWeight":"400"}],"display-hero":["30px",{"lineHeight":"38px","letterSpacing":"-0.025em","fontWeight":"700"}],"headline-sm":["15px",{"lineHeight":"20px","fontWeight":"600"}]}}}}</script></head><body class="bg-surface font-body-md text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-gutter flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-md shrink-0"><img alt="Architect.OS Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1WEVe8xMZuhK_-2jiu-TdSYHGQJqd-541FAuHd_iGujThOt4yUSToNAh41ErhiX_SU3EVzzPJDAOHjTJPLPY3JMCnfETkCHBm82xRqBLTMcJwMV3i_IqiCVeilfKMq0UugkOCeSBhNrVSGjxR3Ogg2oqr6m0w4Ha2qbitbIWZyFcudoyuNL12LZXtb-wBZCpcpiaSnWMpqZeDRD0RPBV4iKAgkb2CVd_AekteRmFNxHWg"/><span class="font-headline-sm text-headline-sm text-on-surface">Architect.OS</span><span class="font-caption text-caption px-space-sm py-space-xs rounded-full bg-surface-container text-on-surface-variant font-medium">V2.4.0</span></div><div class="flex-1 max-w-md mx-space-md hidden md:block"><div class="relative flex items-center bg-surface-container-low rounded-lg px-space-md py-space-xs text-on-surface-variant"><span class="material-symbols-outlined text-[18px] text-outline mr-space-sm">search</span><input class="w-full bg-transparent border-0 outline-none font-body-sm text-body-sm text-on-surface placeholder:text-outline" placeholder="Tìm kiếm thông tin, công việc, ghi chú..." type="text"/><kbd class="font-caption text-caption px-space-xs py-0.5 rounded bg-surface-container text-outline ml-space-sm"># tag</kbd></div></div><div class="flex items-center gap-space-sm shrink-0"><div class="hidden xl:flex items-center gap-space-xs"><div class="flex items-center gap-space-xs px-space-sm py-space-xs rounded-full bg-surface-container text-on-surface font-caption text-caption"><span class="material-symbols-outlined text-[16px] text-tertiary-container">local_fire_department</span><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span>Firestore • Active</span></div><div class="flex items-center gap-space-xs px-space-sm py-space-xs rounded-full bg-surface-container text-on-surface font-caption text-caption"><span class="material-symbols-outlined text-[16px] text-secondary">add_to_drive</span><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span>Drive • Active</span></div></div><div class="flex items-center gap-space-xs"><button class="flex items-center gap-space-xs px-space-md py-space-xs rounded-lg bg-primary-container text-on-primary-container font-label-bold text-label-bold transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">add</span><span class="hidden sm:inline">+ Thêm Task</span></button><button class="flex items-center gap-space-xs px-space-md py-space-xs rounded-lg bg-surface-container-low text-on-surface hover:bg-surface-container font-label-bold text-label-bold transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">description</span><span class="hidden sm:inline">+ Ghi Chú</span></button></div><div class="flex items-center gap-space-xs"><button class="p-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center" title="Chủ Đề Tối" type="button"><span class="material-symbols-outlined text-[20px]">dark_mode</span></button><button class="p-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center" title="Khóa PIN" type="button"><span class="material-symbols-outlined text-[20px]">lock</span></button></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div><div class="h-12 px-gutter bg-surface-container-lowest flex items-center shadow-[0_1px_4px_rgba(0,0,0,0.02)]"><nav class="flex items-center gap-space-xs overflow-x-auto w-full" data-active-classes="bg-primary-container text-on-primary-container font-label-bold text-label-bold rounded-lg"><a class="flex items-center gap-space-xs px-space-md py-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors font-label-regular text-label-regular whitespace-nowrap" data-path="dashboard" href="#"><span>Dashboard</span></a><a class="flex items-center gap-space-xs px-space-md py-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors font-label-regular text-label-regular whitespace-nowrap" data-path="cong-viec" href="#"><span>Công việc (Tasks)</span><span class="px-space-xs py-0.5 rounded-full bg-surface-container text-on-surface font-caption text-caption">1</span></a><a class="flex items-center gap-space-xs px-space-md py-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors font-label-regular text-label-regular whitespace-nowrap" data-path="ghi-chu" href="#"><span>Ghi chú (Notes)</span><span class="px-space-xs py-0.5 rounded-full bg-surface-container text-on-surface font-caption text-caption">5</span></a><a class="flex items-center gap-space-xs px-space-md py-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors font-label-regular text-label-regular whitespace-nowrap" data-path="google-drive" href="#"><span>Google Drive</span></a><a class="flex items-center gap-space-xs px-space-md py-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors font-label-regular text-label-regular whitespace-nowrap" data-path="cai-dat" href="#"><span>Cài đặt</span><span class="material-symbols-outlined text-[16px]">expand_more</span></a></nav></div></header><main class="w-full pt-28 bg-surface px-gutter"><div class="flex flex-col w-full">
+<!-- Active Tab Synced Highlighting Banner Script -->
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Auto-highlight "Google Drive" nav tab in shell
+      const driveNavs = document.querySelectorAll('a[data-path="google-drive"]');
+      driveNavs.forEach(nav => {
+        nav.className = "flex items-center gap-space-xs px-space-md py-space-xs bg-primary-container text-on-primary-container rounded-lg font-label-bold text-label-bold transition-colors whitespace-nowrap shadow-sm";
+        if (!nav.querySelector('.badge-drive-count')) {
+          const badge = document.createElement('span');
+          badge.className = "badge-drive-count px-space-xs py-0.5 rounded-full bg-surface-container-lowest text-primary font-caption text-caption ml-1 font-bold";
+          badge.innerText = "19";
+          nav.appendChild(badge);
+        }
+      });
+    });
+  </script>
+<!-- Page Header & Action Bar -->
+<div class="w-full flex flex-col gap-space-md mb-space-lg">
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md">
+<div class="flex flex-col gap-1 min-w-0">
+<div class="flex items-center gap-space-xs text-on-surface-variant">
+<span class="font-label-caps text-label-caps text-primary tracking-wider uppercase">STORAGE &amp; ASSET MANAGEMENT</span>
+<span class="text-outline-variant font-caption">•</span>
+<span class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-emerald-600">cloud_done</span>
+            Đồng bộ Google Drive Workspace
+          </span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">
+          Quản lý Tệp Google Drive
+        </h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-4xl line-clamp-2">
+          Lưu trữ tập trung, tự động phân loại hồ sơ an toàn bức xạ, liên kết tài liệu vào Task Eisenhower và Ghi chú AI Vector.
+        </p>
+</div>
+<!-- Action Toolbar -->
+<div class="flex flex-wrap items-center gap-space-xs shrink-0">
+<button class="flex items-center gap-space-xs px-space-md py-space-xs rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container-low transition-colors font-label-bold text-label-bold shadow-sm" title="Đồng bộ tự động" type="button">
+<span class="material-symbols-outlined text-[17px] text-primary animate-spin" style="animation-duration: 4s;">sync</span>
+<span class="hidden sm:inline">Đồng bộ ngay</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-space-xs rounded-lg bg-surface-container-lowest text-tertiary-container hover:bg-surface-container-low transition-colors font-label-bold text-label-bold shadow-sm" type="button">
+<span class="material-symbols-outlined text-[17px]">auto_awesome</span>
+<span class="hidden md:inline">Quét &amp; Phân Loại AI</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-space-xs rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container-low transition-colors font-label-bold text-label-bold shadow-sm" type="button">
+<span class="material-symbols-outlined text-[17px] text-outline">create_new_folder</span>
+<span class="hidden md:inline">Tạo Thư Mục</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-space-xs rounded-lg bg-primary-container text-on-primary-container hover:bg-primary transition-colors font-label-bold text-label-bold shadow-md" type="button">
+<span class="material-symbols-outlined text-[18px]">cloud_upload</span>
+<span>+ Tải lên tệp mới</span>
+</button>
+<!-- View Mode Switcher -->
+<div class="flex items-center p-0.5 rounded-lg bg-surface-container-lowest shadow-sm ml-space-xs">
+<button class="p-space-xs rounded bg-surface-container text-primary font-caption flex items-center" title="Dạng danh sách" type="button">
+<span class="material-symbols-outlined text-[18px]">table_rows</span>
+</button>
+<button class="p-space-xs rounded text-on-surface-variant hover:text-on-surface font-caption flex items-center" title="Dạng lưới" type="button">
+<span class="material-symbols-outlined text-[18px]">grid_view</span>
+</button>
+<button class="p-space-xs rounded text-on-surface-variant hover:text-on-surface font-caption flex items-center" title="Cây thư mục" type="button">
+<span class="material-symbols-outlined text-[18px]">account_tree</span>
+</button>
+</div>
+</div>
+</div>
+<!-- 4 KPI Summary Metric Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md w-full">
+<!-- Card 1 -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col justify-between gap-space-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Tổng dung lượng Drive</span>
+<span class="px-space-xs py-0.5 rounded-full bg-surface-container-low text-emerald-700 font-caption text-caption font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            Kết nối ổn định
+          </span>
+</div>
+<div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface font-bold">106.41 MB</span>
+<span class="font-caption text-caption text-outline">/ 15 GB (0.7%)</span>
+</div>
+<!-- Storage Bar -->
+<div class="w-full bg-surface-container rounded-full h-1.5 mt-2 overflow-hidden">
+<div class="bg-primary-container h-1.5 rounded-full transition-all" style="width: 0.7%;"></div>
+</div>
+</div>
+<div class="flex items-center justify-between font-caption text-caption text-on-surface-variant pt-1">
+<span>Google Workspace Enterprise</span>
+<span class="text-primary font-label-bold">Còn 14.89 GB</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col justify-between gap-space-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Tổng số tệp</span>
+<span class="p-1 rounded-lg bg-surface-container-low text-primary flex items-center">
+<span class="material-symbols-outlined text-[16px]">folder_special</span>
+</span>
+</div>
+<div>
+<div class="font-headline-lg text-headline-lg text-on-surface font-bold">19 tệp</div>
+<p class="font-caption text-caption text-on-surface-variant mt-1">
+<span class="font-semibold text-primary">5 tệp</span> liên kết Ghi chú • <span class="font-semibold text-secondary">2 tệp</span> liên kết Task
+          </p>
+</div>
+<div class="flex items-center gap-1 font-caption text-caption text-outline">
+<span class="material-symbols-outlined text-[14px]">history</span>
+<span>Đã kiểm toán SHA-256</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col justify-between gap-space-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Phân loại tự động</span>
+<span class="p-1 rounded-lg bg-surface-container-low text-tertiary-container flex items-center">
+<span class="material-symbols-outlined text-[16px]">category</span>
+</span>
+</div>
+<div>
+<div class="font-headline-lg text-headline-lg text-on-surface font-bold">4 thư mục chính</div>
+<p class="font-caption text-caption text-on-surface-variant mt-1 truncate">
+            Báo cáo KT, Biên bản, Pháp lý, Biểu mẫu
+          </p>
+</div>
+<div class="flex items-center gap-1 font-caption text-caption text-emerald-700">
+<span class="material-symbols-outlined text-[14px]">auto_fix_high</span>
+<span>Phân loại chuẩn hóa 100%</span>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col justify-between gap-space-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Trạng thái Vector Search</span>
+<span class="p-1 rounded-lg bg-surface-container-low text-secondary flex items-center">
+<span class="material-symbols-outlined text-[16px]">psychology</span>
+</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface font-bold">100%</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container font-caption text-caption text-primary font-bold">Đã Index</span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant mt-1 line-clamp-1">
+            Sẵn sàng truy vấn hỏi đáp tài liệu thông minh
+          </p>
+</div>
+<div class="flex items-center gap-1 font-caption text-caption text-on-surface-variant">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span>Pinecone Vector Embedding OK</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Operational Workspace: 3-Way Split Explorer (Sidebar Folders / File Table / Detail Drawer) -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-md w-full items-start">
+<!-- LEFT PANEL: Thư mục & Bộ lọc (col-span-3 approx 280px) -->
+<div class="lg:col-span-3 flex flex-col gap-space-md bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+<!-- Search Input in Folder sidebar -->
+<div class="relative flex items-center bg-surface-container-low rounded-lg px-space-md py-space-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[17px] text-outline mr-space-sm">search</span>
+<input class="w-full bg-transparent border-0 outline-none font-body-sm text-body-sm text-on-surface placeholder:text-outline" placeholder="Tìm tệp, mã hồ sơ... ⌘K" type="text"/>
+</div>
+<!-- Tree View Header -->
+<div class="flex items-center justify-between font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider px-1">
+<span>Cây Thư Mục Drive</span>
+<button class="text-primary hover:text-on-primary-fixed-variant" title="Tạo nhánh mới" type="button">
+<span class="material-symbols-outlined text-[16px]">add_box</span>
+</button>
+</div>
+<!-- Folder Navigation Tree -->
+<nav class="flex flex-col gap-1 text-on-surface font-body-sm text-body-sm">
+<!-- Active Root Item -->
+<a class="flex items-center justify-between px-space-md py-space-xs rounded-lg bg-primary-container text-on-primary-container font-label-bold shadow-sm transition-colors" href="javascript:void(0)">
+<div class="flex items-center gap-space-xs truncate">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+<span class="truncate">Tất cả tệp</span>
+</div>
+<span class="px-space-xs py-0.5 rounded-full bg-surface-container-lowest text-primary font-caption text-caption font-bold">19</span>
+</a>
+<!-- Folder 1: An toàn bức xạ (Expanded) -->
+<div class="flex flex-col gap-0.5 mt-1">
+<div class="flex items-center justify-between px-space-md py-space-xs rounded-lg bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors cursor-pointer group">
+<div class="flex items-center gap-space-xs truncate">
+<span class="material-symbols-outlined text-[16px] text-primary">arrow_drop_down</span>
+<span class="material-symbols-outlined text-[18px] text-tertiary-container group-hover:scale-105 transition-transform">folder</span>
+<span class="truncate font-label-regular">An toàn bức xạ</span>
+</div>
+<span class="font-caption text-caption px-space-xs rounded bg-surface-container text-on-surface-variant">7</span>
+</div>
+<!-- Subfolders -->
+<div class="ml-5 pl-2 flex flex-col gap-0.5">
+<a class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-low text-on-surface-variant hover:text-on-surface transition-colors" href="javascript:void(0)">
+<div class="flex items-center gap-1.5 truncate">
+<span class="material-symbols-outlined text-[15px] text-outline">subdirectory_arrow_right</span>
+<span class="truncate">Hồ sơ liều kế cá nhân</span>
+</div>
+<span class="font-caption text-caption text-outline">3</span>
+</a>
+<a class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-low text-on-surface-variant hover:text-on-surface transition-colors" href="javascript:void(0)">
+<div class="flex items-center gap-1.5 truncate">
+<span class="material-symbols-outlined text-[15px] text-outline">subdirectory_arrow_right</span>
+<span class="truncate">Kiểm định CLVT &amp; X-quang</span>
+</div>
+<span class="font-caption text-caption text-outline">4</span>
+</a>
+</div>
+</div>
+<!-- Folder 2: Biểu mẫu hành chính -->
+<a class="flex items-center justify-between px-space-md py-space-xs rounded-lg hover:bg-surface-container-low text-on-surface transition-colors" href="javascript:void(0)">
+<div class="flex items-center gap-space-xs truncate">
+<span class="material-symbols-outlined text-[16px] text-outline">arrow_right</span>
+<span class="material-symbols-outlined text-[18px] text-secondary">folder</span>
+<span class="truncate">Biểu mẫu &amp; Pháp lý</span>
+</div>
+<span class="font-caption text-caption px-space-xs rounded bg-surface-container text-on-surface-variant">5</span>
+</a>
+<!-- Folder 3: Báo cáo định kỳ -->
+<a class="flex items-center justify-between px-space-md py-space-xs rounded-lg hover:bg-surface-container-low text-on-surface transition-colors" href="javascript:void(0)">
+<div class="flex items-center gap-space-xs truncate">
+<span class="material-symbols-outlined text-[16px] text-outline">arrow_right</span>
+<span class="material-symbols-outlined text-[18px] text-tertiary">folder</span>
+<span class="truncate">Báo cáo Sở KH&amp;CN</span>
+</div>
+<span class="font-caption text-caption px-space-xs rounded bg-surface-container text-on-surface-variant">4</span>
+</a>
+<!-- Folder 4: Tải lên gần đây -->
+<a class="flex items-center justify-between px-space-md py-space-xs rounded-lg hover:bg-surface-container-low text-on-surface transition-colors" href="javascript:void(0)">
+<div class="flex items-center gap-space-xs truncate">
+<span class="material-symbols-outlined text-[18px] text-outline">schedule</span>
+<span class="truncate">Tải lên gần đây</span>
+</div>
+<span class="font-caption text-caption px-space-xs rounded bg-surface-container text-on-surface-variant">3</span>
+</a>
+<!-- Folder 5: Thùng rác -->
+<a class="flex items-center justify-between px-space-md py-space-xs rounded-lg hover:bg-surface-container-low text-outline transition-colors" href="javascript:void(0)">
+<div class="flex items-center gap-space-xs truncate">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+<span class="truncate">Thùng rác Drive</span>
+</div>
+<span class="font-caption text-caption">0</span>
+</a>
+</nav>
+<!-- Quick Filter by File Type -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider px-1">Loại Tập Tin</span>
+<div class="flex flex-col gap-0.5 text-on-surface-variant font-body-sm text-body-sm">
+<button class="w-full flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-low text-left" type="button">
+<span class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+<span>Tài liệu PDF</span>
+</span>
+<span class="font-caption text-caption text-outline">12</span>
+</button>
+<button class="w-full flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-low text-left" type="button">
+<span class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span>Word / Docs</span>
+</span>
+<span class="font-caption text-caption text-outline">4</span>
+</button>
+<button class="w-full flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-low text-left" type="button">
+<span class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+<span>Excel / Sheets</span>
+</span>
+<span class="font-caption text-caption text-outline">2</span>
+</button>
+<button class="w-full flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-low text-left" type="button">
+<span class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-amber-500"></span>
+<span>Ảnh hiện trường</span>
+</span>
+<span class="font-caption text-caption text-outline">1</span>
+</button>
+</div>
+</div>
+<!-- Quick Filter by Entity Links -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider px-1">Bộ Lọc Liên Kết OS</span>
+<div class="flex flex-col gap-1">
+<label class="flex items-center gap-space-xs px-space-sm py-1 rounded hover:bg-surface-container-low text-body-sm cursor-pointer">
+<input checked="" class="rounded text-primary focus:ring-0 w-3.5 h-3.5" type="checkbox"/>
+<span class="text-on-surface">Gắn thẻ Task Eisenhower</span>
+</label>
+<label class="flex items-center gap-space-xs px-space-sm py-1 rounded hover:bg-surface-container-low text-body-sm cursor-pointer">
+<input checked="" class="rounded text-primary focus:ring-0 w-3.5 h-3.5" type="checkbox"/>
+<span class="text-on-surface">Trích xuất trong Ghi chú</span>
+</label>
+<label class="flex items-center gap-space-xs px-space-sm py-1 rounded hover:bg-surface-container-low text-body-sm cursor-pointer">
+<input class="rounded text-primary focus:ring-0 w-3.5 h-3.5" type="checkbox"/>
+<span class="text-on-surface">Đã ký số điện tử</span>
+</label>
+</div>
+</div>
+<!-- Drive Sync Box -->
+<div class="rounded-lg bg-surface-container p-space-sm flex flex-col gap-1 text-on-surface mt-2">
+<div class="flex items-center justify-between">
+<span class="font-label-bold text-label-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-primary">cloud_sync</span>
+            Auto Sync Webhook
+          </span>
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant">Lần đồng bộ gần nhất: 1 phút trước từ Google Drive API v3.</p>
+</div>
+</div>
+<!-- MAIN CENTER PANEL: Explorer & File List View (col-span-6 on Desktop) -->
+<div class="lg:col-span-6 flex flex-col gap-space-md">
+<!-- Top Navigation Bar & Breadcrumb Path -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-xs text-body-sm flex-wrap">
+<span class="text-outline flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">add_to_drive</span>
+            Google Drive
+          </span>
+<span class="material-symbols-outlined text-[14px] text-outline-variant">chevron_right</span>
+<span class="text-outline">Thư mục An toàn bức xạ</span>
+<span class="material-symbols-outlined text-[14px] text-outline-variant">chevron_right</span>
+<span class="font-label-bold text-label-bold text-primary">Tất cả tệp (19)</span>
+</div>
+<!-- Sort Select -->
+<div class="flex items-center gap-space-xs text-body-sm shrink-0">
+<span class="font-caption text-caption text-outline">Sắp xếp:</span>
+<div class="relative">
+<select class="bg-surface-container-low text-on-surface font-label-regular text-label-regular rounded-lg px-2.5 py-1 appearance-none pr-6 outline-none cursor-pointer">
+<option>Ngày sửa đổi (Mới nhất)</option>
+<option>Dung lượng (Lớn nhất)</option>
+<option>Tên tệp (A-Z)</option>
+</select>
+<span class="material-symbols-outlined text-[14px] absolute right-1.5 top-1.5 pointer-events-none text-outline">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Quick Filter Pills -->
+<div class="flex items-center gap-space-xs overflow-x-auto pb-1">
+<button class="px-space-md py-1 rounded-full bg-primary-container text-on-primary-container font-label-bold text-label-bold whitespace-nowrap shadow-sm" type="button">
+          Tất cả (19)
+        </button>
+<button class="px-space-md py-1 rounded-full bg-surface-container-lowest text-on-surface hover:bg-surface-container transition-colors font-label-regular text-label-regular whitespace-nowrap shadow-sm" type="button">
+          Hồ sơ Bức xạ (7)
+        </button>
+<button class="px-space-md py-1 rounded-full bg-surface-container-lowest text-on-surface hover:bg-surface-container transition-colors font-label-regular text-label-regular whitespace-nowrap shadow-sm" type="button">
+          Biểu mẫu (5)
+        </button>
+<button class="px-space-md py-1 rounded-full bg-surface-container-lowest text-on-surface hover:bg-surface-container transition-colors font-label-regular text-label-regular whitespace-nowrap shadow-sm" type="button">
+          Báo cáo Sở (4)
+        </button>
+</div>
+<!-- File Table / Cards Stack -->
+<div class="flex flex-col gap-space-xs">
+<!-- File Item 1 (ACTIVE / SELECTED FILE) -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-md transition-all hover:bg-surface-bright cursor-pointer relative overflow-hidden ring-2 ring-primary">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-lg bg-red-50 text-error flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">picture_as_pdf</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate font-semibold">59-bkhcn-kem.pdf</span>
+<span class="px-space-xs py-0.5 rounded bg-emerald-100 text-emerald-800 font-caption text-caption font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[12px]">verified</span>
+                    Đã duyệt • Đã ký số
+                  </span>
+<span class="px-space-xs py-0.5 rounded bg-primary-container text-on-primary-container font-caption text-caption font-semibold">Đang chọn xem</span>
+</div>
+<div class="flex items-center gap-space-sm text-on-surface-variant font-caption text-caption mt-1 flex-wrap">
+<span class="font-medium text-on-surface">18.22 MB</span>
+<span class="text-outline-variant">•</span>
+<span>Cập nhật 29/8/2026</span>
+<span class="text-outline-variant">•</span>
+<span>Chủ sở hữu: Admin</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-1 shrink-0">
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Xem trước" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Mở Drive" type="button">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-low transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+<!-- Semantic OS Linkages Strip -->
+<div class="mt-space-sm pt-space-xs flex flex-wrap items-center justify-between gap-space-xs bg-surface-container-low rounded-lg p-space-sm">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#AN_TOAN_BUC_XA</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#HOAN_THANH</span>
+<div class="flex items-center gap-1 text-primary font-caption text-caption bg-surface-container-lowest px-2 py-0.5 rounded shadow-sm">
+<span class="material-symbols-outlined text-[13px]">task_alt</span>
+<span class="font-medium">Task Q2: Hoàn thành kiểm định máy chụp CLVT</span>
+</div>
+</div>
+<span class="font-caption text-caption text-emerald-700 font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">psychology</span>
+              Indexed RAG Vector
+            </span>
+</div>
+</div>
+<!-- File Item 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all hover:shadow-md hover:bg-surface-bright cursor-pointer">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-lg bg-red-50 text-error flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">picture_as_pdf</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate font-semibold">Mau so 19-PL07-Mau van ban.pdf</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-secondary font-caption text-caption font-medium">
+                    Đồng bộ Drive OK
+                  </span>
+</div>
+<div class="flex items-center gap-space-sm text-on-surface-variant font-caption text-caption mt-1 flex-wrap">
+<span class="font-medium text-on-surface">18.22 MB</span>
+<span class="text-outline-variant">•</span>
+<span>Cập nhật 10/8/2026</span>
+<span class="text-outline-variant">•</span>
+<span>Chủ sở hữu: Ban Pháp chế</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-1 shrink-0">
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Xem trước" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Mở Drive" type="button">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-low transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs flex flex-wrap items-center justify-between gap-space-xs bg-surface-container-low rounded-lg p-space-sm">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#QUY_TRINH</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#CONG_VIEC</span>
+<div class="flex items-center gap-1 text-tertiary-container font-caption text-caption bg-surface-container-lowest px-2 py-0.5 rounded shadow-sm">
+<span class="material-symbols-outlined text-[13px]">description</span>
+<span class="font-medium">Note: Quy trình đối chiếu hồ sơ và mẫu đơn...</span>
+</div>
+</div>
+<span class="font-caption text-caption text-outline">Gắn thẻ 1 ghi chú</span>
+</div>
+</div>
+<!-- File Item 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all hover:shadow-md hover:bg-surface-bright cursor-pointer">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-lg bg-red-50 text-error flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">picture_as_pdf</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate font-semibold">94qh.signed.pdf</span>
+<span class="px-space-xs py-0.5 rounded bg-emerald-100 text-emerald-800 font-caption text-caption font-bold">
+                    Đã ký số CA
+                  </span>
+</div>
+<div class="flex items-center gap-space-sm text-on-surface-variant font-caption text-caption mt-1 flex-wrap">
+<span class="font-medium text-on-surface">2.23 MB</span>
+<span class="text-outline-variant">•</span>
+<span>Cập nhật 15/9/2026</span>
+<span class="text-outline-variant">•</span>
+<span>Chủ sở hữu: Viện trưởng</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-1 shrink-0">
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Xem trước" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Mở Drive" type="button">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-low transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs flex flex-wrap items-center justify-between gap-space-xs bg-surface-container-low rounded-lg p-space-sm">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#TONG_KET</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#AN_TOAN_BUC_XA</span>
+<div class="flex items-center gap-1 text-primary font-caption text-caption bg-surface-container-lowest px-2 py-0.5 rounded shadow-sm">
+<span class="material-symbols-outlined text-[13px]">task</span>
+<span class="font-medium">Task Q3: Báo cáo tổng kết an toàn bức xạ Quý 3</span>
+</div>
+</div>
+<span class="font-caption text-caption text-emerald-700 font-medium">Hồ sơ chính thức</span>
+</div>
+</div>
+<!-- File Item 4 (DOCX) -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all hover:shadow-md hover:bg-surface-bright cursor-pointer">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-lg bg-blue-50 text-primary-container flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">description</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate font-semibold">Mau so 05-PL08-Mau Don de nghi cap phep.docx</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container-high text-on-surface-variant font-caption text-caption">
+                    Bản nháp
+                  </span>
+</div>
+<div class="flex items-center gap-space-sm text-on-surface-variant font-caption text-caption mt-1 flex-wrap">
+<span class="font-medium text-on-surface">22.3 KB</span>
+<span class="text-outline-variant">•</span>
+<span>Cập nhật 12/8/2026</span>
+<span class="text-outline-variant">•</span>
+<span>Chủ sở hữu: Chuyên viên Pháp lý</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-1 shrink-0">
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Xem trước" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Mở Drive" type="button">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-low transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs flex flex-wrap items-center justify-between gap-space-xs bg-surface-container-low rounded-lg p-space-sm">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#BIEU_MAU</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#PHAP_LY</span>
+<span class="text-on-surface-variant font-caption text-caption italic">Chưa gắn thực thể Task</span>
+</div>
+<button class="text-primary hover:text-on-primary-fixed-variant font-label-bold text-caption flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[13px]">add_link</span>
+              Gắn vào Task
+            </button>
+</div>
+</div>
+<!-- File Item 5 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all hover:shadow-md hover:bg-surface-bright cursor-pointer">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-lg bg-red-50 text-error flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">picture_as_pdf</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate font-semibold">Bien_ban_ban_giao_lieu_ke_Q2.pdf</span>
+<span class="px-space-xs py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed font-caption text-caption font-medium">
+                    Đã đính kèm Task Q2
+                  </span>
+</div>
+<div class="flex items-center gap-space-sm text-on-surface-variant font-caption text-caption mt-1 flex-wrap">
+<span class="font-medium text-on-surface">1.45 MB</span>
+<span class="text-outline-variant">•</span>
+<span>Cập nhật 25/9/2026</span>
+<span class="text-outline-variant">•</span>
+<span>Kỹ thuật viên Trưởng</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-1 shrink-0">
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Xem trước" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Mở Drive" type="button">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-low transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs flex flex-wrap items-center justify-between gap-space-xs bg-surface-container-low rounded-lg p-space-sm">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#LIEU_KE_CA_NHAN</span>
+<div class="flex items-center gap-1 text-primary font-caption text-caption bg-surface-container-lowest px-2 py-0.5 rounded shadow-sm">
+<span class="material-symbols-outlined text-[13px]">assignment_turned_in</span>
+<span class="font-medium">Task Q2: Gửi liều kế cá nhân</span>
+</div>
+</div>
+<span class="font-caption text-caption text-emerald-700">Đã đối chiếu</span>
+</div>
+</div>
+<!-- File Item 6 (JPG Image) -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all hover:shadow-md hover:bg-surface-bright cursor-pointer">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-lg bg-amber-50 text-tertiary-container flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[24px]">image</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate font-semibold">Anh_hien_truong_Nenh_VietYen.jpg</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">
+                    Hiện trường
+                  </span>
+</div>
+<div class="flex items-center gap-space-sm text-on-surface-variant font-caption text-caption mt-1 flex-wrap">
+<span class="font-medium text-on-surface">3.8 MB</span>
+<span class="text-outline-variant">•</span>
+<span>Cập nhật 24/9/2026</span>
+<span class="text-outline-variant">•</span>
+<span>Đoàn khảo sát 01</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-1 shrink-0">
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Xem trước" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-primary hover:bg-surface-container-low transition-colors" title="Mở Drive" type="button">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+<button class="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-low transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs flex flex-wrap items-center justify-between gap-space-xs bg-surface-container-low rounded-lg p-space-sm">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-caption text-caption">#CONG_VIEC</span>
+<div class="flex items-center gap-1 text-primary font-caption text-caption bg-surface-container-lowest px-2 py-0.5 rounded shadow-sm">
+<span class="material-symbols-outlined text-[13px]">location_on</span>
+<span class="font-medium">Task: Đi chụp x quang tại Nếnh, Việt Yên</span>
+</div>
+</div>
+<span class="font-caption text-caption text-outline">Đính kèm GPS</span>
+</div>
+</div>
+</div>
+<!-- Pagination / Bottom Stats -->
+<div class="flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm p-space-sm bg-surface-container-lowest rounded-xl shadow-sm">
+<span>Hiển thị 1 - 6 của 19 tệp</span>
+<div class="flex items-center gap-1">
+<button class="p-1 rounded bg-surface-container-low text-outline disabled:opacity-50" disabled="" type="button">
+<span class="material-symbols-outlined text-[18px]">chevron_left</span>
+</button>
+<span class="px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-label-bold text-caption">1</span>
+<button class="px-2 py-0.5 rounded hover:bg-surface-container font-label-regular text-caption" type="button">2</button>
+<button class="px-2 py-0.5 rounded hover:bg-surface-container font-label-regular text-caption" type="button">3</button>
+<button class="p-1 rounded hover:bg-surface-container text-on-surface" type="button">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- RIGHT PANEL: File Preview & Intelligence Drawer (col-span-3) -->
+<div class="lg:col-span-3 flex flex-col gap-space-md bg-surface-container-lowest rounded-xl p-space-md shadow-sm sticky top-28">
+<!-- Drawer Header -->
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[20px] text-primary">analytics</span>
+<span class="font-label-caps text-label-caps text-on-surface uppercase tracking-wider">Thông Tin &amp; Trí Tuệ Tệp</span>
+</div>
+<span class="font-caption text-caption px-space-xs py-0.5 rounded bg-surface-container text-outline">#GD-884920</span>
+</div>
+<!-- Selected File Card Visual Header -->
+<div class="flex flex-col gap-space-xs bg-surface-container-low p-space-md rounded-xl">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded bg-red-100 text-error flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+</div>
+<div class="min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate font-semibold">59-bkhcn-kem.pdf</h2>
+<span class="font-caption text-caption text-on-surface-variant">18.22 MB • PDF 1.7 Spec</span>
+</div>
+</div>
+<!-- Thumbnail Preview Snippet Container with Simulated PDF Visual -->
+<div class="relative w-full h-36 rounded-lg bg-surface-container-lowest overflow-hidden shadow-inner mt-space-xs flex flex-col">
+<div class="h-6 bg-surface-container px-2 flex items-center justify-between text-[10px] text-on-surface-variant font-mono">
+<span>TRANG 1/14 • BIÊN BẢN</span>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-emerald-600">verified_user</span>
+<span class="text-emerald-700 font-bold">CA SIGNED</span>
+</div>
+</div>
+<!-- Mock Document Preview -->
+<div class="p-3 flex-1 flex flex-col justify-between text-left select-none pointer-events-none bg-white">
+<div class="flex flex-col gap-1.5 opacity-70">
+<div class="h-2 bg-slate-300 rounded w-1/3"></div>
+<div class="h-1.5 bg-slate-200 rounded w-2/3"></div>
+<div class="h-1.5 bg-slate-200 rounded w-5/6"></div>
+<div class="h-1.5 bg-slate-200 rounded w-1/2"></div>
+</div>
+<div class="p-2 rounded bg-surface-container-low flex items-center justify-between">
+<span class="font-caption text-[10px] text-primary font-bold">KẾT QUẢ: ĐẠT TIÊU CHUẨN</span>
+<span class="material-symbols-outlined text-[16px] text-primary">approval_delegation</span>
+</div>
+</div>
+<!-- Hover Overlay trigger -->
+<div class="absolute inset-0 bg-primary/10 backdrop-blur-[1px] opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+<button class="px-3 py-1 rounded bg-surface-container-lowest text-primary text-caption font-bold shadow-md flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[14px]">zoom_in</span>
+              Mở lớn
+            </button>
+</div>
+</div>
+</div>
+<!-- Thông tin chi tiết -->
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider px-1">Thông Tin Chi Tiết</span>
+<div class="flex flex-col gap-1.5 text-body-sm bg-surface-container-low rounded-lg p-space-sm">
+<div class="flex items-start justify-between gap-2">
+<span class="font-caption text-caption text-outline shrink-0">Đường dẫn:</span>
+<span class="text-right truncate font-mono text-[11px] text-on-surface">Drive/An toàn bức xạ/Kiểm định</span>
+</div>
+<div class="flex items-center justify-between gap-2">
+<span class="font-caption text-caption text-outline shrink-0">Người tải lên:</span>
+<span class="text-right font-medium text-on-surface">Admin Workspace</span>
+</div>
+<div class="flex items-center justify-between gap-2">
+<span class="font-caption text-caption text-outline shrink-0">Ngày sửa đổi:</span>
+<span class="text-right font-caption text-caption text-on-surface">29/8/2026 10:15</span>
+</div>
+<div class="flex items-center justify-between gap-2">
+<span class="font-caption text-caption text-outline shrink-0">MD5 Checksum:</span>
+<span class="text-right font-mono text-[10px] text-outline">a8f9c102...39e1</span>
+</div>
+</div>
+</div>
+<!-- AI Vector Intelligence RAG Box -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between px-1">
+<span class="font-label-caps text-label-caps text-tertiary-container uppercase tracking-wider flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">auto_awesome</span>
+            Trích Xuất AI Vector (RAG)
+          </span>
+<span class="font-caption text-[10px] text-emerald-600 font-bold">100% Vectorized</span>
+</div>
+<div class="bg-surface-container p-space-sm rounded-lg text-body-sm flex flex-col gap-1">
+<p class="text-on-surface italic text-[12px] leading-relaxed">
+            "Tài liệu này chứa biên bản đo đạc liều phát xạ định kỳ của 2 phòng máy CT Scanner &amp; X-quang phòng khám, xác nhận che chắn chì đạt chuẩn TCVN."
+          </p>
+<div class="flex items-center gap-2 mt-1">
+<span class="font-caption text-[11px] text-outline">Độ tin cậy ngữ nghĩa: 99.4%</span>
+</div>
+</div>
+</div>
+<!-- Liên kết thực thể trong Architect.OS -->
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider px-1">Liên Kết Thực Thể OS</span>
+<!-- Linked Task Eisenhower -->
+<div class="flex flex-col gap-1 bg-surface-container-low p-space-sm rounded-lg">
+<div class="flex items-center justify-between">
+<span class="font-caption text-caption text-primary font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">task_alt</span>
+              Task Eisenhower Q2
+            </span>
+<span class="font-caption text-[10px] px-1 rounded bg-emerald-100 text-emerald-800 font-bold">Đạt chuẩn ISO</span>
+</div>
+<p class="font-label-bold text-label-bold text-on-surface line-clamp-1">
+            Kiểm định định kỳ máy chụp CLVT
+          </p>
+</div>
+<!-- Linked Note -->
+<div class="flex flex-col gap-1 bg-surface-container-low p-space-sm rounded-lg">
+<div class="flex items-center justify-between">
+<span class="font-caption text-caption text-secondary font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">description</span>
+              Ghi chú AI Vector
+            </span>
+<span class="font-caption text-[10px] text-outline">ID #NT-402</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface line-clamp-2">
+            Hoàn thành kiểm định máy chụp CLVT và kiểm xạ môi trường xung quanh phòng chụp...
+          </p>
+</div>
+</div>
+<!-- Bottom Actions -->
+<div class="flex flex-col gap-space-xs pt-1">
+<a class="w-full flex items-center justify-center gap-space-xs py-space-xs px-space-md rounded-lg bg-primary-container text-on-primary-container font-label-bold text-label-bold shadow-sm hover:bg-primary transition-colors text-center" href="https://drive.google.com" target="_blank">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+<span>Mở trong Google Drive</span>
+</a>
+<div class="grid grid-cols-3 gap-space-xs">
+<button class="py-1 px-2 rounded-lg bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors font-caption text-caption flex flex-col items-center justify-center gap-0.5" type="button">
+<span class="material-symbols-outlined text-[16px]">download</span>
+<span>Tải xuống</span>
+</button>
+<button class="py-1 px-2 rounded-lg bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors font-caption text-caption flex flex-col items-center justify-center gap-0.5" type="button">
+<span class="material-symbols-outlined text-[16px]">share</span>
+<span>Chia sẻ</span>
+</button>
+<button class="py-1 px-2 rounded-lg bg-surface-container-low text-error hover:bg-error-container transition-colors font-caption text-caption flex flex-col items-center justify-center gap-0.5" type="button">
+<span class="material-symbols-outlined text-[16px]">link_off</span>
+<span>Gỡ liên kết</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div></main><footer class="w-full bg-surface-container-lowest mt-space-xl"><div class="w-full px-gutter py-space-lg flex flex-col sm:flex-row items-center justify-between text-on-surface-variant font-body-sm text-body-sm gap-space-sm"><div class="flex items-center gap-space-sm"><span>© 2025 Architect.OS</span><span class="text-outline-variant">•</span><span>Enterprise Productivity Suite</span></div><div class="flex items-center gap-space-md font-label-regular text-label-regular"><a class="hover:text-on-surface transition-colors" href="#">Tài liệu Hướng dẫn</a><a class="hover:text-on-surface transition-colors" href="#">Bảo mật &amp; Quyền riêng tư</a><a class="hover:text-on-surface transition-colors" href="#">Trạng thái hệ thống</a></div></div></footer></body></html>

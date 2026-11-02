@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { DriveFile, Task, Note, DriveServiceAccountConfig, DocumentCategory } from '../types/index.js';
 import { TagSearchInput } from './TagSearchInput.js';
+import { PdfCanvasViewer } from './PdfCanvasViewer.js';
 import { api } from '../services/api.js';
 import { useFileStore } from '../stores/useFileStore.js';
 import { useTaskStore } from '../stores/useTaskStore.js';
@@ -54,6 +55,12 @@ import {
   Check,
   ArrowUpRight,
   Maximize2,
+  Bot,
+  FileSearch,
+  Copy,
+  BookOpen,
+  Table,
+  Lightbulb,
   Folder,
   Settings,
   FolderLock,
@@ -66,7 +73,6 @@ import {
   FolderKanban,
   Globe,
   Key,
-  Copy,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -214,10 +220,40 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // In-App Document Preview Modal
+  // In-App Document Preview Modal & Multi-Mode Viewer
   const [previewFile, setPreviewFile] = useState<DriveFile | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewTab, setPreviewTab] = useState<'content' | 'drive' | 'ai'>('content');
+  const [previewData, setPreviewData] = useState<{
+    id: string;
+    name: string;
+    category: string;
+    classification?: string;
+    mimeType?: string;
+    size?: number;
+    isSyncedToDrive: boolean;
+    driveFileId?: string;
+    webViewLink?: string;
+    drivePreviewEmbedUrl?: string;
+    downloadUrl?: string;
+    rawUrl?: string;
+    previewType: 'docx' | 'pdf' | 'image' | 'spreadsheet' | 'text' | 'binary';
+    htmlContent?: string;
+    textContent?: string;
+    notes?: string;
+    tags?: string[];
+  } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    summary: string;
+    keyPoints: string[];
+    actionItems: string[];
+    suggestedTags: string[];
+    recommendations: string;
+  } | null>(null);
+  const [isLoadingAiAnalysis, setIsLoadingAiAnalysis] = useState(false);
+  const [isApplyingAiNotes, setIsApplyingAiNotes] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
 
   // Custom Google Drive Link Modal
   const [editingUrlFile, setEditingUrlFile] = useState<DriveFile | null>(null);
@@ -237,6 +273,17 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const [openCategoryPopoverFileId, setOpenCategoryPopoverFileId] = useState<string | null>(null);
 
   const [popoverNewCatInput, setPopoverNewCatInput] = useState('');
+
+  // Identify all files currently stored locally and not yet synced to Google Drive
+  const localFiles = useMemo(() => {
+    return files.filter(f => !f.driveFileId || !f.isSyncedToDrive || f.syncStatus === 'local_only' || f.syncStatus === 'sync_error' || f.storageType === 'disk' || f.storageType === 'firestore_vault');
+  }, [files]);
+
+  // Sync & Purge Local Modal State
+  const [isSyncPurgeModalOpen, setIsSyncPurgeModalOpen] = useState(false);
+  const [purgeLocalCopyAfterUpload, setPurgeLocalCopyAfterUpload] = useState(true);
+  const [deleteLocalRecordAfterUpload, setDeleteLocalRecordAfterUpload] = useState(false);
+  const [isSyncingAndPurging, setIsSyncingAndPurging] = useState(false);
 
   // Category Deletion Confirmation & Warning State
   const [categoryToDelete, setCategoryToDelete] = useState<{ category: DocumentCategory; fileCount: number } | null>(null);
@@ -338,30 +385,83 @@ export const FilesView: React.FC<FilesViewProps> = ({
     }
   };
 
-  // Fetch preview content when preview modal opens
+  // Fetch structured preview data and extracted content when preview modal opens
   useEffect(() => {
     if (!previewFile) {
       setPreviewContent(null);
+      setPreviewData(null);
+      setAiAnalysis(null);
+      setPreviewTab('content');
+      setCopiedText(false);
       return;
     }
 
-    if (previewFile.textContent) {
-      setPreviewContent(previewFile.textContent);
-      return;
-    }
-
-    // Try fetching preview from backend
     setIsLoadingPreview(true);
     fetch(`/api/files/preview/${previewFile.id}`)
       .then(res => res.json())
       .then(data => {
-        if (data.textContent) {
+        setPreviewData(data);
+        if (data.htmlContent) {
+          setPreviewContent(data.htmlContent);
+        } else if (data.textContent) {
           setPreviewContent(data.textContent);
+        } else if (previewFile.textContent) {
+          setPreviewContent(previewFile.textContent);
+        } else {
+          setPreviewContent(null);
         }
       })
-      .catch(() => {})
+      .catch(err => {
+        console.warn('Preview fetch warning:', err);
+        if (previewFile.textContent) {
+          setPreviewContent(previewFile.textContent);
+        }
+      })
       .finally(() => setIsLoadingPreview(false));
   }, [previewFile]);
+
+  // Handle AI Document Intelligence generation
+  const handleGenerateAiAnalysis = async (fileId: string) => {
+    setIsLoadingAiAnalysis(true);
+    try {
+      const res = await fetch(`/api/files/ai-summary/${fileId}`, { method: 'POST' });
+      const data = await res.json();
+      if (data?.analysis) {
+        setAiAnalysis(data.analysis);
+      }
+    } catch (e: any) {
+      console.warn('AI summary error:', e);
+    } finally {
+      setIsLoadingAiAnalysis(false);
+    }
+  };
+
+  // Handle Applying AI Summary to Document Note & Tags
+  const handleApplyAiSummaryToNote = async () => {
+    if (!previewFile || !aiAnalysis) return;
+    setIsApplyingAiNotes(true);
+    try {
+      const mergedNote = `${aiAnalysis.summary}\n\n📌 Ý chính:\n- ${aiAnalysis.keyPoints.join('\n- ')}\n\n💡 Đề xuất AI:\n${aiAnalysis.recommendations}`;
+      const mergedTags = Array.from(new Set([...(previewFile.tags || []), ...(aiAnalysis.suggestedTags || [])]));
+
+      const updated: DriveFile = {
+        ...previewFile,
+        notes: mergedNote,
+        tags: mergedTags,
+      };
+
+      if (onFileUpdate) {
+        onFileUpdate(previewFile.id, updated);
+      }
+      setPreviewFile(updated);
+      setSyncStatusMsg('✅ Đã lưu tóm tắt và thẻ phân tích của AI vào Chú thích tài liệu!');
+      setTimeout(() => setSyncStatusMsg(null), 3500);
+    } catch (e) {
+      console.warn('Error applying AI note:', e);
+    } finally {
+      setIsApplyingAiNotes(false);
+    }
+  };
 
   // Handle Google Workspace 1-Click Sign-in
   const handleGoogleSignInClick = async () => {
@@ -545,6 +645,18 @@ export const FilesView: React.FC<FilesViewProps> = ({
       return;
     }
 
+    const currentToken = getGoogleAccessToken();
+    if (!googleUser || !currentToken) {
+      setAuthError('⚠️ Bắt buộc phải đăng nhập tài khoản Google trước khi đồng bộ lên Google Drive (Chặn đồng bộ ảo).');
+      setAdminLoginPrompt({
+        isOpen: true,
+        isSyncAll: true,
+        notice: 'Để đồng bộ tệp lên Google Drive cá nhân, bạn bắt buộc phải đăng nhập bằng Tài khoản Google của bạn (tránh đồng bộ ảo).',
+      });
+      handleGoogleSignInClick();
+      return;
+    }
+
     setAuthError(null);
     setDriveSyncProgress({
       fileName: localFiles[0].name,
@@ -554,9 +666,9 @@ export const FilesView: React.FC<FilesViewProps> = ({
       statusText: `Bắt đầu đồng bộ 1/${localFiles.length}...`,
       active: true,
     });
-    setSyncStatusMsg(`Bắt đầu đồng bộ ${localFiles.length} tệp lên Google Drive của Admin...`);
+    setSyncStatusMsg(`Bắt đầu đồng bộ ${localFiles.length} tệp lên Google Drive của bạn...`);
     let driveSuccessCount = 0;
-    let vaultOnlyCount = 0;
+    let failedCount = 0;
     const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
 
     for (let i = 0; i < localFiles.length; i++) {
@@ -586,19 +698,13 @@ export const FilesView: React.FC<FilesViewProps> = ({
             });
           }
         } else {
-          vaultOnlyCount++;
-          if (onFileUpdate && uploaded.file) {
-            onFileUpdate(f.id, {
-              ...uploaded.file,
-              isSyncedToDrive: false,
-              syncStatus: 'local_only',
-            });
-          }
+          failedCount++;
         }
         const nextPercent = Math.round(((i + 1) / localFiles.length) * 100);
         setDriveSyncProgress(prev => prev ? { ...prev, percent: nextPercent, statusText: `Đã xử lý (${i + 1}/${localFiles.length}): ${f.name}` } : null);
       } catch (err: any) {
         console.error(`Error syncing file ${f.name}:`, err);
+        failedCount++;
         setAuthError(`Lỗi khi tải tệp "${f.name}": ${err?.message || 'Lỗi xác thực'}`);
       }
     }
@@ -613,15 +719,16 @@ export const FilesView: React.FC<FilesViewProps> = ({
         statusText: `Đã đồng bộ lên Google Drive ${driveSuccessCount}/${localFiles.length} tệp!`,
         active: false,
       });
-      setSyncStatusMsg(`✅ Đã đồng bộ thành công ${driveSuccessCount}/${localFiles.length} tệp lên Google Drive của Admin! ${vaultOnlyCount > 0 ? `(${vaultOnlyCount} tệp lưu trong Cloud Vault)` : ''}`);
-    } else if (vaultOnlyCount > 0) {
+      setSyncStatusMsg(`✅ Đã đồng bộ thành công ${driveSuccessCount}/${localFiles.length} tệp lên Google Drive!${failedCount > 0 ? ` (${failedCount} tệp thất bại)` : ''}`);
+    } else {
       setDriveSyncProgress(null);
+      setSyncStatusMsg(null);
+      setAuthError('❌ Không có tệp nào được tải lên Google Drive. Bắt buộc đăng nhập tài khoản Google để đồng bộ thực tế.');
       setAdminLoginPrompt({
         isOpen: true,
         isSyncAll: true,
-        notice: `Đã lưu trữ an toàn ${vaultOnlyCount} tệp trong Cloud Vault. Để tải trực tiếp lên Google Drive cá nhân, Google yêu cầu đăng nhập bằng Tài khoản Google của Admin (Chủ sở hữu thư mục).`,
+        notice: 'Để đồng bộ tệp trực tiếp lên Google Drive, hệ thống yêu cầu đăng nhập bằng Tài khoản Google của bạn (tránh đồng bộ ảo).',
       });
-      setAuthError(`⚠️ Yêu cầu đăng nhập Tài khoản Google của Admin để tải ${vaultOnlyCount} tệp lên Google Drive cá nhân. Tệp đã lưu an toàn trong Cloud Vault.`);
     }
 
     setTimeout(() => {
@@ -630,27 +737,144 @@ export const FilesView: React.FC<FilesViewProps> = ({
     }, 6000);
   };
 
-  // 1-Click Sync ALL Local Files to Personal Google Drive entry point
-  const handleSyncAllLocalFilesToUserDrive = async () => {
-    const localFiles = files.filter(f => !f.isSyncedToDrive && f.syncStatus !== 'synced');
+  // Open Sync & Purge modal or notify if all files are already synced
+  const handleOpenSyncPurgeModal = () => {
     if (localFiles.length === 0) {
-      setSyncStatusMsg('Tất cả các tệp hiện tại đã được đồng bộ trên Google Drive!');
-      setTimeout(() => setSyncStatusMsg(null), 3000);
+      setSyncStatusMsg('✅ Tất cả tệp hiện tại đã được đồng bộ an toàn trên Google Drive!');
+      setTimeout(() => setSyncStatusMsg(null), 4000);
+      return;
+    }
+    setIsSyncPurgeModalOpen(true);
+  };
+
+  // Execute Batch Sync to Google Drive and Purge local originals
+  const handleExecuteSyncAndPurgeLocal = async () => {
+    if (localFiles.length === 0) return;
+
+    // MANDATORY GOOGLE LOGIN CHECK
+    const currentToken = getGoogleAccessToken();
+    if (!googleUser || !currentToken) {
+      setAuthError('⚠️ Bắt buộc phải đăng nhập tài khoản Google trước khi đồng bộ lên Google Drive (Chặn đồng bộ ảo).');
+      handleGoogleSignInClick();
       return;
     }
 
-    const currentToken = getGoogleAccessToken();
-    // If Admin account is not logged in, prompt user clearly before attempting
-    if (!googleUser && !currentToken) {
+    setIsSyncingAndPurging(true);
+    setAuthError(null);
+    setDriveSyncProgress({
+      fileName: localFiles[0].name,
+      current: 1,
+      total: localFiles.length,
+      percent: 5,
+      statusText: `Bắt đầu đồng bộ 1/${localFiles.length}...`,
+      active: true,
+    });
+    setSyncStatusMsg(`Đang đẩy ${localFiles.length} tệp lên Google Drive & xóa tệp gốc local...`);
+
+    let driveSuccessCount = 0;
+    let failedCount = 0;
+    const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
+
+    for (let i = 0; i < localFiles.length; i++) {
+      const f = localFiles[i];
+      const currentPercent = Math.round((i / localFiles.length) * 100);
+      setSyncingDriveFileId(f.id);
+      setDriveSyncProgress({
+        fileName: f.name,
+        current: i + 1,
+        total: localFiles.length,
+        percent: Math.max(5, currentPercent),
+        statusText: `Đang tải (${i + 1}/${localFiles.length}): ${f.name}...`,
+        active: true,
+      });
+
+      try {
+        const uploaded = await uploadLocalFileToUserGoogleDrive(
+          f.id,
+          targetFolderId,
+          f.base64Data || (f as any).thumbnailUrl,
+          purgeLocalCopyAfterUpload,
+          deleteLocalRecordAfterUpload
+        );
+
+        if (uploaded.driveFileId) {
+          driveSuccessCount++;
+          if (deleteLocalRecordAfterUpload) {
+            if (onFileDelete) onFileDelete(f.id);
+          } else if (onFileUpdate) {
+            onFileUpdate(f.id, {
+              ...(uploaded.file || f),
+              isSyncedToDrive: true,
+              driveFileId: uploaded.driveFileId,
+              webViewLink: uploaded.webViewLink || `https://drive.google.com/file/d/${uploaded.driveFileId}/view`,
+              syncStatus: 'synced',
+              storageType: 'drive',
+              hasBinary: false,
+              base64Data: undefined,
+              textContent: undefined,
+              downloadUrl: `/api/drive-service-account/download/${uploaded.driveFileId}`,
+              previewUrl: uploaded.webViewLink || `https://drive.google.com/file/d/${uploaded.driveFileId}/view`,
+            });
+          }
+        } else {
+          failedCount++;
+        }
+
+        const nextPercent = Math.round(((i + 1) / localFiles.length) * 100);
+        setDriveSyncProgress(prev =>
+          prev
+            ? {
+                ...prev,
+                percent: nextPercent,
+                statusText: `Đã xử lý (${i + 1}/${localFiles.length}): ${f.name}`,
+              }
+            : null
+        );
+      } catch (err: any) {
+        console.error(`Error syncing file ${f.name}:`, err);
+        failedCount++;
+        setAuthError(`Lỗi khi tải tệp "${f.name}": ${err?.message || 'Lỗi xác thực'}`);
+      }
+    }
+
+    setSyncingDriveFileId(null);
+    setIsSyncingAndPurging(false);
+    setIsSyncPurgeModalOpen(false);
+
+    if (driveSuccessCount > 0) {
+      setDriveSyncProgress({
+        fileName: `${driveSuccessCount} tệp`,
+        current: driveSuccessCount,
+        total: localFiles.length,
+        percent: 100,
+        statusText: `Đã đồng bộ lên Google Drive ${driveSuccessCount}/${localFiles.length} tệp!`,
+        active: false,
+      });
+      setSyncStatusMsg(
+        `✅ Đã đồng bộ thành công ${driveSuccessCount}/${localFiles.length} tệp lên Google Drive${
+          purgeLocalCopyAfterUpload ? ' và giải phóng tệp gốc lưu trên local' : ''
+        }!${failedCount > 0 ? ` (${failedCount} tệp gặp lỗi)` : ''}`
+      );
+    } else {
+      setDriveSyncProgress(null);
+      setSyncStatusMsg(null);
+      setAuthError('❌ Không có tệp nào được tải lên Google Drive. Bắt buộc đăng nhập tài khoản Google để thực hiện.');
       setAdminLoginPrompt({
         isOpen: true,
         isSyncAll: true,
-        notice: `Có ${localFiles.length} tệp sẵn sàng đồng bộ. Để tải lên thư mục Google Drive, hệ thống yêu cầu đăng nhập bằng Tài khoản Google của Admin (Chủ sở hữu thư mục Drive).`,
+        notice: 'Để đồng bộ tệp lên Google Drive cá nhân, bạn bắt buộc phải đăng nhập bằng Tài khoản Google của bạn (tránh đồng bộ ảo).',
       });
-      return;
     }
 
-    await executeSyncAllLocalFiles();
+    setTimeout(() => {
+      setSyncStatusMsg(null);
+      setDriveSyncProgress(null);
+    }, 6000);
+  };
+
+  // 1-Click Sync ALL Local Files to Personal Google Drive entry point (alias)
+  const handleSyncAllLocalFilesToUserDrive = async () => {
+    handleOpenSyncPurgeModal();
   };
 
   // Unified handler to sync all pre-existing files directly from Google Drive
@@ -1211,18 +1435,24 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
           {/* Google Drive Status (Prioritize Service Account Auto-Connected) */}
           {saConfig?.isConnected ? (
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-emerald-950/70 border border-emerald-600/80 text-[11px] font-mono text-emerald-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="font-bold">Drive:</span>
-                <span className="text-white font-semibold truncate max-w-[160px]" title={saConfig.folderName || 'Thư mục Drive'}>
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border text-[11px] font-mono shadow-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-[#064E3B] dark:border-[#059669] dark:text-white"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="font-bold text-emerald-700 dark:text-[#6EE7B7]">Drive:</span>
+                <span className="font-semibold truncate max-w-[160px] text-emerald-900 dark:text-white" title={saConfig.folderName || 'Thư mục Drive'}>
                   {saConfig.folderName || 'AI Assistant Documents'}
                 </span>
-                <span className="text-[10px] bg-emerald-900/80 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/40">Tự động</span>
+                <span
+                  className="text-[10px] px-1.5 py-0.2 rounded border font-bold bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-[#022C22] dark:text-[#6EE7B7] dark:border-[#059669]"
+                >
+                  Tự động
+                </span>
               </div>
               <button
                 onClick={handleUnifiedSyncDriveFiles}
                 disabled={isSyncingSa}
-                className="px-3 py-1.5 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] hover:text-white border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                className="px-3 py-1.5 rounded-sm bg-white hover:bg-slate-50 text-blue-600 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-[#D4AF37] dark:hover:text-white dark:border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
                 title="Làm mới kết nối và kiểm tra lại thư mục Google Drive"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSa ? 'animate-spin' : ''}`} />
@@ -1230,14 +1460,16 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
               </button>
             </div>
           ) : googleUser ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm bg-emerald-950/60 border border-emerald-700/80 text-[11px] font-mono text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="truncate max-w-[140px]" title={googleUser.email || ''}>
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border text-[11px] font-mono shadow-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-[#064E3B] dark:border-[#059669] dark:text-white"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="truncate max-w-[140px] font-semibold text-emerald-900 dark:text-white" title={googleUser.email || ''}>
                 {googleUser.email}
               </span>
               <button
                 onClick={handleGoogleSignOutClick}
-                className="text-[10px] text-emerald-200/60 hover:text-white underline cursor-pointer ml-1"
+                className="text-[10px] underline cursor-pointer ml-1 font-bold text-emerald-700 dark:text-[#6EE7B7]"
                 title="Đăng xuất tài khoản Google"
               >
                 Thoát
@@ -1247,7 +1479,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             <button
               onClick={handleGoogleSignInClick}
               disabled={isLoggingInGoogle}
-              className="px-3 py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-white border border-[#3A3A3A] hover:border-[#D4AF37] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+              className="px-3 py-2 rounded-sm bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-white dark:border-[#3A3A3A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
               title="Đăng nhập Google Account để đồng bộ 1-Click sang Drive"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
@@ -1263,7 +1495,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
           {/* Quick Category Manager Button */}
           <button
             onClick={() => setIsManagingCategories(true)}
-            className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+            className="px-3 py-2 rounded-sm bg-white hover:bg-slate-50 text-blue-600 border border-slate-300 dark:bg-[#0C0C0C] dark:hover:bg-[#1A1A1A] dark:text-[#D4AF37] dark:border-[#D4AF37]/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
             title="Tùy chỉnh, thêm mới hoặc sửa các nhóm phân loại tài liệu"
           >
             <Layers className="w-3.5 h-3.5" />
@@ -1274,25 +1506,38 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
           <button
             onClick={handleUnifiedSyncDriveFiles}
             disabled={isSyncing || isSyncingSa}
-            className="px-3 py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/60 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+            className="px-3 py-2 rounded-sm bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-[#D4AF37] dark:border-[#D4AF37]/60 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
             title="Nạp và hiển thị toàn bộ các tệp có sẵn trên Google Drive về ứng dụng"
           >
-            <FolderSync className={`w-3.5 h-3.5 text-[#D4AF37] ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
+            <FolderSync className={`w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37] ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
             <span>{isSyncing || isSyncingSa ? 'Đang nạp...' : 'Nạp Tệp Từ Drive'}</span>
           </button>
 
-          {/* Prominent Sync ALL Local Files to Personal Google Drive Button */}
-          {files.some(f => !f.isSyncedToDrive && f.syncStatus !== 'synced') && (
-            <button
-              onClick={handleSyncAllLocalFilesToUserDrive}
-              disabled={!!syncingDriveFileId}
-              className="px-3.5 py-2 rounded-sm bg-gradient-to-r from-emerald-950 to-[#1A1A1A] hover:from-emerald-900 hover:to-[#252525] text-emerald-400 border border-emerald-600/80 hover:border-emerald-400 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
-              title="Đẩy tất cả các tệp đang lưu cục bộ lên Google Drive cá nhân của bạn"
-            >
-              <Cloud className={`w-4 h-4 text-emerald-400 ${syncingDriveFileId ? 'animate-bounce' : ''}`} />
-              <span>{syncingDriveFileId ? 'Đang Đẩy Lên Drive...' : 'Đồng Bộ File Cục Bộ Lên Drive'}</span>
-            </button>
-          )}
+          {/* Dedicated Button to Sync ALL Local Files to Drive & Purge Local Originals */}
+          <button
+            onClick={handleOpenSyncPurgeModal}
+            disabled={isSyncingAndPurging || !!syncingDriveFileId}
+            className={`px-3.5 py-2 rounded-sm text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50 ${
+              localFiles.length > 0
+                ? 'bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 dark:bg-gradient-to-r dark:from-amber-950 dark:via-[#261B09] dark:to-[#161616] dark:text-[#FEF08A] dark:border-amber-500'
+                : 'bg-slate-100 text-slate-500 border border-slate-200 dark:bg-[#121212] dark:hover:bg-[#1A1A1A] dark:text-zinc-400 dark:border-zinc-800'
+            }`}
+            title="Đồng bộ tất cả các tệp hiện lưu local nhưng chưa có trên Google Drive và xóa tệp gốc trên local để giải phóng bộ nhớ"
+          >
+            <UploadCloud
+              className={`w-4 h-4 shrink-0 text-white dark:text-[#FEF08A] ${isSyncingAndPurging ? 'animate-bounce' : ''}`}
+            />
+            <span className="text-white dark:text-[#FEF08A]">
+              {isSyncingAndPurging ? 'Đang Đẩy Lên Drive...' : 'Đẩy Lên Drive & Xóa Local'}
+            </span>
+            {localFiles.length > 0 && (
+              <span
+                className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-amber-600 text-white border border-amber-400 dark:bg-amber-950/60 dark:text-[#FEF08A] dark:border-amber-500"
+              >
+                {localFiles.length}
+              </span>
+            )}
+          </button>
 
           {/* Quick External Link to Google Drive folder */}
           {saConfig?.folderId && (
@@ -1386,13 +1631,13 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             onClick={() => setSelectedClassification('all')}
             className={`px-3 py-2 rounded-sm text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 shadow-xs ${
               selectedClassification === 'all'
-                ? 'bg-[#D4AF37] text-black font-extrabold ring-1 ring-[#D4AF37]'
-                : 'bg-[#0C0C0C] text-[#AAAAAA] border border-[#2A2A2A] hover:text-white hover:border-[#3A3A3A]'
+                ? 'bg-blue-600 text-white dark:bg-[#D4AF37] dark:text-black font-extrabold ring-1 ring-blue-500 dark:ring-[#D4AF37]'
+                : 'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-[#0C0C0C] dark:text-[#AAAAAA] dark:border-[#2A2A2A] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Tất Cả</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${selectedClassification === 'all' ? 'bg-black/20 text-black font-bold' : 'bg-[#1A1A1A] text-[#888888]'}`}>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${selectedClassification === 'all' ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black font-bold' : 'bg-slate-200 dark:bg-[#1A1A1A] text-slate-600 dark:text-[#888888]'}`}>
               {files.length}
             </span>
           </button>
@@ -1410,14 +1655,14 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                 className={`px-3 py-2 rounded-sm text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 shadow-xs border ${
                   isSelected
                     ? `${colorCfg.activeBg} ${colorCfg.activeText} border-transparent ring-2 ring-white/20`
-                    : `bg-[#0C0C0C] ${colorCfg.text} ${colorCfg.border} hover:bg-[#1A1A1A]`
+                    : `bg-white dark:bg-[#0C0C0C] ${colorCfg.text} ${colorCfg.border} hover:bg-slate-50 dark:hover:bg-[#1A1A1A]`
                 }`}
               >
                 {renderCategoryIcon(cat.icon, 'w-3.5 h-3.5')}
                 <span>{cat.name}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
-                    isSelected ? 'bg-black/20 text-black' : 'bg-[#151515] text-[#AAAAAA]'
+                    isSelected ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black' : 'bg-slate-100 dark:bg-[#151515] text-slate-600 dark:text-[#AAAAAA]'
                   }`}
                 >
                   {count}
@@ -1993,25 +2238,27 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                       </button>
                     )}
 
-                    {isSynced && file.webViewLink ? (
+                    {/* Preview Button (Always available for both Local and Drive files) */}
+                    <button
+                      onClick={() => setPreviewFile(file)}
+                      className="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 dark:bg-[#0C0C0C] dark:text-[#E0E0E0] dark:border-[#2A2A2A] dark:hover:bg-[#D4AF37] dark:hover:text-black text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Xem trước nội dung văn bản và phân tích AI"
+                    >
+                      <Eye className="w-2.5 h-2.5 text-blue-600 dark:text-[#D4AF37]" />
+                      <span>Xem Trước</span>
+                    </button>
+
+                    {isSynced && file.webViewLink && (
                       <a
                         href={file.webViewLink}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-2 py-1 rounded-sm bg-emerald-950/40 text-emerald-400 border border-emerald-800/80 hover:bg-emerald-600 hover:text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors"
+                        className="px-2 py-1 rounded-sm bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/80 dark:hover:bg-emerald-600 dark:hover:text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors"
                         title="Mở tệp trực tiếp trong Google Drive"
                       >
                         <span>Mở Drive</span>
                         <ExternalLink className="w-2.5 h-2.5" />
                       </a>
-                    ) : (
-                      <button
-                        onClick={() => setPreviewFile(file)}
-                        className="px-2 py-1 rounded-sm bg-[#0C0C0C] text-[#E0E0E0] border border-[#2A2A2A] hover:bg-[#D4AF37] hover:text-black text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
-                      >
-                        <span>Xem Trước</span>
-                        <Eye className="w-2.5 h-2.5" />
-                      </button>
                     )}
                   </div>
                 </div>
@@ -2125,36 +2372,527 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
       )}
 
       {/* ============================================================== */}
-      {/* 7. ENHANCED IN-APP DOCUMENT PREVIEW & CLASSIFICATION MODAL */}
+      {/* 7. COMPREHENSIVE IN-APP DOCUMENT PREVIEW & AI SPECIALIST MODAL */}
       {/* ============================================================== */}
       {previewFile && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-[#151515] border border-[#2A2A2A] w-full max-w-2xl max-h-[90vh] flex flex-col rounded-sm shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#2A2A2A] p-4 bg-[#111111]">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded bg-[#0C0C0C] border border-[#2A2A2A] shrink-0">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#151515] border border-slate-300 dark:border-[#2A2A2A] w-full max-w-4xl max-h-[92vh] flex flex-col rounded-sm shadow-2xl overflow-hidden text-slate-800 dark:text-zinc-100">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2A2A2A] p-4 bg-slate-50 dark:bg-[#111111]">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2.5 rounded bg-slate-100 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] shrink-0 text-amber-600 dark:text-[#D4AF37]">
                   {getFileFormatIcon(previewFile.category)}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-editorial-serif font-bold text-white text-sm truncate max-w-md">{previewFile.name}</h3>
-                  <span className="text-[10px] font-mono text-[#888888] block">{previewFile.mimeType} • {(previewFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-editorial-serif font-bold text-slate-900 dark:text-white text-base truncate max-w-md sm:max-w-lg">
+                      {previewFile.name}
+                    </h3>
+                    {previewFile.isSyncedToDrive && previewFile.webViewLink ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 shrink-0">
+                        🟢 Google Drive
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 shrink-0">
+                        🟡 Local Vault
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-[#888888] block">
+                    {previewFile.mimeType} • {(previewFile.size / (1024 * 1024)).toFixed(2)} MB • {resolveCategory(previewFile.classification, categories).name}
+                  </span>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setPreviewFile(null)}
-                className="p-1 text-[#888888] hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-[#888888] dark:hover:text-white transition-colors cursor-pointer rounded hover:bg-slate-200 dark:hover:bg-[#202020]"
+                title="Đóng xem trước"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Body Preview */}
-            <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
-              {/* Interactive Classification & Metadata Toolbar */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0C0C0C] p-3 rounded-sm border border-[#2A2A2A]">
+            {/* Navigation Tabs */}
+            <div className="flex items-center border-b border-slate-200 dark:border-[#2A2A2A] bg-slate-100/70 dark:bg-[#0E0E0E] px-4 gap-2 text-xs font-bold uppercase tracking-wider overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setPreviewTab('content')}
+                className={`py-3 px-3.5 border-b-2 flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap ${
+                  previewTab === 'content'
+                    ? 'border-blue-600 text-blue-600 dark:border-[#D4AF37] dark:text-[#D4AF37] bg-white dark:bg-[#151515]'
+                    : 'border-transparent text-slate-600 dark:text-[#888888] hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Xem Nội Dung In-App</span>
+                {previewData?.previewType && (
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-[#262626] font-mono">
+                    {previewData.previewType.toUpperCase()}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPreviewTab('drive')}
+                className={`py-3 px-3.5 border-b-2 flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap ${
+                  previewTab === 'drive'
+                    ? 'border-blue-600 text-blue-600 dark:border-[#D4AF37] dark:text-[#D4AF37] bg-white dark:bg-[#151515]'
+                    : 'border-transparent text-slate-600 dark:text-[#888888] hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Cloud className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Google Drive Cloud Hub</span>
+                {previewFile.isSyncedToDrive && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewTab('ai');
+                  if (!aiAnalysis && !isLoadingAiAnalysis) {
+                    handleGenerateAiAnalysis(previewFile.id);
+                  }
+                }}
+                className={`py-3 px-3.5 border-b-2 flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap ${
+                  previewTab === 'ai'
+                    ? 'border-blue-600 text-blue-600 dark:border-[#D4AF37] dark:text-[#D4AF37] bg-white dark:bg-[#151515]'
+                    : 'border-transparent text-slate-600 dark:text-[#888888] hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-amber-500 dark:text-[#D4AF37]" />
+                <span>AI Specialist (Tóm Tắt &amp; Phân Tích)</span>
+                {aiAnalysis && (
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-mono">
+                    SẴN SÀNG
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* TAB 1: IN-APP DOCUMENT VIEWER */}
+              {previewTab === 'content' && (
+                <div className="space-y-3">
+                  {/* Action row above document */}
+                  <div className="flex items-center justify-between text-xs pb-1">
+                    <span className="font-bold text-slate-700 dark:text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Trình Hiển Thị Tài Liệu Độc Quyền (Local Vault &amp; Cloud Storage)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {previewContent && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(previewContent || '');
+                            setCopiedText(true);
+                            setTimeout(() => setCopiedText(false), 2000);
+                          }}
+                          className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-[#CCCCCC] dark:border-[#333333] font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          {copiedText ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span>Đã sao chép</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>Sao chép chữ</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <a
+                        href={previewData?.rawUrl || `/api/files/raw/${previewFile.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-[#CCCCCC] dark:border-[#333333] font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Mở toàn màn hình trong tab mới"
+                      >
+                        <Maximize2 className="w-3 h-3" />
+                        <span>Mở Tab Mới</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Document Container */}
+                  <div className="bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] rounded-sm p-4 min-h-[300px] max-h-[520px] overflow-y-auto">
+                    {isLoadingPreview ? (
+                      <div className="py-20 text-center text-slate-500 dark:text-[#888888] space-y-3">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-600 dark:text-[#D4AF37]" />
+                        <p className="text-xs font-medium">Đang trích xuất và hiển thị nội dung tài liệu...</p>
+                      </div>
+                    ) : previewData?.previewType === 'docx' && previewData?.htmlContent ? (
+                      /* WORD DOCX RENDERER (Mammoth HTML Conversion) */
+                      <div className="space-y-3">
+                        <div className="p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded text-[11px] text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-blue-600" />
+                          <span>Đã chuyển đổi cấu trúc Word (.docx) sang giao diện tương thích trực tiếp.</span>
+                        </div>
+                        <div
+                          className="prose dark:prose-invert max-w-none text-slate-800 dark:text-zinc-100 p-5 bg-white dark:bg-[#121212] rounded border border-slate-200 dark:border-[#222222] shadow-xs leading-relaxed text-sm [&_p]:mb-3 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:text-slate-900 dark:[&_h1]:text-white [&_h1]:border-b [&_h1]:pb-1 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-slate-900 dark:[&_h2]:text-white [&_table]:border-collapse [&_table]:w-full [&_table]:my-3 [&_td]:border [&_td]:border-slate-300 dark:[&_td]:border-[#333333] [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 dark:[&_th]:border-[#333333] [&_th]:p-2 [&_th]:bg-slate-100 dark:[&_th]:bg-[#1A1A1A] [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                          dangerouslySetInnerHTML={{ __html: previewData.htmlContent }}
+                        />
+                      </div>
+                    ) : previewData?.previewType === 'pdf' ? (
+                      /* PDF NATIVE VIEWER (Zero-iframe HTML5 Canvas powered by pdfjs-dist) */
+                      <div className="w-full">
+                        <PdfCanvasViewer
+                          url={previewData?.rawUrl || `/api/files/raw/${previewFile.id}`}
+                          fileName={previewFile.name}
+                          textContent={previewData?.textContent || previewFile.textContent}
+                          onDownload={() => {
+                            window.open(previewFile.downloadUrl || `/api/files/download/${previewFile.id}`, '_blank');
+                          }}
+                        />
+                      </div>
+                    ) : previewData?.previewType === 'image' ? (
+                      /* IMAGE VIEWER */
+                      <div className="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-[#141414] rounded border border-slate-200 dark:border-[#222222]">
+                        <img
+                          src={`/api/files/raw/${previewFile.id}`}
+                          alt={previewFile.name}
+                          className="max-h-[440px] max-w-full object-contain rounded shadow-md"
+                        />
+                        <p className="mt-3 text-[11px] font-mono text-slate-500 dark:text-[#888888]">
+                          {previewFile.name} (Định dạng ảnh gốc)
+                        </p>
+                      </div>
+                    ) : previewContent ? (
+                      /* TEXT / CODE / SPREADSHEET VIEWER */
+                      <pre className="font-mono text-xs text-slate-800 dark:text-[#D0D0D0] whitespace-pre-wrap leading-relaxed bg-white dark:bg-[#111111] p-4 rounded border border-slate-200 dark:border-[#222222] shadow-xs">
+                        {previewContent}
+                      </pre>
+                    ) : (
+                      /* EMPTY / BINARY FALLBACK */
+                      <div className="py-12 text-center text-slate-500 dark:text-[#888888] space-y-2.5">
+                        <FileCheck className="w-10 h-10 mx-auto text-amber-500 dark:text-[#D4AF37]/60" />
+                        <p className="text-sm text-slate-800 dark:text-white font-medium">{previewFile.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-[#777777] max-w-md mx-auto leading-relaxed">
+                          Tệp nhị phân đã được lưu trữ an toàn trong Multi-Tier Storage (Disk &amp; Cloud Vault). Bạn có thể mở qua tab Google Drive Cloud Hub hoặc Tải Về Máy.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: GOOGLE DRIVE CLOUD HUB */}
+              {previewTab === 'drive' && (
+                <div className="space-y-4">
+                  {previewFile.isSyncedToDrive && (previewFile.driveFileId || previewFile.webViewLink) ? (
+                    <div className="space-y-4">
+                      {/* Cloud Sync Status Header */}
+                      <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800/60 rounded flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-300 font-bold text-sm">
+                            <Cloud className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Tài Liệu Đã Lưu Trữ An Toàn Trên Google Drive Cloud</span>
+                          </div>
+                          <p className="text-xs text-emerald-700 dark:text-emerald-400/90">
+                            Thư mục đích: <strong className="font-semibold">AI Assistant Documents</strong> • Hệ thống lưu trữ đồng bộ đám mây
+                          </p>
+                        </div>
+                        <span className="px-2.5 py-1 rounded bg-emerald-600 text-white dark:bg-emerald-700 text-[11px] font-bold uppercase tracking-wider shrink-0 flex items-center gap-1.5 shadow-xs">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Đã Đồng Bộ</span>
+                        </span>
+                      </div>
+
+                      {/* Zero-iframe Sandbox Architecture Notice */}
+                      <div className="p-3.5 bg-blue-50 dark:bg-[#161B22] border border-blue-200 dark:border-blue-900/50 rounded text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2.5">
+                        <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <p className="font-bold text-slate-900 dark:text-white">
+                            Chế Độ Trực Tiếp (Bảo Vệ Khỏi Lỗi Chặn Iframe Của Trình Duyệt):
+                          </p>
+                          <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                            Để bảo mật danh tính người dùng và ngăn chặn tấn công giả mạo, Google Drive từ chối hiển thị trong khung iframe lồng nhau. Hãy mở tài liệu trực tiếp trên tab riêng của Google Drive để trải nghiệm toàn bộ công cụ: đọc phân trang, bình luận, in ấn và chia sẻ quyền truy cập.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Executive Action Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {/* Primary Action Card */}
+                        <a
+                          href={previewFile.webViewLink || (previewFile.driveFileId ? `https://drive.google.com/file/d/${previewFile.driveFileId}/view` : '#')}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-5 rounded border border-emerald-500/50 hover:border-emerald-500 bg-gradient-to-br from-emerald-500/10 to-teal-500/5 dark:from-emerald-950/40 dark:to-teal-950/20 hover:shadow-lg transition-all flex flex-col justify-between group cursor-pointer"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="w-9 h-9 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md">
+                                <ExternalLink className="w-5 h-5" />
+                              </span>
+                              <span className="text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
+                                Tab Riêng Biệt
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                              Mở Trực Tiếp Trên Google Drive
+                            </h4>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                              Đầy đủ tính năng: Đọc mượt mà, phân trang, phóng to thu nhỏ, in ấn, thêm nhận xét (comments) và kết nối Google Workspace.
+                            </p>
+                          </div>
+                          <div className="mt-4 pt-3 border-t border-emerald-200 dark:border-emerald-800/40 flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 group-hover:translate-x-1 transition-transform">
+                            <span>Truy cập Google Drive</span>
+                            <ArrowUpRight className="w-4 h-4" />
+                          </div>
+                        </a>
+
+                        {/* Secondary Action Card */}
+                        <div className="p-5 rounded border border-slate-300 dark:border-[#2E2E2E] bg-white dark:bg-[#121212] flex flex-col justify-between shadow-xs">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="w-9 h-9 rounded-full bg-blue-600 dark:bg-[#D4AF37] text-white dark:text-black flex items-center justify-center shadow-md">
+                                <Download className="w-5 h-5" />
+                              </span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                Bản Gốc
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                              Tải Bản Gốc Về Thiết Bị
+                            </h4>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                              Tải tệp nhị phân gốc đã lưu trữ trong kho lưu trữ dữ liệu về máy tính của bạn để sử dụng offline.
+                            </p>
+                          </div>
+                          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800">
+                            <a
+                              href={previewFile.downloadUrl || `/api/files/download/${previewFile.id}`}
+                              download={previewFile.name}
+                              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:hover:bg-[#c29f2e] dark:text-black font-bold text-xs rounded transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs text-center"
+                            >
+                              <Download className="w-4 h-4" />
+                              <span>Tải Xuống Thiết Bị</span>
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Google Drive Identification Details */}
+                      <div className="p-4 bg-slate-50 dark:bg-[#0E0E0E] border border-slate-200 dark:border-[#222222] rounded space-y-2.5 text-xs">
+                        <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-[#222222]">
+                          <span className="font-bold text-slate-800 dark:text-[#E0E0E0] uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                            <HardDrive className="w-3.5 h-3.5 text-blue-500 dark:text-[#D4AF37]" />
+                            <span>Thông Tin Định Danh Đám Mây (Google Drive Cloud Metadata)</span>
+                          </span>
+                          {previewFile.webViewLink && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(previewFile.webViewLink || '');
+                                setCopiedText(true);
+                                setTimeout(() => setCopiedText(false), 2000);
+                              }}
+                              className="text-[10px] text-blue-600 dark:text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                            >
+                              <Copy className="w-3 h-3" />
+                              <span>{copiedText ? 'Đã chép link' : 'Sao chép liên kết'}</span>
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 pt-1 font-mono text-[11px]">
+                          <div>
+                            <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-sans">Mã Định Danh (Drive File ID):</span>
+                            <span className="text-slate-900 dark:text-slate-200 select-all font-semibold break-all">
+                              {previewFile.driveFileId || 'Chưa định danh'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-sans">Thư Mục Đích:</span>
+                            <span className="text-slate-900 dark:text-slate-200 font-semibold font-sans">
+                              AI Assistant Documents
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-sans">Loại MIME Đám Mây:</span>
+                            <span className="text-slate-900 dark:text-slate-200 break-all">
+                              {previewFile.mimeType || 'application/octet-stream'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-sans">Liên Kết Drive:</span>
+                            {previewFile.webViewLink ? (
+                              <a
+                                href={previewFile.webViewLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-600 dark:text-blue-400 underline truncate block hover:text-blue-700 font-sans"
+                              >
+                                {previewFile.webViewLink}
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 italic font-sans">Không khả dụng</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-slate-50 dark:bg-[#0E0E0E] rounded border border-dashed border-amber-300 dark:border-amber-700/60 space-y-3">
+                      <CloudOff className="w-10 h-10 mx-auto text-amber-500" />
+                      <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                        Tài liệu hiện đang lưu trữ cục bộ (Local Vault)
+                      </h4>
+                      <p className="text-xs text-slate-600 dark:text-[#A0A0A0] max-w-md mx-auto leading-relaxed">
+                        Để lưu trữ an toàn trên Google Drive và kích hoạt chia sẻ trực tiếp trên toàn hệ sinh thái Google, hãy đồng bộ tệp này lên Google Drive cá nhân của bạn.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleSyncLocalFileToUserDrive(previewFile)}
+                        disabled={syncingDriveFileId === previewFile.id}
+                        className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:bg-[#D4AF37] dark:hover:bg-[#c29f2e] dark:text-black font-bold text-xs uppercase tracking-wider rounded cursor-pointer shadow-md inline-flex items-center gap-2"
+                      >
+                        <Cloud className={`w-4 h-4 ${syncingDriveFileId === previewFile.id ? 'animate-bounce' : ''}`} />
+                        <span>{syncingDriveFileId === previewFile.id ? 'Đang lưu lên Drive...' : 'Đẩy Lên Google Drive Ngay'}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: AI SPECIALIST & DOCUMENT INTELLIGENCE */}
+              {previewTab === 'ai' && (
+                <div className="space-y-4">
+                  {/* AI Header & Trigger */}
+                  <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-[#1A1813] dark:to-[#121212] border border-blue-200 dark:border-[#D4AF37]/40 rounded-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-blue-900 dark:text-[#D4AF37] font-bold text-sm">
+                        <Bot className="w-4 h-4" />
+                        <span>AI Document Intelligence (Trợ Lý Phân Tích &amp; Tóm Tắt)</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-[#A0A0A0]">
+                        Trích xuất bản tóm tắt điều hành, nhiệm vụ hành động và khuyến nghị quản trị từ nội dung tài liệu.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateAiAnalysis(previewFile.id)}
+                      disabled={isLoadingAiAnalysis}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:hover:bg-[#c29f2e] dark:text-black font-bold text-xs uppercase tracking-wider rounded cursor-pointer shadow flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 ${isLoadingAiAnalysis ? 'animate-spin' : ''}`} />
+                      <span>{isLoadingAiAnalysis ? 'AI Đang Phân Tích...' : (aiAnalysis ? 'Phân Tích Lại' : 'Khởi Chạy Phân Tích AI')}</span>
+                    </button>
+                  </div>
+
+                  {/* AI Results */}
+                  {isLoadingAiAnalysis ? (
+                    <div className="py-16 text-center text-slate-500 dark:text-[#888888] space-y-3 bg-slate-50 dark:bg-[#0C0C0C] rounded border border-slate-200 dark:border-[#222222]">
+                      <RefreshCw className="w-7 h-7 animate-spin mx-auto text-blue-600 dark:text-[#D4AF37]" />
+                      <p className="text-xs font-bold text-slate-800 dark:text-white">Gemini đang nghiên cứu văn bản...</p>
+                      <p className="text-[11px] text-slate-500 dark:text-[#777777]">Trích xuất ý chính, nhiệm vụ hành động và thẻ từ khóa</p>
+                    </div>
+                  ) : aiAnalysis ? (
+                    <div className="space-y-3 animate-in fade-in">
+                      {/* Executive Summary */}
+                      <div className="p-3.5 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] rounded-sm space-y-1.5">
+                        <span className="text-[10px] font-bold text-blue-700 dark:text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5" />
+                          Tóm Tắt Điều Hành (Executive Summary)
+                        </span>
+                        <p className="text-xs text-slate-800 dark:text-white leading-relaxed font-medium">
+                          {aiAnalysis.summary}
+                        </p>
+                      </div>
+
+                      {/* Key Points & Action Items Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Key Points */}
+                        <div className="p-3.5 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] rounded-sm space-y-2">
+                          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Ý Trọng Tâm / Điểm Then Chốt
+                          </span>
+                          <ul className="space-y-1.5 text-xs text-slate-700 dark:text-[#CCCCCC]">
+                            {aiAnalysis.keyPoints.map((pt, idx) => (
+                              <li key={idx} className="flex items-start gap-1.5">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold shrink-0">•</span>
+                                <span>{pt}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Action Items */}
+                        <div className="p-3.5 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] rounded-sm space-y-2">
+                          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5" />
+                            Nhiệm Vụ &amp; Hành Động Cần Làm
+                          </span>
+                          <ul className="space-y-1.5 text-xs text-slate-700 dark:text-[#CCCCCC]">
+                            {aiAnalysis.actionItems.map((item, idx) => (
+                              <li key={idx} className="flex items-start gap-1.5">
+                                <span className="text-amber-600 dark:text-amber-400 font-bold shrink-0">→</span>
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      {/* AI Recommendations */}
+                      {aiAnalysis.recommendations && (
+                        <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/60 rounded-sm space-y-1">
+                          <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <Lightbulb className="w-3.5 h-3.5" />
+                            Khuyến Nghị Của Chuyên Gia AI
+                          </span>
+                          <p className="text-xs text-slate-800 dark:text-[#D0D0D0] leading-relaxed">
+                            {aiAnalysis.recommendations}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Suggested Tags & Apply Button */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] rounded-sm">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-[#888888]">Thẻ gợi ý:</span>
+                          {aiAnalysis.suggestedTags.map((tag, idx) => (
+                            <span key={idx} className="text-[10px] font-mono px-2 py-0.5 rounded bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-[#333333] text-blue-600 dark:text-[#D4AF37]">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleApplyAiSummaryToNote}
+                          disabled={isApplyingAiNotes}
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded cursor-pointer shadow-xs flex items-center justify-center gap-1.5 shrink-0 transition-colors disabled:opacity-50"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{isApplyingAiNotes ? 'Đang lưu...' : 'Lưu Tóm Tắt Này Vào Chú Thích'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-12 text-center text-slate-500 dark:text-[#888888] space-y-2">
+                      <Sparkles className="w-8 h-8 mx-auto text-amber-500/70" />
+                      <p className="text-xs text-slate-700 dark:text-[#CCCCCC]">
+                        Nhấn nút <strong>"Khởi Chạy Phân Tích AI"</strong> ở trên để AI quét toàn bộ nội dung và đưa ra tóm tắt chuyên sâu.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CLASSIFICATION & METADATA ACCORDION */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-[#0C0C0C] p-3 rounded-sm border border-slate-200 dark:border-[#2A2A2A]">
                 <div>
-                  <label className="text-[10px] text-[#D4AF37] font-bold uppercase tracking-wider block mb-1 flex items-center gap-1">
+                  <label className="text-[10px] text-blue-600 dark:text-[#D4AF37] font-bold uppercase tracking-wider block mb-1 flex items-center gap-1">
                     <Tag className="w-3 h-3" />
                     Phân Loại Mục Đích (Thay đổi linh hoạt):
                   </label>
@@ -2167,7 +2905,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                         handleUpdateFileClassification(previewFile.id, e.target.value);
                       }
                     }}
-                    className="w-full p-2 bg-[#151515] border border-[#2A2A2A] rounded-sm text-[#E0E0E0] text-xs focus:outline-none focus:border-[#D4AF37]"
+                    className="w-full p-2 bg-white dark:bg-[#151515] border border-slate-300 dark:border-[#2A2A2A] rounded-sm text-slate-800 dark:text-[#E0E0E0] text-xs focus:outline-none focus:border-blue-500 dark:focus:border-[#D4AF37]"
                   >
                     {categories.map(c => (
                       <option key={c.id} value={c.id}>
@@ -2180,31 +2918,31 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-[9px] text-[#666666] font-mono uppercase block">Định dạng file:</span>
-                    <span className="font-bold text-[#E0E0E0] uppercase">{previewFile.category}</span>
+                    <span className="text-[9px] text-slate-500 dark:text-[#666666] font-mono uppercase block">Định dạng file:</span>
+                    <span className="font-bold text-slate-800 dark:text-[#E0E0E0] uppercase">{previewFile.category}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-[#666666] font-mono uppercase block">Trạng thái lưu:</span>
+                    <span className="text-[9px] text-slate-500 dark:text-[#666666] font-mono uppercase block">Trạng thái lưu:</span>
                     {previewFile.isSyncedToDrive && previewFile.webViewLink ? (
-                      <span className="text-emerald-400 font-bold">🟢 Google Drive</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">🟢 Google Drive</span>
                     ) : (
-                      <span className="text-amber-400 font-bold">🟡 Local Vault</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-bold">🟡 Local Vault</span>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Note / Annotation Section in Preview */}
-              <div className="bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm p-3.5 space-y-2">
-                <div className="flex items-center justify-between border-b border-[#222222] pb-1.5">
-                  <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
+              {/* NOTE & ANNOTATION BOX */}
+              <div className="bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] rounded-sm p-3.5 space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#222222] pb-1.5">
+                  <span className="text-[10px] font-bold text-blue-600 dark:text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
                     <NotebookPen className="w-3.5 h-3.5" />
-                    Chú Thích & Ghi Nhớ Tài Liệu (Hỗ trợ tìm kiếm không phụ thuộc tên tệp)
+                    Chú Thích &amp; Ghi Nhớ Tài Liệu (Hỗ trợ tìm kiếm thông minh)
                   </span>
                   <button
                     type="button"
                     onClick={() => handleOpenEditNote(previewFile)}
-                    className="text-[11px] text-[#D4AF37] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] text-blue-600 dark:text-[#D4AF37] hover:underline font-bold flex items-center gap-1 cursor-pointer"
                     title="Chỉnh sửa chú thích tài liệu"
                   >
                     <Edit3 className="w-3 h-3" />
@@ -2212,12 +2950,12 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                   </button>
                 </div>
                 {previewFile.notes || previewFile.description ? (
-                  <p className="text-xs text-white leading-relaxed bg-[#141414] p-2.5 rounded border border-[#262626] font-medium">
+                  <p className="text-xs text-slate-800 dark:text-white leading-relaxed bg-white dark:bg-[#141414] p-2.5 rounded border border-slate-200 dark:border-[#262626] font-medium whitespace-pre-wrap">
                     &ldquo;{previewFile.notes || previewFile.description}&rdquo;
                   </p>
                 ) : (
-                  <div className="flex items-center justify-between bg-[#141414] p-2.5 rounded border border-dashed border-[#262626]">
-                    <span className="text-xs text-slate-700 dark:text-[#E0E0E0]">Chưa có chú thích nào cho tài liệu này.</span>
+                  <div className="flex items-center justify-between bg-white dark:bg-[#141414] p-2.5 rounded border border-dashed border-slate-300 dark:border-[#262626]">
+                    <span className="text-xs text-slate-500 dark:text-[#E0E0E0]">Chưa có chú thích nào cho tài liệu này.</span>
                     <button
                       type="button"
                       onClick={() => handleOpenEditNote(previewFile)}
@@ -2238,9 +2976,9 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
 
                   return (
                     <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                      <span className="text-[10px] text-[#666666] font-mono uppercase">Thẻ tags:</span>
+                      <span className="text-[10px] text-slate-500 dark:text-[#666666] font-mono uppercase">Thẻ tags:</span>
                       {validTags.map((tag, i) => (
-                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-[#161616] border border-[#2A2A2A] text-[#CCCCCC] font-mono">
+                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#2A2A2A] text-slate-700 dark:text-[#CCCCCC] font-mono">
                           #{tag}
                         </span>
                       ))}
@@ -2249,100 +2987,21 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                 })()}
               </div>
 
-              {/* In-App Document Viewer Area */}
-              <div className="bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm p-4 min-h-[180px] max-h-[280px] overflow-y-auto">
-                <div className="flex items-center justify-between mb-3 border-b border-[#2A2A2A] pb-2">
-                  <span className="text-[10px] font-bold text-[#888888] uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-[#D4AF37]" />
-                    Xem trước nội dung văn bản (In-App Document Viewer)
-                  </span>
-                  {previewFile.isSyncedToDrive && previewFile.webViewLink && (
-                    <a
-                      href={previewFile.webViewLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 font-mono"
-                    >
-                      <span>Mở link Drive</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  )}
-                </div>
-
-                {isLoadingPreview ? (
-                  <div className="py-12 text-center text-[#888888] space-y-2">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto text-[#D4AF37]" />
-                    <p className="text-xs">Đang tải bản xem trước tài liệu...</p>
-                  </div>
-                ) : previewContent ? (
-                  <pre className="font-mono text-xs text-[#D0D0D0] whitespace-pre-wrap leading-relaxed bg-[#111111] p-3 rounded border border-[#222222]">
-                    {previewContent}
-                  </pre>
-                ) : (
-                  <div className="py-8 text-center text-[#888888] space-y-2">
-                    <FileCheck className="w-8 h-8 mx-auto text-[#D4AF37]/50" />
-                    <p className="text-xs text-white font-medium">{previewFile.name}</p>
-                    <p className="text-[11px] text-[#777777] max-w-sm mx-auto">
-                      Tệp nhị phân đã được lưu trữ an toàn trong kho dữ liệu. Bạn có thể tải tệp về máy tính hoặc xem trên Google Drive.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Cloud Sync & Action Panel */}
-              {(!previewFile.isSyncedToDrive || !previewFile.webViewLink) ? (
-                <div className="p-3 bg-amber-950/30 border border-amber-700/50 rounded-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5 text-amber-300 font-bold">
-                      <CloudOff className="w-4 h-4" />
-                      <span>Tài liệu đang lưu trữ cục bộ</span>
-                    </div>
-                    <p className="text-[11px] text-[#A0A0A0]">
-                      Tệp được lưu an toàn trong cơ sở dữ liệu. Nhấn "Nạp tệp từ Drive" ở thanh công cụ để đồng bộ toàn bộ.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleUnifiedSyncDriveFiles}
-                    disabled={isSyncing || isSyncingSa}
-                    className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-wider rounded-sm shrink-0 flex items-center justify-center gap-1.5 cursor-pointer shadow"
-                  >
-                    <FolderSync className={`w-3.5 h-3.5 ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
-                    <span>{isSyncing || isSyncingSa ? 'Đang nạp...' : 'Nạp Tệp Từ Drive'}</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="p-3 bg-emerald-950/20 border border-emerald-800/40 rounded-sm flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-emerald-400 text-xs">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span className="truncate max-w-xs sm:max-w-md font-mono text-[11px]">{previewFile.webViewLink}</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditingUrlFile(previewFile);
-                      setInputUrl(previewFile.webViewLink || '');
-                    }}
-                    className="text-[10px] text-[#888888] hover:text-white underline cursor-pointer"
-                  >
-                    Sửa link
-                  </button>
-                </div>
-              )}
-
-              {/* Linked Tasks & Notes in Preview */}
+              {/* LINKED TASKS & NOTES */}
               {(getLinkedTasks(previewFile.id).length > 0 || getLinkedNotes(previewFile.id).length > 0) && (
-                <div className="space-y-2 border-t border-[#2A2A2A] pt-3">
-                  <span className="text-[10px] font-bold text-[#888888] uppercase tracking-wider">Liên kết trong hệ thống:</span>
+                <div className="space-y-2 border-t border-slate-200 dark:border-[#2A2A2A] pt-3">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-[#888888] uppercase tracking-wider">Liên kết trong hệ thống:</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {getLinkedTasks(previewFile.id).map(t => (
-                      <div key={t.id} className="p-2 rounded bg-[#0C0C0C] border border-[#2A2A2A] flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span className="truncate text-white font-medium">{t.title}</span>
+                      <div key={t.id} className="p-2 rounded bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span className="truncate text-slate-800 dark:text-white font-medium">{t.title}</span>
                       </div>
                     ))}
                     {getLinkedNotes(previewFile.id).map(n => (
-                      <div key={n.id} className="p-2 rounded bg-[#0C0C0C] border border-[#2A2A2A] flex items-center gap-2">
-                        <FileText className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
-                        <span className="truncate text-white font-medium">{n.title}</span>
+                      <div key={n.id} className="p-2 rounded bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-amber-500 dark:text-[#D4AF37] shrink-0" />
+                        <span className="truncate text-slate-800 dark:text-white font-medium">{n.title}</span>
                       </div>
                     ))}
                   </div>
@@ -2350,26 +3009,27 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
               )}
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between border-t border-[#2A2A2A] p-4 bg-[#111111]">
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t border-slate-200 dark:border-[#2A2A2A] p-4 bg-slate-50 dark:bg-[#111111]">
               <button
+                type="button"
                 onClick={() => {
                   const fname = previewFile.name;
                   const catName = resolveCategory(previewFile.classification, categories).name;
                   setPreviewFile(null);
                   openAiChatWithPrompt(`Hãy phân tích và tóm tắt chuyên sâu nội dung tài liệu "${fname}" (Nhóm: ${catName}, Định dạng: ${previewFile.category}). Đưa ra các điểm chính và đề xuất hành động tiếp theo.`);
                 }}
-                className="px-3 py-1.5 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40 rounded-sm font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-[#D4AF37]/10 dark:hover:bg-[#D4AF37]/20 dark:text-[#D4AF37] dark:border-[#D4AF37]/40 rounded-sm font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Hỏi AI Phân Tích File</span>
+                <span>Mở Khung Chat AI Về File</span>
               </button>
 
               <div className="flex items-center gap-2">
                 <a
                   href={previewFile.downloadUrl || `/api/files/download/${previewFile.id}`}
                   download={previewFile.name}
-                  className="px-3 py-1.5 bg-[#0C0C0C] hover:bg-[#1A1A1A] text-white border border-[#2A2A2A] rounded-sm text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 dark:bg-[#0C0C0C] dark:hover:bg-[#1A1A1A] dark:text-white dark:border-[#2A2A2A] rounded-sm text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Tải Về Máy</span>
@@ -2379,7 +3039,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     href={previewFile.webViewLink}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-sm text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow"
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-sm text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-colors"
                   >
                     <span>Mở Trên Drive</span>
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -2600,6 +3260,250 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
           </div>
         </div>
       )}
+      {/* ============================================================== */}
+      {/* 3B. SYNC TO DRIVE & PURGE LOCAL COPIES CONFIRMATION MODAL */}
+      {/* ============================================================== */}
+      {isSyncPurgeModalOpen && (() => {
+        const isGoogleAuthActive = !!googleUser && !!getGoogleAccessToken();
+        return (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-60 animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-[#151515] border border-slate-300 dark:border-[#D4AF37]/60 w-full max-w-lg rounded-sm shadow-2xl overflow-hidden flex flex-col text-slate-800 dark:text-zinc-100">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2A2A2A] p-4 bg-slate-50 dark:bg-gradient-to-r dark:from-[#1C160B] dark:to-[#121212]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 rounded bg-amber-100 dark:bg-amber-950/40 border border-amber-300 dark:border-[#D4AF37]/60 text-amber-700 dark:text-[#D4AF37] shrink-0">
+                    <UploadCloud className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-editorial-serif font-bold text-slate-900 dark:text-white text-base truncate">
+                      Đồng Bộ Lên Drive &amp; Xóa Tệp Local
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-[#A0A0A0] truncate font-mono">
+                      Giải phóng bộ nhớ lưu trữ cục bộ sang Google Drive
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !isSyncingAndPurging && setIsSyncPurgeModalOpen(false)}
+                  disabled={isSyncingAndPurging}
+                  className="p-1 text-slate-400 hover:text-slate-700 dark:text-[#888888] dark:hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5 space-y-4 text-xs">
+                {/* 1. Google Authentication Status Indicator */}
+                {isGoogleAuthActive ? (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-600/60 rounded-sm flex items-center justify-between gap-3 text-emerald-900 dark:text-emerald-200">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold truncate">
+                          Tài khoản Google: <span className="font-mono text-slate-900 dark:text-white">{googleUser?.email || googleUser?.name}</span>
+                        </p>
+                        <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                          ✅ Đã xác thực phiên làm việc. Tệp sẽ được tải trực tiếp lên Google Drive của bạn.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGoogleSignOutClick}
+                      className="text-[10px] text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-white underline font-mono shrink-0 cursor-pointer"
+                    >
+                      Đổi tài khoản
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-500 rounded-sm space-y-2 text-rose-950 dark:text-rose-100 shadow-sm">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-xs uppercase tracking-wide text-rose-800 dark:text-rose-200">
+                          Bắt buộc đăng nhập Google Drive (Chặn đồng bộ ảo)
+                        </h4>
+                        <p className="text-[11px] leading-relaxed text-rose-700 dark:text-rose-200/90 mt-0.5">
+                          Hệ thống <strong>không cho phép đồng bộ hoặc xóa tệp local</strong> khi chưa xác thực tài khoản Google. Hãy đăng nhập tài khoản Google của bạn để tải tệp thật sự lên Drive.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="pt-2 flex items-center justify-between gap-2 border-t border-rose-200 dark:border-rose-900/50">
+                      <span className="text-[10px] font-mono text-rose-700 dark:text-rose-300">
+                        Yêu cầu quyền truy cập Google Drive
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleGoogleSignInClick}
+                        disabled={isLoggingInGoogle}
+                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-sm cursor-pointer shadow-xs flex items-center gap-1.5 transition-all disabled:opacity-50"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                          <path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#ffffff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#ffffff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path fill="#ffffff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                        </svg>
+                        <span>{isLoggingInGoogle ? 'Đang kết nối...' : 'Đăng Nhập Google Ngay'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notice Banner */}
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/60 rounded-sm text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>Phát hiện <strong>{localFiles.length} tệp</strong> đang lưu trữ cục bộ chưa có trên Drive:</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-[#D0D0D0] leading-relaxed">
+                    Thư mục đích: <strong className="text-slate-900 dark:text-white font-mono">{saConfig?.folderName || 'AI Assistant Documents'}</strong>. Hệ thống sẽ tải các tệp lên Google Drive thật sự, cập nhật liên kết trực tiếp và xóa bản gốc cục bộ để tiết kiệm dung lượng.
+                  </p>
+                </div>
+
+                {/* Scrollable File List */}
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-bold text-slate-600 dark:text-[#888888] uppercase tracking-wider flex items-center justify-between">
+                    <span>Danh sách tệp chuẩn bị đồng bộ:</span>
+                    <span className="font-mono text-amber-600 dark:text-[#D4AF37] font-bold">{localFiles.length} tệp</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-1 pr-1 border border-slate-200 dark:border-[#222222] rounded-sm bg-slate-50 dark:bg-[#0C0C0C] p-2">
+                    {localFiles.map(f => (
+                      <div key={f.id} className="p-2 rounded bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#222222] flex items-center justify-between gap-2 shadow-2xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="p-1 rounded bg-slate-100 dark:bg-[#1E1E1E] border border-slate-200 dark:border-[#2F2F2F] text-amber-600 dark:text-[#D4AF37] shrink-0">
+                            {getFileFormatIcon(f.category)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-slate-900 dark:text-white text-xs font-medium truncate">{f.name}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-[#888888] font-mono">
+                              {(f.size / 1024).toFixed(1)} KB • {resolveCategory(f.classification, categories).name}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700/50 dark:text-amber-300 text-[10px] font-mono shrink-0">
+                          Chưa có Drive
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Checkbox Options */}
+                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-[#262626]">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={purgeLocalCopyAfterUpload}
+                      onChange={e => setPurgeLocalCopyAfterUpload(e.target.checked)}
+                      disabled={isSyncingAndPurging}
+                      className="mt-0.5 w-4 h-4 rounded border-slate-300 dark:border-[#444444] bg-white dark:bg-[#1A1A1A] text-amber-600 dark:text-[#D4AF37] focus:ring-0 focus:ring-offset-0 cursor-pointer accent-amber-600 dark:accent-[#D4AF37]"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white text-xs">
+                        Xóa tệp gốc lưu trên local sau khi tải lên thành công (Khuyên dùng)
+                      </span>
+                      <p className="text-[11px] text-slate-600 dark:text-[#888888] leading-relaxed">
+                        Giải phóng 100% dung lượng ổ đĩa và database cục bộ. Tài liệu vẫn hiển thị trong ứng dụng và xem trực tiếp từ Google Drive.
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={deleteLocalRecordAfterUpload}
+                      onChange={e => setDeleteLocalRecordAfterUpload(e.target.checked)}
+                      disabled={isSyncingAndPurging}
+                      className="mt-0.5 w-4 h-4 rounded border-slate-300 dark:border-[#444444] bg-white dark:bg-[#1A1A1A] text-amber-600 dark:text-[#D4AF37] focus:ring-0 focus:ring-offset-0 cursor-pointer accent-amber-600 dark:accent-[#D4AF37]"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white text-xs">
+                        Xóa luôn danh sách tệp khỏi ứng dụng (Chỉ lưu trên Google Drive)
+                      </span>
+                      <p className="text-[11px] text-slate-600 dark:text-[#888888] leading-relaxed">
+                        Nếu chọn tùy chọn này, các tệp sau khi tải lên sẽ được ẩn khỏi màn hình hiện tại và chỉ xuất hiện khi bạn nhấn &quot;Nạp Tệp Từ Drive&quot;.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* In-Modal Progress */}
+                {isSyncingAndPurging && driveSyncProgress && (
+                  <div className="p-3 bg-slate-100 dark:bg-[#0C0C0C] border border-amber-300 dark:border-[#D4AF37]/40 rounded-sm space-y-2 animate-in fade-in">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-amber-700 dark:text-[#D4AF37] font-bold flex items-center gap-1.5">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>{driveSyncProgress.statusText}</span>
+                      </span>
+                      <span className="text-slate-900 dark:text-white font-mono font-bold">{driveSyncProgress.percent}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-[#222222] h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-amber-500 to-[#D4AF37] h-full transition-all duration-300"
+                        style={{ width: `${driveSyncProgress.percent}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">
+                      ⚡ Tự động giải phóng lưu trữ cục bộ sau khi lưu Google Drive thành công.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-2 p-4 border-t border-slate-200 dark:border-[#2A2A2A] bg-slate-50 dark:bg-[#0E0E0E]">
+                <button
+                  type="button"
+                  onClick={() => setIsSyncPurgeModalOpen(false)}
+                  disabled={isSyncingAndPurging}
+                  className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-[#AAAAAA] dark:hover:text-white dark:border-[#333333] text-xs font-bold rounded-sm cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  Hủy Bỏ
+                </button>
+                {isGoogleAuthActive ? (
+                  <button
+                    type="button"
+                    onClick={handleExecuteSyncAndPurgeLocal}
+                    disabled={isSyncingAndPurging}
+                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:bg-[#D4AF37] dark:hover:bg-[#c29f2e] dark:text-black text-xs font-bold uppercase tracking-wider rounded-sm cursor-pointer shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    {isSyncingAndPurging ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Đang Đồng Bộ &amp; Xóa Local...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-4 h-4 stroke-[2.5]" />
+                        <span>Bắt Đầu Đồng Bộ &amp; Xóa Local</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignInClick}
+                    disabled={isLoggingInGoogle}
+                    className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold uppercase tracking-wider rounded-sm cursor-pointer shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#ffffff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#ffffff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#ffffff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                    <span>{isLoggingInGoogle ? 'Đang xác thực...' : 'Đăng Nhập Google Để Đồng Bộ'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ============================================================== */}
       {/* 4. ADMIN GOOGLE LOGIN REQUIREMENT MODAL */}
       {/* ============================================================== */}

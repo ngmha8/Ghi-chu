@@ -17,7 +17,10 @@ import {
   ChevronDown,
   Mic,
   Sun,
-  Moon
+  Moon,
+  TrendingUp,
+  Flame,
+  User
 } from 'lucide-react';
 import { useSystemStore, AppTab } from '../stores/useSystemStore.js';
 import { useTaskStore } from '../stores/useTaskStore.js';
@@ -57,7 +60,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenVoiceFocus: propOnOpenVoiceFocus,
   searchQuery: propSearchQuery,
   setSearchQuery: propSetSearchQuery,
-  unreadNotifsCount: propUnreadNotifsCount,
   availableTags = ['Công việc', 'Báo cáo', 'Tài chính', 'Kế hoạch', 'Dự án', 'Architecture', 'AI'],
   tasks: propTasks,
   notes: propNotes,
@@ -74,13 +76,11 @@ export const Header: React.FC<HeaderProps> = ({
   const storeToggleTheme = useSystemStore(s => s.toggleTheme);
   const storeActiveTab = useSystemStore(s => s.activeTab);
   const storeSetActiveTab = useSystemStore(s => s.setActiveTab);
-  const storeIsAiDrawerOpen = useSystemStore(s => s.isAiDrawerOpen);
   const storeOpenAiDrawer = useSystemStore(s => s.openAiDrawer);
   const storeCloseAiDrawer = useSystemStore(s => s.closeAiDrawer);
   const storeOpenVoiceFocus = useSystemStore(s => s.openVoiceFocus);
   const storeSearchQuery = useSystemStore(s => s.searchQuery);
   const storeSetSearchQuery = useSystemStore(s => s.setSearchQuery);
-  const storeNotifsCount = useSystemStore(s => s.notificationLogs.length);
   const storeLockApp = useSystemStore(s => s.lockApp);
 
   const storeTasks = useTaskStore(s => s.tasks);
@@ -89,17 +89,15 @@ export const Header: React.FC<HeaderProps> = ({
   const storeOpenNoteModal = useNoteStore(s => s.openNoteModal);
   const storeFiles = useFileStore(s => s.files);
 
-  // Resolved effective values (props take precedence if supplied)
+  // Resolved effective values
   const activeTab = propActiveTab ?? storeActiveTab;
   const setActiveTab = propSetActiveTab ?? storeSetActiveTab;
   const openNewTaskModal = propOpenNewTaskModal ?? (() => storeOpenTaskModal(null));
   const openNewNoteModal = propOpenNewNoteModal ?? storeOpenNoteModal;
-  const isAiDrawerOpen = propIsAiDrawerOpen ?? storeIsAiDrawerOpen;
   const setIsAiDrawerOpen = propSetIsAiDrawerOpen ?? ((open: boolean) => open ? storeOpenAiDrawer() : storeCloseAiDrawer());
   const onOpenVoiceFocus = propOnOpenVoiceFocus ?? storeOpenVoiceFocus;
   const searchQuery = propSearchQuery ?? storeSearchQuery;
   const setSearchQuery = propSetSearchQuery ?? storeSetSearchQuery;
-  const unreadNotifsCount = propUnreadNotifsCount ?? storeNotifsCount;
   const tasks = propTasks ?? storeTasks;
   const notes = propNotes ?? storeNotes;
   const files = propFiles ?? storeFiles;
@@ -142,38 +140,43 @@ export const Header: React.FC<HeaderProps> = ({
       case 'telegram': return 'Telegram Bot';
       case 'ai-learning': return 'Tự Học & Tâm Trí AI';
       case 'settings': return 'Cài Đặt';
-      case 'architecture': return 'Kiến trúc & DB Schema';
-      default: return 'Cấu hình & Mở rộng';
+      case 'architecture': return 'Kiến trúc & DB';
+      default: return 'Cài Đặt';
     }
   };
 
+  const activeTasksCount = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled').length;
+
   return (
-    <header className="sticky top-0 z-40 bg-[#0F0F0F]/95 backdrop-blur border-b border-[#2A2A2A] text-[#E0E0E0]">
-      {/* Top Navbar Row */}
-      <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-2 sm:gap-3 md:gap-4">
+    <header className="sticky top-0 z-40 bg-[#0F0F0F]/95 backdrop-blur border-b border-[#2A2A2A] text-[#E0E0E0] transition-colors">
+      {/* Tier 1: Main Brand, Search & Executive Actions */}
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
         
-        {/* Brand Logo & Name */}
-        <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-sm bg-[#151515] border border-[#2A2A2A] flex items-center justify-center text-[#D4AF37] shrink-0">
-            <Sparkles className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-[#D4AF37]" />
+        {/* Brand & Logo */}
+        <div
+          className="flex items-center gap-2.5 sm:gap-3 shrink-0 cursor-pointer select-none"
+          onClick={() => setActiveTab('dashboard')}
+        >
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-600 dark:bg-[#151515] border border-blue-500/20 dark:border-[#2A2A2A] flex items-center justify-center text-white dark:text-[#D4AF37] font-bold text-base shadow-sm shrink-0">
+            A
           </div>
-          <div className="shrink-0">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <h1 className="font-editorial-serif italic text-xl sm:text-2xl text-[#D4AF37] tracking-tight whitespace-nowrap">
-                Architect.OS
-              </h1>
-              <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30 whitespace-nowrap">
-                v2.4.0
-              </span>
-            </div>
-            <p className="text-[9px] uppercase tracking-widest text-[#888888] hidden sm:block whitespace-nowrap">AI Productivity Suite</p>
+          <div className="shrink-0 flex items-center gap-2">
+            <span className="font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-[#D4AF37] whitespace-nowrap">
+              Architect.OS
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 dark:bg-[#1A1A1A] dark:text-[#D4AF37] dark:border-[#D4AF37]/30 whitespace-nowrap hidden sm:inline-block">
+              PRO
+            </span>
+            <span className="text-[10px] text-slate-400 dark:text-[#777777] hidden xl:inline">
+              V2.4.0
+            </span>
           </div>
         </div>
 
-        {/* Global Search Input - Dedicated Section that flexes dynamically without pushing buttons out */}
-        <div className="flex-1 min-w-0 max-w-lg lg:max-w-xl mx-1 sm:mx-3 relative">
+        {/* Global Search Center Bar */}
+        <div className="flex-1 min-w-0 max-w-md lg:max-w-lg mx-1 sm:mx-3 relative">
           <GlobalSearchInput
-            placeholder="Tìm kiếm công việc, ghi chú, tài liệu (gõ # để gợi ý tag)..."
+            placeholder="Tìm kiếm công việc, ghi chú, tài liệu (Ctrl+K)..."
             value={searchQuery}
             onChange={setSearchQuery}
             tasks={tasks}
@@ -186,147 +189,186 @@ export const Header: React.FC<HeaderProps> = ({
           />
         </div>
 
-        {/* Actions & Profile (Always stays in viewport without clipping) */}
+        {/* Actions & Profiles */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          {/* Quick Create Buttons */}
+          {/* Firestore & Drive Active Status Indicators */}
+          <div className="hidden xl:flex items-center gap-2 mr-1">
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-[11px] text-slate-700 dark:text-[#A0A0A0]"
+              title="Cloud Firestore đồng bộ thời gian thực"
+            >
+              <Flame className="w-3.5 h-3.5 text-amber-500" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-medium">Firestore</span>
+            </div>
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-[11px] text-slate-700 dark:text-[#A0A0A0]"
+              title="Google Drive kết nối sẵn sàng"
+            >
+              <HardDrive className="w-3.5 h-3.5 text-blue-600 dark:text-emerald-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span className="font-medium">Drive</span>
+            </div>
+          </div>
+
+          {/* Quick Create Action Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={openNewTaskModal}
-              className="px-2.5 sm:px-3.5 py-2 text-xs font-bold uppercase tracking-wider rounded-sm bg-[#D4AF37] text-black hover:bg-[#c29f2e] transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0 whitespace-nowrap"
+              className="px-3 sm:px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:text-black dark:hover:bg-[#c29f2e] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 whitespace-nowrap"
               title="Tạo công việc mới"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span className="hidden sm:inline">Thêm Task</span>
               <span className="sm:hidden">Task</span>
             </button>
             <button
               onClick={openNewNoteModal}
-              className="px-2.5 sm:px-3.5 py-2 text-xs font-semibold uppercase tracking-wider rounded-sm bg-[#161616] border border-[#2E2E2E] text-[#E0E0E0] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] hover:bg-[#1C1C1C] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+              className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 dark:bg-[#161616] dark:border-[#2E2E2E] dark:text-[#E0E0E0] dark:hover:border-[#D4AF37]/50 dark:hover:text-[#D4AF37] dark:hover:bg-[#1C1C1C] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
               title="Tạo ghi chú mới"
             >
-              <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <Plus className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
               <span className="hidden sm:inline">Ghi Chú</span>
               <span className="sm:hidden">Note</span>
             </button>
           </div>
 
-          {/* Unified Cloud Firestore & Google Drive Status Pill */}
-          <div className="hidden xl:flex items-center gap-2 px-2.5 py-1.5 bg-[#141414] border border-[#282828] rounded-sm text-[11px] text-[#A0A0A0] shrink-0 whitespace-nowrap" title="Firestore DB & Google Drive tự động đồng bộ thời gian thực">
-            <span className="text-amber-400 font-bold flex items-center gap-1">
-              🔥 <span>Firestore</span>
-            </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[#333]">•</span>
-            <span className="flex items-center gap-1 text-emerald-400 font-medium">
-              <HardDrive className="w-3.5 h-3.5" />
-              <span>Drive</span>
-            </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          </div>
-
-          {/* Quick Theme Switcher Button (Chuyển đổi Sáng / Tối) */}
-          <button
-            type="button"
-            onClick={onToggleTheme}
-            className="px-2.5 sm:px-3 py-2 rounded-sm bg-[#151515] hover:bg-[#202020] text-[#D4AF37] border border-[#2A2A2A] hover:border-[#D4AF37]/50 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-xs"
-            title={theme === 'light' ? 'Chuyển sang Chủ đề Tối (Gold & Obsidian)' : 'Chuyển sang Chủ đề Sáng (Hiện đại & Dịu mắt)'}
-          >
-            {theme === 'light' ? (
-              <>
-                <Moon className="w-3.5 h-3.5 text-[#2563EB]" />
-                <span className="text-xs font-bold text-[#2563EB] hidden lg:inline">Chủ Đề Tối</span>
-              </>
-            ) : (
-              <>
-                <Sun className="w-3.5 h-3.5 text-[#D4AF37]" />
-                <span className="text-xs font-bold text-[#D4AF37] hidden lg:inline">Chủ Đề Sáng</span>
-              </>
-            )}
-          </button>
-
-          {/* Quick Lock PIN Button - guaranteed visible */}
-          <button
-            type="button"
-            onClick={onLockApp}
-            className="px-2.5 sm:px-3 py-2 rounded-sm bg-[#151515] hover:bg-[#202020] text-[#D4AF37] border border-[#2A2A2A] hover:border-[#D4AF37]/40 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-            title="Khóa ứng dụng (Yêu cầu mã PIN)"
-          >
-            <Lock className="w-3.5 h-3.5 text-[#D4AF37]" />
-            <span className="text-xs font-bold text-[#D4AF37] hidden md:inline">Khóa PIN</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Navigation Tabs Bar */}
-      <div className="border-t border-[#2A2A2A] bg-[#0A0A0A] px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 py-2">
-          
-          {/* Main Navigation Tabs */}
-          <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-0.5">
+          {/* Theme & Lock Controls */}
+          <div className="flex items-center gap-1 border-l border-slate-200 dark:border-[#2A2A2A] pl-1.5 sm:pl-2">
             <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-[14.5px] font-semibold flex items-center gap-2.5 whitespace-nowrap rounded-md transition-all duration-200 cursor-pointer ${
-                activeTab === 'dashboard'
-                  ? 'text-[#D4AF37] bg-[#D4AF37]/15 border-b-2 border-[#D4AF37] shadow-[0_2px_12px_rgba(212,175,55,0.15)] font-bold'
-                  : 'text-[#AAAAAA] hover:text-white hover:bg-[#1A1A1A] border-b-2 border-transparent'
-              }`}
+              type="button"
+              onClick={onToggleTheme}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-[#D4AF37] dark:hover:bg-[#202020] transition-colors cursor-pointer"
+              title={theme === 'light' ? 'Chuyển sang Chủ đề Tối (Gold & Obsidian)' : 'Chuyển sang Chủ đề Sáng (Executive Precision)'}
             >
-              <Layers className={`w-4.5 h-4.5 transition-colors ${activeTab === 'dashboard' ? 'text-[#D4AF37]' : 'text-[#888888]'}`} />
-              <span>Dashboard</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('tasks')}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-[14.5px] font-semibold flex items-center gap-2.5 whitespace-nowrap rounded-md transition-all duration-200 cursor-pointer ${
-                activeTab === 'tasks'
-                  ? 'text-[#D4AF37] bg-[#D4AF37]/15 border-b-2 border-[#D4AF37] shadow-[0_2px_12px_rgba(212,175,55,0.15)] font-bold'
-                  : 'text-[#AAAAAA] hover:text-white hover:bg-[#1A1A1A] border-b-2 border-transparent'
-              }`}
-            >
-              <CheckSquare className={`w-4.5 h-4.5 transition-colors ${activeTab === 'tasks' ? 'text-[#D4AF37]' : 'text-[#888888]'}`} />
-              <span>Công việc (Tasks)</span>
-              {tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled').length > 0 && (
-                <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded-full ${
-                  activeTab === 'tasks' ? 'bg-[#D4AF37] text-black font-bold' : 'bg-[#222222] text-[#AAAAAA]'
-                }`}>
-                  {tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled').length}
-                </span>
+              {theme === 'light' ? (
+                <Moon className="w-4 h-4 text-blue-600" />
+              ) : (
+                <Sun className="w-4 h-4 text-[#D4AF37]" />
               )}
             </button>
 
             <button
-              onClick={() => setActiveTab('notes')}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-[14.5px] font-semibold flex items-center gap-2.5 whitespace-nowrap rounded-md transition-all duration-200 cursor-pointer ${
-                activeTab === 'notes'
-                  ? 'text-[#D4AF37] bg-[#D4AF37]/15 border-b-2 border-[#D4AF37] shadow-[0_2px_12px_rgba(212,175,55,0.15)] font-bold'
-                  : 'text-[#AAAAAA] hover:text-white hover:bg-[#1A1A1A] border-b-2 border-transparent'
+              type="button"
+              onClick={onLockApp}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-[#D4AF37] dark:hover:bg-[#202020] transition-colors cursor-pointer"
+              title="Khóa ứng dụng (Yêu cầu mã PIN)"
+            >
+              <Lock className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* User Profile Avatar */}
+          <div
+            className="w-8 h-8 rounded-full bg-blue-600 dark:bg-[#1A1A1A] border border-blue-500/20 dark:border-[#333] flex items-center justify-center text-white dark:text-[#D4AF37] shrink-0 shadow-xs cursor-pointer"
+            title="Tài khoản Quản trị viên"
+            onClick={() => setActiveTab('settings')}
+          >
+            <User className="w-4 h-4" />
+          </div>
+        </div>
+      </div>
+
+      {/* Tier 2: Seamless Tab Navigation Bar */}
+      <div className="border-t border-slate-200 dark:border-[#2A2A2A] bg-white dark:bg-[#0A0A0A] px-3 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 h-12">
+          
+          {/* Main Navigation Tabs */}
+          <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar h-full">
+            {/* 1. Dashboard */}
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
+                activeTab === 'dashboard'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
               }`}
             >
-              <FileText className={`w-4.5 h-4.5 transition-colors ${activeTab === 'notes' ? 'text-[#D4AF37]' : 'text-[#888888]'}`} />
-              <span>Ghi chú (Notes)</span>
+              <Layers className="w-4 h-4" />
+              <span>Dashboard</span>
+            </button>
+
+            {/* 2. Công việc (Tasks) */}
+            <button
+              onClick={() => setActiveTab('tasks')}
+              className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
+                activeTab === 'tasks'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
+              }`}
+            >
+              <CheckSquare className="w-4 h-4" />
+              <span>Công việc</span>
+              {activeTasksCount > 0 && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
+                  activeTab === 'tasks'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-[#D4AF37] dark:text-black'
+                    : 'bg-slate-100 text-slate-600 dark:bg-[#222222] dark:text-[#AAAAAA]'
+                }`}>
+                  {activeTasksCount}
+                </span>
+              )}
+            </button>
+
+            {/* 3. Ghi chú (Notes) */}
+            <button
+              onClick={() => setActiveTab('notes')}
+              className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
+                activeTab === 'notes'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>Ghi chú</span>
               {notes.length > 0 && (
-                <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded-full ${
-                  activeTab === 'notes' ? 'bg-[#D4AF37] text-black font-bold' : 'bg-[#222222] text-[#AAAAAA]'
+                <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
+                  activeTab === 'notes'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-[#D4AF37] dark:text-black'
+                    : 'bg-slate-100 text-slate-600 dark:bg-[#222222] dark:text-[#AAAAAA]'
                 }`}>
                   {notes.length}
                 </span>
               )}
             </button>
 
+            {/* 4. Google Drive */}
             <button
               onClick={() => setActiveTab('files')}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-[14.5px] font-semibold flex items-center gap-2.5 whitespace-nowrap rounded-md transition-all duration-200 cursor-pointer ${
+              className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
                 activeTab === 'files'
-                  ? 'text-[#D4AF37] bg-[#D4AF37]/15 border-b-2 border-[#D4AF37] shadow-[0_2px_12px_rgba(212,175,55,0.15)] font-bold'
-                  : 'text-[#AAAAAA] hover:text-white hover:bg-[#1A1A1A] border-b-2 border-transparent'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
               }`}
             >
-              <FolderSync className={`w-4.5 h-4.5 transition-colors ${activeTab === 'files' ? 'text-[#D4AF37]' : 'text-[#888888]'}`} />
+              <FolderSync className="w-4 h-4" />
               <span>Google Drive</span>
+              {files.length > 0 && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
+                  activeTab === 'files'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-[#D4AF37] dark:text-black'
+                    : 'bg-slate-100 text-slate-600 dark:bg-[#222222] dark:text-[#AAAAAA]'
+                }`}>
+                  {files.length}
+                </span>
+              )}
             </button>
-          </div>
 
-          {/* Right Side Settings & Tools Dropdown Trigger (Hover-activated List) */}
+            {/* 5. Thống kê & Phân tích (Analytics) - First class tab */}
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
+                activeTab === 'analytics'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4" />
+              <span>Thống kê & Phân tích</span>
+            </button>
+          </nav>
+
+          {/* Right Side Settings & Tools Dropdown Trigger */}
           <div
             className="relative shrink-0"
             onMouseEnter={handleMouseEnter}
@@ -334,32 +376,32 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className={`h-10 px-3.5 py-2 text-sm font-semibold flex items-center gap-2.5 rounded-md transition-all duration-200 cursor-pointer border ${
+              className={`h-8 px-2.5 sm:px-3 text-xs font-semibold flex items-center gap-1.5 rounded-lg transition-all cursor-pointer border ${
                 isSettingsActive
-                  ? 'text-[#D4AF37] border-[#D4AF37]/60 bg-[#D4AF37]/15 shadow-[0_2px_10px_rgba(212,175,55,0.15)]'
-                  : 'text-[#AAAAAA] hover:text-white border-[#2A2A2A] hover:border-[#444444] bg-[#121212] hover:bg-[#1A1A1A]'
+                  ? 'text-blue-600 border-blue-300 bg-blue-50 dark:text-[#D4AF37] dark:border-[#D4AF37]/60 dark:bg-[#D4AF37]/15'
+                  : 'text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-50 dark:text-[#AAAAAA] dark:hover:text-white dark:border-[#2A2A2A] dark:bg-[#121212] dark:hover:bg-[#1A1A1A]'
               }`}
               title={isSettingsActive ? getActiveTabTitle() : 'Cài đặt & Tính năng mở rộng'}
             >
               <div className="relative flex items-center justify-center">
-                <Settings className={`w-4.5 h-4.5 transition-transform duration-300 ${isDropdownOpen ? 'rotate-90 text-[#D4AF37]' : ''} ${isSettingsActive ? 'text-[#D4AF37]' : ''}`} />
+                <Settings className={`w-3.5 h-3.5 transition-transform duration-300 ${isDropdownOpen ? 'rotate-90' : ''}`} />
                 {isSettingsActive && !isDropdownOpen && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#D4AF37] ring-2 ring-[#0A0A0A]" />
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-[#D4AF37]" />
                 )}
               </div>
 
-              <span className={`text-xs font-bold uppercase tracking-wider hidden sm:inline ${isSettingsActive ? 'text-[#D4AF37]' : 'text-[#CCCCCC]'}`}>
+              <span className="hidden sm:inline">
                 {isSettingsActive ? getActiveTabTitle() : 'Cài Đặt'}
               </span>
-              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-[#D4AF37]' : 'text-[#777777]'}`} />
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Dropdown Menu List */}
             {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-64 bg-[#141414] border border-[#2A2A2A] rounded-lg shadow-2xl z-50 py-1.5 backdrop-blur-md animate-fadeIn divide-y divide-[#222222]">
-                <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#666666] flex items-center justify-between">
-                  <span>Hệ thống & Trí tuệ AI</span>
-                  <span className="text-[#D4AF37]">Trợ lý & Cài đặt</span>
+              <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2A2A2A] rounded-xl shadow-xl z-50 py-1.5 backdrop-blur-md animate-fadeIn divide-y divide-slate-100 dark:divide-[#222222]">
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-[#666666] flex items-center justify-between">
+                  <span>Hệ thống & AI</span>
+                  <span className="text-blue-600 dark:text-[#D4AF37]">Trợ lý & Cài đặt</span>
                 </div>
 
                 <div className="p-1 space-y-0.5">
@@ -369,20 +411,20 @@ export const Header: React.FC<HeaderProps> = ({
                       setIsAiDrawerOpen(true);
                       setIsDropdownOpen(false);
                     }}
-                    className="w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer text-[#CCCCCC] hover:text-[#D4AF37] hover:bg-[#1E1E1E]"
+                    className="w-full px-3 py-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer text-slate-700 hover:bg-slate-50 dark:text-[#CCCCCC] dark:hover:text-[#D4AF37] dark:hover:bg-[#1E1E1E]"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-md bg-[#D4AF37]/15 text-[#D4AF37]">
-                        <Sparkles className="w-4 h-4" />
+                      <div className="p-1.5 rounded-md bg-blue-50 text-blue-600 dark:bg-[#D4AF37]/15 dark:text-[#D4AF37]">
+                        <Sparkles className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                        <div className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
                           Trò Chuyện & Hỏi AI
                         </div>
-                        <div className="text-[10px] text-[#777777]">Tra cứu, phân tích & tóm tắt</div>
+                        <div className="text-[10px] text-slate-400 dark:text-[#777777]">Tra cứu, phân tích & tóm tắt</div>
                       </div>
                     </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1A1A1A] border border-[#333333] text-[#D4AF37] font-mono">Mở</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#333333] text-blue-600 dark:text-[#D4AF37] font-mono">Mở</span>
                   </button>
 
                   {/* Two-Way Voice Focus Mode Trigger */}
@@ -391,46 +433,20 @@ export const Header: React.FC<HeaderProps> = ({
                       onOpenVoiceFocus();
                       setIsDropdownOpen(false);
                     }}
-                    className="w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer text-[#CCCCCC] hover:text-[#D4AF37] hover:bg-[#1E1E1E]"
+                    className="w-full px-3 py-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer text-slate-700 hover:bg-slate-50 dark:text-[#CCCCCC] dark:hover:text-[#D4AF37] dark:hover:bg-[#1E1E1E]"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-md bg-[#D4AF37]/15 text-[#D4AF37]">
-                        <Mic className="w-4 h-4" />
+                      <div className="p-1.5 rounded-md bg-blue-50 text-blue-600 dark:bg-[#D4AF37]/15 dark:text-[#D4AF37]">
+                        <Mic className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                        <div className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
                           Thoại 2 Chiều (Voice)
                         </div>
-                        <div className="text-[10px] text-[#777777]">Đàm thoại tương tác âm thanh</div>
+                        <div className="text-[10px] text-slate-400 dark:text-[#777777]">Đàm thoại tương tác âm thanh</div>
                       </div>
                     </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1A1A1A] border border-[#333333] text-[#D4AF37] font-mono">Mic</span>
-                  </button>
-
-                  {/* Theme Switcher in Dropdown */}
-                  <button
-                    onClick={() => {
-                      onToggleTheme();
-                      setIsDropdownOpen(false);
-                    }}
-                    className="w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer text-[#CCCCCC] hover:text-[#D4AF37] hover:bg-[#1E1E1E]"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-md bg-[#D4AF37]/15 text-[#D4AF37]">
-                        {theme === 'light' ? <Moon className="w-4 h-4 text-[#2563EB]" /> : <Sun className="w-4 h-4 text-[#D4AF37]" />}
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                          {theme === 'light' ? 'Chuyển sang Chủ Đề Tối' : 'Chuyển sang Chủ Đề Sáng'}
-                        </div>
-                        <div className="text-[10px] text-[#777777]">
-                          {theme === 'light' ? 'Obsidian & Gold sang trọng' : 'Hiện đại, thanh lịch & dịu mắt'}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1A1A1A] border border-[#333333] text-[#D4AF37] font-mono">
-                      {theme === 'light' ? 'Sáng ☀️' : 'Tối 🌙'}
-                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#333333] text-blue-600 dark:text-[#D4AF37] font-mono">Mic</span>
                   </button>
 
                   {/* 1. Telegram Bot */}
@@ -439,23 +455,23 @@ export const Header: React.FC<HeaderProps> = ({
                       setActiveTab('telegram');
                       setIsDropdownOpen(false);
                     }}
-                    className={`w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer ${
                       activeTab === 'telegram'
-                        ? 'bg-[#D4AF37]/15 text-[#D4AF37] font-bold'
-                        : 'text-[#CCCCCC] hover:text-white hover:bg-[#1E1E1E]'
+                        ? 'bg-blue-50 text-blue-700 font-bold dark:bg-[#D4AF37]/15 dark:text-[#D4AF37]'
+                        : 'text-slate-700 hover:bg-slate-50 dark:text-[#CCCCCC] dark:hover:text-white dark:hover:bg-[#1E1E1E]'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className={`p-1.5 rounded-md ${activeTab === 'telegram' ? 'bg-[#D4AF37]/20 text-[#D4AF37]' : 'bg-[#1E1E1E] text-[#888888]'}`}>
-                        <Bot className="w-4 h-4" />
+                      <div className={`p-1.5 rounded-md ${activeTab === 'telegram' ? 'bg-blue-100 text-blue-700 dark:bg-[#D4AF37]/20 dark:text-[#D4AF37]' : 'bg-slate-100 text-slate-600 dark:bg-[#1E1E1E] dark:text-[#888888]'}`}>
+                        <Bot className="w-3.5 h-3.5" />
                       </div>
                       <div>
                         <div className="text-xs font-semibold">Telegram Bot</div>
-                        <div className="text-[10px] text-[#777777]">Thông báo & Tương tác 2 chiều</div>
+                        <div className="text-[10px] text-slate-400 dark:text-[#777777]">Thông báo & Tương tác 2 chiều</div>
                       </div>
                     </div>
                     {activeTab === 'telegram' && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-[#D4AF37]" />
                     )}
                   </button>
 
@@ -465,26 +481,26 @@ export const Header: React.FC<HeaderProps> = ({
                       setActiveTab('ai-learning');
                       setIsDropdownOpen(false);
                     }}
-                    className={`w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer ${
                       activeTab === 'ai-learning'
-                        ? 'bg-indigo-500/15 text-indigo-300 font-bold'
-                        : 'text-[#CCCCCC] hover:text-white hover:bg-[#1E1E1E]'
+                        ? 'bg-indigo-50 text-indigo-700 font-bold dark:bg-indigo-500/15 dark:text-indigo-300'
+                        : 'text-slate-700 hover:bg-slate-50 dark:text-[#CCCCCC] dark:hover:text-white dark:hover:bg-[#1E1E1E]'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className={`p-1.5 rounded-md ${activeTab === 'ai-learning' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-[#1E1E1E] text-indigo-400/80'}`}>
-                        <Brain className="w-4 h-4" />
+                      <div className={`p-1.5 rounded-md ${activeTab === 'ai-learning' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400' : 'bg-slate-100 text-slate-600 dark:bg-[#1E1E1E] dark:text-indigo-400/80'}`}>
+                        <Brain className="w-3.5 h-3.5" />
                       </div>
                       <div>
                         <div className="text-xs font-semibold flex items-center gap-1.5">
                           Tự Học & Tâm Trí AI
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         </div>
-                        <div className="text-[10px] text-[#777777]">Ký ức, Xưng hô & Suy ngẫm</div>
+                        <div className="text-[10px] text-slate-400 dark:text-[#777777]">Ký ức, Xưng hô & Suy ngẫm</div>
                       </div>
                     </div>
                     {activeTab === 'ai-learning' && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
                     )}
                   </button>
 
@@ -494,23 +510,23 @@ export const Header: React.FC<HeaderProps> = ({
                       setActiveTab('settings');
                       setIsDropdownOpen(false);
                     }}
-                    className={`w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer ${
                       activeTab === 'settings'
-                        ? 'bg-[#D4AF37]/15 text-[#D4AF37] font-bold'
-                        : 'text-[#CCCCCC] hover:text-white hover:bg-[#1E1E1E]'
+                        ? 'bg-blue-50 text-blue-700 font-bold dark:bg-[#D4AF37]/15 dark:text-[#D4AF37]'
+                        : 'text-slate-700 hover:bg-slate-50 dark:text-[#CCCCCC] dark:hover:text-white dark:hover:bg-[#1E1E1E]'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className={`p-1.5 rounded-md ${activeTab === 'settings' ? 'bg-[#D4AF37]/20 text-[#D4AF37]' : 'bg-[#1E1E1E] text-[#888888]'}`}>
-                        <Settings className="w-4 h-4" />
+                      <div className={`p-1.5 rounded-md ${activeTab === 'settings' ? 'bg-blue-100 text-blue-700 dark:bg-[#D4AF37]/20 dark:text-[#D4AF37]' : 'bg-slate-100 text-slate-600 dark:bg-[#1E1E1E] dark:text-[#888888]'}`}>
+                        <Settings className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <div className="text-xs font-semibold">Cài Đặt</div>
-                        <div className="text-[10px] text-[#777777]">Drive API, Gemini & Khóa PIN</div>
+                        <div className="text-xs font-semibold">Cài Đặt Hệ Thống</div>
+                        <div className="text-[10px] text-slate-400 dark:text-[#777777]">Drive API, Gemini & Khóa PIN</div>
                       </div>
                     </div>
                     {activeTab === 'settings' && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-[#D4AF37]" />
                     )}
                   </button>
 
@@ -520,23 +536,23 @@ export const Header: React.FC<HeaderProps> = ({
                       setActiveTab('architecture');
                       setIsDropdownOpen(false);
                     }}
-                    className={`w-full px-3 py-2.5 rounded-md flex items-center justify-between text-left transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer ${
                       activeTab === 'architecture'
-                        ? 'bg-[#D4AF37]/15 text-[#D4AF37] font-bold'
-                        : 'text-[#CCCCCC] hover:text-white hover:bg-[#1E1E1E]'
+                        ? 'bg-blue-50 text-blue-700 font-bold dark:bg-[#D4AF37]/15 dark:text-[#D4AF37]'
+                        : 'text-slate-700 hover:bg-slate-50 dark:text-[#CCCCCC] dark:hover:text-white dark:hover:bg-[#1E1E1E]'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className={`p-1.5 rounded-md ${activeTab === 'architecture' ? 'bg-[#D4AF37]/20 text-[#D4AF37]' : 'bg-[#1E1E1E] text-[#888888]'}`}>
-                        <ShieldCheck className="w-4 h-4" />
+                      <div className={`p-1.5 rounded-md ${activeTab === 'architecture' ? 'bg-blue-100 text-blue-700 dark:bg-[#D4AF37]/20 dark:text-[#D4AF37]' : 'bg-slate-100 text-slate-600 dark:bg-[#1E1E1E] dark:text-[#888888]'}`}>
+                        <ShieldCheck className="w-3.5 h-3.5" />
                       </div>
                       <div>
                         <div className="text-xs font-semibold">Kiến trúc & DB Schema</div>
-                        <div className="text-[10px] text-[#777777]">Sơ đồ hạ tầng & Firestore rules</div>
+                        <div className="text-[10px] text-slate-400 dark:text-[#777777]">Sơ đồ hạ tầng & Firestore rules</div>
                       </div>
                     </div>
                     {activeTab === 'architecture' && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-[#D4AF37]" />
                     )}
                   </button>
                 </div>
@@ -548,4 +564,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-

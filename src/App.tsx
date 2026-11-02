@@ -14,6 +14,7 @@ import { DashboardView } from './components/DashboardView.tsx';
 import { TasksView } from './components/TasksView.tsx';
 import { NotesView } from './components/NotesView.tsx';
 import { FilesView } from './components/FilesView.tsx';
+import { AnalyticsView } from './components/AnalyticsView.tsx';
 import { TelegramBotView } from './components/TelegramBotView.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { SystemArchView } from './components/SystemArchView.tsx';
@@ -101,6 +102,7 @@ export default function App() {
         {activeTab === 'tasks' && <TasksView />}
         {activeTab === 'notes' && <NotesView />}
         {activeTab === 'files' && <FilesView />}
+        {activeTab === 'analytics' && <AnalyticsView />}
         {activeTab === 'telegram' && <TelegramBotView />}
         {activeTab === 'ai-learning' && <AiLearningView />}
         {activeTab === 'settings' && <SettingsView />}

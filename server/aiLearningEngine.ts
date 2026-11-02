@@ -90,8 +90,17 @@ export async function synthesizeLearnedPromptContext(): Promise<string> {
 }
 
 // -------------------------------------------------------------
-// 2. PASSIVE CONTINUOUS EXTRACTION (ASYNC BACKGROUND LEARNER)
+// 2. PASSIVE CONTINUOUS EXTRACTION (OPTIMIZED DEBOUNCED LEARNER)
 // -------------------------------------------------------------
+// Cooldown & buffering tracker to prevent token waste and API rate-limiting
+let lastPassiveExtractionTimestamp = 0;
+const EXTRACTION_COOLDOWN_MS = 45000; // 45-second minimum interval between LLM extraction passes
+let extractionTimeoutTimer: any = null;
+const conversationTurnBuffer: { user: string; assistant: string; timestamp: number }[] = [];
+
+// Trivial message patterns that do not contain long-term personal facts
+const TRIVIAL_INPUT_REGEX = /^(ok|oke|okie|ừ|uh|vâng|da|dạ|cảm ơn|cam on|thanks|thank you|tks|hi|hello|xin chào|chào bạn|thời tiết|xem thời tiết|hôm nay ăn gì|mấy giờ rồi|thêm việc|tạo việc|tạo task|xóa|sửa)\b/i;
+
 export async function triggerPassiveLearningExtraction(
   userMessage: string,
   assistantReply: string,
@@ -100,22 +109,53 @@ export async function triggerPassiveLearningExtraction(
   if (!geminiClient) return;
 
   const msgTrimmed = userMessage.trim();
-  if (msgTrimmed.length < 4 || msgTrimmed.startsWith('/')) {
+  // Filter out short, slash-commands, or purely conversational fillers
+  if (msgTrimmed.length < 5 || msgTrimmed.startsWith('/') || TRIVIAL_INPUT_REGEX.test(msgTrimmed)) {
     return;
   }
 
-  try {
-    const extractionPrompt = `Bạn là Module Trí Tuệ Tự Học & Quản Lý Ký Ức Dài Hạn (AI Meta-Cognitive Learning Engine).
-Nhiệm vụ của bạn là phân tích đoạn hội thoại vừa diễn ra giữa Người dùng và Trợ lý AI để trích xuất các "Sự thật / Thói quen / Sở thích / Quy tắc / Danh xưng / Chuyên môn" mới về người dùng nếu có.
+  // Push turn to sliding buffer (keep maximum last 5 turns)
+  conversationTurnBuffer.push({
+    user: msgTrimmed,
+    assistant: assistantReply.slice(0, 300),
+    timestamp: Date.now(),
+  });
+  if (conversationTurnBuffer.length > 5) {
+    conversationTurnBuffer.shift();
+  }
 
-ĐOẠN HỘI THOẠI VỪA DIỄN RA:
-- Người dùng: "${userMessage}"
-- Trợ lý AI: "${assistantReply.slice(0, 300)}..."
+  // Clear existing pending debounce timer
+  if (extractionTimeoutTimer) {
+    clearTimeout(extractionTimeoutTimer);
+  }
 
-HƯỚNG DẪN TRÍCH XUẤT:
+  const timeSinceLast = Date.now() - lastPassiveExtractionTimestamp;
+  const delay = Math.max(2000, EXTRACTION_COOLDOWN_MS - timeSinceLast);
+
+  // Debounced execution: wait until conversation pauses
+  extractionTimeoutTimer = setTimeout(async () => {
+    try {
+      if (conversationTurnBuffer.length === 0) return;
+      lastPassiveExtractionTimestamp = Date.now();
+
+      // Combine buffered turns into a single contextual snippet
+      const bufferedTurns = [...conversationTurnBuffer];
+      conversationTurnBuffer.length = 0; // drain buffer
+
+      const conversationText = bufferedTurns
+        .map(t => `- Người dùng: "${t.user}"\n- Trợ lý AI: "${t.assistant}"`)
+        .join('\n\n');
+
+      const extractionPrompt = `Bạn là Module Trí Tuệ Tự Học & Quản Lý Ký Ức Dài Hạn (AI Meta-Cognitive Learning Engine).
+Nhiệm vụ của bạn là phân tích đoạn trao đổi gần nhất giữa Người dùng và Trợ lý AI để trích xuất các "Sự thật / Thói quen / Sở thích / Quy tắc / Danh xưng / Lĩnh vực chuyên môn" lâu dài về người dùng nếu có.
+
+ĐOẠN TRAO ĐỔI GẦN ĐÂY:
+${conversationText}
+
+HƯỚNG DẪN TRÍCH XUẤT (STRICT PROTOCOL):
 1. Chỉ trích xuất thông tin CÓ GIÁ TRỊ LÂU DÀI về người dùng (ví dụ: "Người dùng thích...", "Người dùng làm nghề...", "Người dùng yêu cầu xưng hô...", "Quy tắc khi tạo việc...", "Sở thích lập trình...", "Thói quen deadline...").
-2. BỎ QUA các yêu cầu nhất thời ngắn hạn (ví dụ: "hôm nay ăn gì", "xem thời tiết", "tính toán 1+1").
-3. Nếu không có thông tin dài hạn mới nào cần ghi nhớ, hãy trả về mảng rỗng [].
+2. TUYỆT ĐỐI BỎ QUA các câu hỏi ngắn hạn, tác vụ nhất thời (thời tiết, tính toán, kiểm tra công việc ngày hôm nay).
+3. Nếu không có thông tin cá nhân dài hạn mới nào cần ghi nhớ, hãy trả về mảng rỗng [].
 
 HÃY TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON KHÔNG KÈM TEXT GIẢI THÍCH:
 [
@@ -126,21 +166,21 @@ HÃY TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON KHÔNG KÈM TEXT GIẢI THÍCH:
   }
 ]`;
 
-    const response = await safeGenerateContent({
-      gemini: geminiClient,
-      contents: extractionPrompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+      const response = await safeGenerateContent({
+        gemini: geminiClient,
+        contents: extractionPrompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
 
-    const text = response?.text?.trim();
-    if (!text || text === '[]' || !text.startsWith('[')) return;
+      const text = response?.text?.trim();
+      if (!text || text === '[]' || !text.startsWith('[')) return;
 
-    const extractedItems: any[] = JSON.parse(text);
-    if (!Array.isArray(extractedItems) || extractedItems.length === 0) return;
+      const extractedItems: any[] = JSON.parse(text);
+      if (!Array.isArray(extractedItems) || extractedItems.length === 0) return;
 
-    const existingMemories = await getDbAiMemories();
+      const existingMemories = await getDbAiMemories();
 
     for (const item of extractedItems) {
       if (!item.fact || typeof item.fact !== 'string' || item.fact.length < 6) continue;
@@ -184,6 +224,7 @@ HÃY TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON KHÔNG KÈM TEXT GIẢI THÍCH:
   } catch (err: any) {
     console.warn('[AI Passive Learning Extraction Error]:', err?.message);
   }
+}, delay);
 }
 
 // -------------------------------------------------------------

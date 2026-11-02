@@ -7,7 +7,9 @@ import { getGoogleAccessToken, setGoogleAccessToken } from './googleAuth.js';
 export async function uploadLocalFileToUserGoogleDrive(
   fileId: string,
   targetFolderId?: string,
-  base64Data?: string
+  base64Data?: string,
+  purgeLocalAfterUpload: boolean = true,
+  deleteLocalRecord: boolean = false
 ): Promise<{
   driveFileId?: string;
   webViewLink?: string;
@@ -27,7 +29,12 @@ export async function uploadLocalFileToUserGoogleDrive(
   const res = await fetch(`/api/files/upload-to-user-drive/${fileId}`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ folderId: targetFolderId, base64Data }),
+    body: JSON.stringify({
+      folderId: targetFolderId,
+      base64Data,
+      purgeLocalAfterUpload,
+      deleteLocalRecord,
+    }),
   });
 
   if (!res.ok) {
@@ -45,13 +52,21 @@ export async function uploadLocalFileToUserGoogleDrive(
     setGoogleAccessToken(null);
   }
 
-  const hasDriveId = !!(data.file?.driveFileId || data.driveResult?.id);
+  const driveFileId = data.file?.driveFileId || data.driveResult?.id;
+  if (!driveFileId) {
+    if (data?.tokenExpired || data?.requiresAdminLogin) {
+      setGoogleAccessToken(null);
+    }
+    throw new Error(
+      data?.error || data?.notice || 'Chưa thể tải tệp lên Google Drive. Bắt buộc đăng nhập tài khoản Google để đồng bộ thực tế.'
+    );
+  }
 
   return {
-    driveFileId: data.file?.driveFileId || data.driveResult?.id,
+    driveFileId,
     webViewLink: data.file?.webViewLink || data.driveResult?.webViewLink,
     file: data.file,
     notice: data.notice,
-    requiresAdminLogin: !hasDriveId && (data.requiresAdminLogin || !token),
+    requiresAdminLogin: false,
   };
 }

@@ -135,6 +135,25 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["fileId", "data"]
+    },
+    "DocumentVector": {
+      "title": "DocumentVector",
+      "description": "Dense vector embeddings (3072D) and BM25 metadata for notes and documents",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["note", "file"] },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "classification": { "type": "string" },
+        "category": { "type": "string" },
+        "vector": { "type": "array", "items": { "type": "number" } },
+        "model": { "type": "string" },
+        "hash": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "type", "title", "vector", "model"]
     }
   },
   "firestore": {
@@ -173,6 +192,10 @@
     "/file_binaries/{binaryId}": {
       "entity": "FileBinary",
       "description": "Persistent chunked binary data vault for uploaded documents"
+    },
+    "/embeddings/{embeddingId}": {
+      "entity": "DocumentVector",
+      "description": "Persistent vector embeddings stored in Cloud Firestore"
     }
   }
 }

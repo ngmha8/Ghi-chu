@@ -179,6 +179,10 @@ export interface DriveServiceAccountConfig {
   lastSyncAt?: string;
   serviceAccountRawJson?: string;
   errorMessage?: string;
+  driveType?: 'personal_drive' | 'shared_drive';
+  isSharedDrive?: boolean;
+  canUploadDirectlyWithRobot?: boolean;
+  diagnosticAdvice?: string;
 }
 
 export interface UserProfile {

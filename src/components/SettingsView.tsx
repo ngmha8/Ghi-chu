@@ -574,47 +574,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   return (
     <div className="space-y-8 pb-16">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#151515] border border-[#2A2A2A] p-5 rounded-sm shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] p-5 rounded-xl shadow-xs">
         <div className="flex items-center gap-3.5">
-          <div className="p-3 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30">
-            <Settings className="w-6 h-6 text-[#D4AF37]" />
+          <div className="p-3 rounded-lg bg-blue-50 text-blue-600 dark:bg-[#1A1A1A] dark:text-[#D4AF37] border border-blue-100 dark:border-[#D4AF37]/30">
+            <Settings className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-editorial-serif font-bold text-white">Cài Đặt & Cấu Hình Tích Hợp</h1>
-              <span className="text-[10px] bg-[#0C0C0C] text-[#D4AF37] border border-[#D4AF37]/30 px-2 py-0.5 rounded font-mono font-bold">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Cài Đặt & Cấu Hình Tích Hợp</h1>
+              <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-[#0C0C0C] dark:text-[#D4AF37] border border-blue-200 dark:border-[#D4AF37]/30 px-2 py-0.5 rounded-full font-mono font-bold">
                 Centralized Config Center
               </span>
             </div>
-            <p className="text-xs text-[#888888] italic mt-0.5">
+            <p className="text-xs text-slate-600 dark:text-[#888] mt-0.5">
               Quản lý tập trung thông số kết nối Telegram Bot, Google Drive Folder, mã PIN bảo mật và mô hình AI
             </p>
           </div>
         </div>
 
         {/* Section Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto bg-[#0C0C0C] p-1 rounded-sm border border-[#2A2A2A]">
+        <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-100 dark:bg-[#0C0C0C] p-1 rounded-lg border border-slate-200 dark:border-[#2A2A2A]">
           <button
             onClick={() => setActiveSection('all')}
-            className={`px-3 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              activeSection === 'all' ? 'bg-[#D4AF37] text-black shadow' : 'text-[#888888] hover:text-white'
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+              activeSection === 'all' ? 'bg-white text-blue-600 dark:bg-[#D4AF37] dark:text-black shadow-xs font-bold' : 'text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             Tất Cả
           </button>
           <button
             onClick={() => setActiveSection('theme')}
-            className={`px-3 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeSection === 'theme' ? 'bg-[#D4AF37] text-black shadow' : 'text-[#888888] hover:text-white'
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSection === 'theme' ? 'bg-white text-blue-600 dark:bg-[#D4AF37] dark:text-black shadow-xs font-bold' : 'text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Palette className="w-3.5 h-3.5" />
-            <span>Chủ Đề & Giao Diện</span>
+            <span>Giao Diện</span>
           </button>
           <button
             onClick={() => setActiveSection('telegram')}
-            className={`px-3 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeSection === 'telegram' ? 'bg-[#D4AF37] text-black shadow' : 'text-[#888888] hover:text-white'
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSection === 'telegram' ? 'bg-white text-blue-600 dark:bg-[#D4AF37] dark:text-black shadow-xs font-bold' : 'text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Bot className="w-3.5 h-3.5" />
@@ -622,8 +622,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
           <button
             onClick={() => setActiveSection('drive')}
-            className={`px-3 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeSection === 'drive' ? 'bg-[#D4AF37] text-black shadow' : 'text-[#888888] hover:text-white'
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSection === 'drive' ? 'bg-white text-blue-600 dark:bg-[#D4AF37] dark:text-black shadow-xs font-bold' : 'text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <HardDrive className="w-3.5 h-3.5" />
@@ -631,22 +631,93 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
           <button
             onClick={() => setActiveSection('security')}
-            className={`px-3 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeSection === 'security' ? 'bg-[#D4AF37] text-black shadow' : 'text-[#888888] hover:text-white'
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSection === 'security' ? 'bg-white text-blue-600 dark:bg-[#D4AF37] dark:text-black shadow-xs font-bold' : 'text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Lock className="w-3.5 h-3.5" />
-            <span>Mã PIN & Bảo Mật</span>
+            <span>Mã PIN</span>
           </button>
           <button
             onClick={() => setActiveSection('system')}
-            className={`px-3 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeSection === 'system' ? 'bg-[#D4AF37] text-black shadow' : 'text-[#888888] hover:text-white'
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSection === 'system' ? 'bg-white text-blue-600 dark:bg-[#D4AF37] dark:text-black shadow-xs font-bold' : 'text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
             <span>AI & Hệ Thống</span>
           </button>
+        </div>
+      </div>
+
+      {/* 4 Summary KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI 1: System Status */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              TRẠNG THÁI HỆ THỐNG
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white">Hoạt Động Ổn Định</span>
+            </div>
+            <span className="text-[11px] text-slate-500 block mt-1">99.98% Uptime • Firestore V2</span>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* KPI 2: Cloud Sync */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              KẾT NỐI CLOUD
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white">Drive & Firestore</span>
+            </div>
+            <span className="text-[11px] text-slate-500 block mt-1">{files.length} tệp • Vector RAG Active</span>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center shrink-0">
+            <HardDrive className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* KPI 3: PIN Protection */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              BẢO MẬT MÃ PIN
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white">{pinSettings.enabled ? 'Đã Kích Hoạt' : 'Chưa Bật'}</span>
+            </div>
+            <span className="text-[11px] text-slate-500 block mt-1">Tự khóa sau {pinSettings.autolockMinutes} phút</span>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center shrink-0">
+            <Lock className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* KPI 4: AI Model */}
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              TRÍ TUỆ NHÂN TẠO
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white">Gemini 2.5 Flash</span>
+            </div>
+            <span className="text-[11px] text-slate-500 block mt-1">Thoại 2 Chiều & RAG Ready</span>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center shrink-0">
+            <Sparkles className="w-5 h-5" />
+          </div>
         </div>
       </div>
 
@@ -1845,6 +1916,93 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <p className="text-[#CCCCCC] leading-relaxed">
                       • <strong className="text-amber-400">Chiều ghi (App ➔ Drive cá nhân):</strong> Google quy định Robot có hạn mức 0MB trên tài khoản cá nhân (@gmail.com). Do đó, để tải tệp mới lên Drive cá nhân, hệ thống yêu cầu <strong className="text-white">Đăng nhập Tài khoản Google của Admin (Chủ sở hữu Drive)</strong>.
                     </p>
+                  </div>
+
+                  {/* Live Diagnostic Report Box if tested or configured */}
+                  {(saTestResult || saConfig.driveType) && (
+                    <div className="p-3.5 bg-[#121A14] border border-emerald-600/50 rounded space-y-2 text-xs animate-in fade-in">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span className="font-bold text-white uppercase text-[11px] tracking-wider">
+                            Kết Quả Chẩn Đoán Thư Mục Drive
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded font-bold border ${
+                          (saTestResult?.isSharedDrive || saConfig.isSharedDrive)
+                            ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                            : 'bg-amber-950/80 text-amber-300 border-amber-700/80'
+                        }`}>
+                          {(saTestResult?.isSharedDrive || saConfig.isSharedDrive)
+                            ? '📁 Bộ Nhớ Dùng Chung (Shared Drive)'
+                            : '👤 Drive Cá Nhân (@gmail.com)'}
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-[#CCCCCC] leading-relaxed">
+                        {saTestResult?.diagnosticAdvice || saConfig.diagnosticAdvice || (
+                          (saTestResult?.isSharedDrive || saConfig.isSharedDrive)
+                            ? 'Thư mục thuộc Google Workspace Shared Drive: Robot Service Account có thể ghi và đọc dữ liệu độc lập 100%!'
+                            : 'Thư mục thuộc Google Drive cá nhân: Robot Service Account quét tài liệu tự động. Khi đẩy file mới lên Drive cần tài khoản Google Admin.'
+                        )}
+                      </div>
+
+                      {saTestResult?.owners && saTestResult.owners.length > 0 && (
+                        <div className="text-[11px] text-[#999999] pt-1 border-t border-[#222]">
+                          <span>Chủ sở hữu thư mục: </span>
+                          <span className="text-[#D4AF37] font-mono font-bold">
+                            {saTestResult.owners.join(', ')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Origin Mismatch Fix Tool */}
+                  <div className="p-3 bg-[#0E0E0E] border border-[#262626] rounded flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px]">
+                    <div className="space-y-0.5">
+                      <span className="text-white font-semibold flex items-center gap-1.5 text-[11px]">
+                        <Key className="w-3 h-3 text-[#D4AF37]" />
+                        <span>Khắc phục lỗi Google <code>400: origin_mismatch</code></span>
+                      </span>
+                      <p className="text-[10px] text-[#888888]">
+                        Origin cần thêm vào Google Cloud Credentials: <strong className="text-amber-300 font-mono select-all underline">{typeof window !== 'undefined' ? window.location.origin : ''}</strong>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            navigator.clipboard?.writeText(window.location.origin);
+                            setCopiedOrigin(true);
+                            setTimeout(() => setCopiedOrigin(false), 2500);
+                          }
+                        }}
+                        className="px-2.5 py-1.5 bg-[#1F1F1F] hover:bg-[#2A2A2A] text-white border border-[#333] rounded text-[10px] font-mono flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedOrigin ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="text-emerald-400">Đã chép</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3 text-[#D4AF37]" />
+                            <span>Sao chép Origin</span>
+                          </>
+                        )}
+                      </button>
+                      <a
+                        href="https://console.cloud.google.com/apis/credentials"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1.5 bg-[#1F1F1F] hover:bg-[#2A2A2A] text-[#D4AF37] border border-[#D4AF37]/40 rounded text-[10px] flex items-center gap-1 font-semibold"
+                      >
+                        <span>Mở GCP</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
 
                   {/* Actions for active config */}

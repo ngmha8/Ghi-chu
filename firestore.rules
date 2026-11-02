@@ -83,6 +83,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /embeddings/{embeddingId} {
+      allow read, write: if true;
+    }
+
     // -------------------------------------------------------------
     // GLOBAL DEFAULT: DENY ALL UNAUTHENTICATED OR UNMATCHED ACCESS
     // -------------------------------------------------------------

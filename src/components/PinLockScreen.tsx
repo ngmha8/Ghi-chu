@@ -14,6 +14,7 @@ import {
 import {
   verifyPin,
   verifyPinAsync,
+  verifyPinDetailedAsync,
   unlockSession,
   getPinSettings,
   fetchPinSettingsFromServer,
@@ -97,9 +98,22 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
 
     // Auto verify if reached 4 or more digits
     if (newPin.length >= 4) {
-      const ok = await verifyPinAsync(newPin);
-      if (ok) {
+      const res = await verifyPinDetailedAsync(newPin);
+      if (res.isValid) {
         triggerSuccessUnlock();
+        return;
+      }
+      if (res.isLocked) {
+        setCooldownSeconds(res.retryAfterSeconds || 30);
+        setErrorMsg(res.error || 'Đã nhập sai quá nhiều lần. Vui lòng đợi 30 giây.');
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 500);
+        setPinInput('');
+        return;
+      }
+      // If user typed maximum 8 digits and it is wrong, trigger full failure
+      if (newPin.length >= 8) {
+        handleVerify(newPin);
       }
     }
   };
@@ -132,17 +146,33 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onUnlock }) => {
       return;
     }
 
-    const isValid = await verifyPinAsync(pinToTest);
-    if (isValid) {
+    const res = await verifyPinDetailedAsync(pinToTest);
+    if (res.isValid) {
       triggerSuccessUnlock();
     } else {
+      if (res.isLocked) {
+        setCooldownSeconds(res.retryAfterSeconds || 30);
+        setErrorMsg(res.error || 'Đã nhập sai 5 lần liên tiếp. Hệ thống tạm khóa 30 giây.');
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 500);
+        setPinInput('');
+        return;
+      }
+
       const nextFailed = failedAttempts + 1;
       setFailedAttempts(nextFailed);
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
       setPinInput('');
 
-      if (nextFailed >= 5) {
+      if (res.remainingAttempts !== undefined) {
+        if (res.remainingAttempts <= 0) {
+          setCooldownSeconds(30);
+          setErrorMsg('Đã nhập sai 5 lần. Vui lòng đợi 30 giây để thử lại.');
+        } else {
+          setErrorMsg(res.error || `Mã PIN không đúng! (Còn ${res.remainingAttempts} lần thử)`);
+        }
+      } else if (nextFailed >= 5) {
         setCooldownSeconds(30);
         setErrorMsg('Đã nhập sai 5 lần. Vui lòng đợi 30 giây để thử lại.');
       } else {

@@ -203,23 +203,23 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
   return (
     <div className="space-y-8 animate-fadeIn pb-16">
       {/* Top Banner / AI Cognitive State Card */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950/60 via-zinc-900 to-purple-950/50 border border-indigo-500/20 p-6 md:p-8 backdrop-blur-xl shadow-2xl">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-50/90 via-white to-purple-50/90 border border-indigo-100 dark:from-indigo-950/60 dark:via-zinc-900 dark:to-purple-950/50 dark:border-indigo-500/20 p-6 md:p-8 backdrop-blur-xl shadow-sm dark:shadow-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold uppercase tracking-wider">
-              <Brain className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/10 dark:border-indigo-500/20 dark:text-indigo-300 text-xs font-semibold uppercase tracking-wider">
+              <Brain className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 animate-pulse" />
               Hệ Thống Tự Học & Quản Trị Nhận Thức AI
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
               Tâm Trí & Bộ Nhớ Dài Hạn Của AI
-              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 font-medium">
                 Continuous Active Learning
               </span>
             </h1>
-            <p className="text-sm md:text-base text-zinc-300 leading-relaxed">
+            <p className="text-sm md:text-base text-slate-600 dark:text-zinc-300 leading-relaxed">
               Trợ lý AI của bạn liên tục tự động phân tích hành vi, ghi nhận phản hồi, tiếp thu thói quen và quy tắc cá nhân hóa. Mọi ký ức được đồng bộ vĩnh viễn trên Firebase Firestore và áp dụng tức thì vào mọi phiên làm việc.
             </p>
           </div>
@@ -237,9 +237,9 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
 
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 hover:text-white font-medium text-sm transition-all cursor-pointer"
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:border-zinc-700 dark:text-zinc-200 font-medium text-sm transition-all cursor-pointer shadow-xs"
             >
-              <Plus className="w-4 h-4 text-emerald-400" />
+              <Plus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               Thêm Ký Ức Mới
             </button>
           </div>
@@ -247,45 +247,45 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
 
         {/* Reflection Alert Message */}
         {reflectMessage && (
-          <div className="mt-4 p-3.5 rounded-xl bg-indigo-900/40 border border-indigo-500/30 text-indigo-200 text-sm flex items-center gap-3 animate-fadeIn">
-            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+          <div className="mt-4 p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 dark:bg-indigo-900/40 dark:border-indigo-500/30 dark:text-indigo-200 text-sm flex items-center gap-3 animate-fadeIn">
+            <Sparkles className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
             <span>{reflectMessage}</span>
           </div>
         )}
 
         {/* Cognitive Metric Bar */}
-        <div className="mt-8 pt-6 border-t border-zinc-800/80 grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-6">
-          <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-xs text-zinc-400 flex items-center gap-1.5 mb-1">
-              <Award className="w-3.5 h-3.5 text-indigo-400" /> Cấp độ Thấu hiểu
+        <div className="mt-8 pt-6 border-t border-slate-200 dark:border-zinc-800/80 grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-6">
+          <div className="p-4 rounded-xl bg-white border border-slate-200 dark:bg-zinc-900/60 dark:border-zinc-800 shadow-xs">
+            <div className="text-xs text-slate-500 dark:text-zinc-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Award className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> Cấp độ Thấu hiểu
             </div>
-            <div className="text-base font-bold text-white truncate">{learningLevel}</div>
+            <div className="text-base font-bold text-slate-900 dark:text-white truncate">{learningLevel}</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-xs text-zinc-400 flex items-center gap-1.5 mb-1">
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> Điểm Tương Thích AI
+          <div className="p-4 rounded-xl bg-white border border-slate-200 dark:bg-zinc-900/60 dark:border-zinc-800 shadow-xs">
+            <div className="text-xs text-slate-500 dark:text-zinc-400 flex items-center gap-1.5 mb-1 font-medium">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" /> Điểm Tương Thích AI
             </div>
-            <div className="text-xl font-bold text-emerald-400 flex items-center gap-2">
+            <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
               {learningScore}/100
-              <div className="w-16 bg-zinc-700 h-1.5 rounded-full overflow-hidden">
+              <div className="w-16 bg-slate-200 dark:bg-zinc-700 h-1.5 rounded-full overflow-hidden">
                 <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${learningScore}%` }} />
               </div>
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-xs text-zinc-400 flex items-center gap-1.5 mb-1">
-              <Brain className="w-3.5 h-3.5 text-purple-400" /> Tổng Ký ức Khắc sâu
+          <div className="p-4 rounded-xl bg-white border border-slate-200 dark:bg-zinc-900/60 dark:border-zinc-800 shadow-xs">
+            <div className="text-xs text-slate-500 dark:text-zinc-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Brain className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" /> Tổng Ký ức Khắc sâu
             </div>
-            <div className="text-xl font-bold text-purple-300">{memories.length} sự thật</div>
+            <div className="text-xl font-bold text-purple-600 dark:text-purple-300">{memories.length} sự thật</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-xs text-zinc-400 flex items-center gap-1.5 mb-1">
-              <Lightbulb className="w-3.5 h-3.5 text-amber-400" /> Đúc kết Chiến lược
+          <div className="p-4 rounded-xl bg-white border border-slate-200 dark:bg-zinc-900/60 dark:border-zinc-800 shadow-xs">
+            <div className="text-xs text-slate-500 dark:text-zinc-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Lightbulb className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" /> Đúc kết Chiến lược
             </div>
-            <div className="text-xl font-bold text-amber-300">{insights.length} insight</div>
+            <div className="text-xl font-bold text-amber-600 dark:text-amber-300">{insights.length} insight</div>
           </div>
         </div>
       </div>
@@ -294,21 +294,21 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
       {personaConfig && (
         <form
           onSubmit={handleSavePersona}
-          className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6 md:p-7 space-y-6 shadow-xl relative overflow-hidden"
+          className="rounded-2xl bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 p-6 md:p-7 space-y-6 shadow-xs dark:shadow-xl relative overflow-hidden"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-zinc-800 pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:border dark:border-amber-500/30 flex items-center justify-center dark:text-amber-400">
                 <Settings2 className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   Thiết Lập Xưng Hô & Phong Cách Đồng Hành AI
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 font-medium">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30 font-medium">
                     Strict Persona
                   </span>
                 </h2>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-slate-600 dark:text-zinc-400">
                   Chỉ định danh xưng để AI thấu hiểu và giao tiếp chuẩn xác, ấm áp như một cộng sự đắc lực
                 </p>
               </div>
@@ -325,8 +325,8 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
           </div>
 
           {personaSaveSuccess && (
-            <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/40 dark:border-emerald-500/30 dark:text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>Đã lưu thành công cấu hình Xưng hô & Tính cách AI lên hệ thống Firestore!</span>
             </div>
           )}
@@ -334,7 +334,7 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* User Honorific */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-zinc-300">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
                 👤 Danh xưng AI gọi bạn (User Honorific):
               </label>
               <input
@@ -342,16 +342,16 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
                 value={personaConfig.userHonorific || ''}
                 onChange={(e) => setPersonaConfig({ ...personaConfig, userHonorific: e.target.value })}
                 placeholder="Ví dụ: Anh Nam, Chị Mai, Sếp, Bạn..."
-                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
               />
-              <p className="text-[11px] text-zinc-500 italic">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-500 italic">
                 AI sẽ luôn gọi bạn bằng danh xưng này (VD: &ldquo;Chào Anh Nam&rdquo;, &ldquo;Em đã cập nhật xong việc cho Anh...&rdquo;)
               </p>
             </div>
 
             {/* AI Honorific */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-zinc-300">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
                 🤖 Danh xưng AI tự gọi mình (AI Honorific):
               </label>
               <input
@@ -359,9 +359,9 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
                 value={personaConfig.aiHonorific || ''}
                 onChange={(e) => setPersonaConfig({ ...personaConfig, aiHonorific: e.target.value })}
                 placeholder="Ví dụ: Em, Tôi, Trợ lý, Cố vấn..."
-                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
               />
-              <p className="text-[11px] text-zinc-500 italic">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-500 italic">
                 Cách AI tự xưng trong câu trả lời (VD: &ldquo;Em xin tóm tắt...&rdquo;, &ldquo;Tôi sẽ hỗ trợ bạn ngay&rdquo;)
               </p>
             </div>
@@ -369,7 +369,7 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
 
           {/* Communication Style Selector */}
           <div className="space-y-2.5">
-            <label className="block text-xs font-semibold text-zinc-300">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
               🎭 Phong cách giao tiếp & đồng hành chủ đạo:
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -382,21 +382,21 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
                     onClick={() => setPersonaConfig({ ...personaConfig, communicationStyle: style.id })}
                     className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                       isSelected
-                        ? 'bg-amber-500/10 border-amber-500 text-white shadow-md shadow-amber-500/5'
-                        : 'bg-zinc-800/60 border-zinc-700/70 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
+                        ? 'bg-amber-50 border-amber-500 text-slate-900 shadow-sm dark:bg-amber-500/10 dark:border-amber-500 dark:text-white'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:bg-zinc-800/60 dark:border-zinc-700/70 dark:text-zinc-400 dark:hover:text-zinc-200'
                     }`}
                   >
                     <div className="space-y-1">
-                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                         <span>{style.icon}</span>
                         <span>{style.label.replace(/^[^\s]+\s/, '')}</span>
                       </div>
-                      <p className="text-[11px] text-zinc-400 leading-relaxed">
+                      <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-relaxed">
                         {style.desc}
                       </p>
                     </div>
                     {isSelected && (
-                      <div className="mt-2.5 flex items-center gap-1 text-[10px] text-amber-400 font-semibold">
+                      <div className="mt-2.5 flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
                         <CheckCircle2 className="w-3 h-3" /> Đang áp dụng
                       </div>
                     )}
@@ -406,10 +406,10 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2 border-t border-zinc-800/60">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2 border-t border-slate-200 dark:border-zinc-800/60">
             {/* Location */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-zinc-300">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
                 📍 Địa bàn / Tỉnh thành mặc định (Location):
               </label>
               <input
@@ -417,16 +417,16 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
                 value={personaConfig.location || 'Bắc Giang'}
                 onChange={(e) => setPersonaConfig({ ...personaConfig, location: e.target.value })}
                 placeholder="Ví dụ: Bắc Giang, Hà Nội, TP. Hồ Chí Minh..."
-                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
               />
-              <p className="text-[11px] text-zinc-500 italic">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-500 italic">
                 AI sẽ mặc định áp dụng địa điểm này khi tra cứu thời tiết và ngữ cảnh địa phương.
               </p>
             </div>
 
             {/* Focus Domain */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-zinc-300">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
                 📚 Lĩnh vực & Chuyên môn trọng tâm:
               </label>
               <input
@@ -434,13 +434,13 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
                 value={personaConfig.focusDomain || ''}
                 onChange={(e) => setPersonaConfig({ ...personaConfig, focusDomain: e.target.value })}
                 placeholder="Ví dụ: Công nghệ thông tin, Quản trị doanh nghiệp..."
-                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
               />
             </div>
 
             {/* Custom Directives */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-zinc-300">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
                 🔒 Lời nhắc quy tắc đặc biệt:
               </label>
               <input
@@ -448,7 +448,7 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
                 value={personaConfig.customInstructions || ''}
                 onChange={(e) => setPersonaConfig({ ...personaConfig, customInstructions: e.target.value })}
                 placeholder="Ví dụ: Luôn tóm tắt hành động trước 16h00..."
-                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
               />
             </div>
           </div>
@@ -470,30 +470,30 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
             {insights.map((ins) => (
               <div
                 key={ins.id}
-                className="group p-5 rounded-2xl bg-zinc-900/70 border border-zinc-800 hover:border-amber-500/30 transition-all shadow-lg hover:shadow-amber-500/5 flex flex-col justify-between"
+                className="group p-5 rounded-2xl bg-white dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 hover:border-amber-500/50 transition-all shadow-xs dark:shadow-lg flex flex-col justify-between"
               >
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-wide">
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 uppercase tracking-wide">
                       {ins.category}
                     </span>
-                    <span className="text-xs text-zinc-500">
+                    <span className="text-xs text-slate-500 dark:text-zinc-500">
                       Tin cậy: {Math.round((ins.confidenceScore || 0.85) * 100)}%
                     </span>
                   </div>
 
-                  <h3 className="text-base font-semibold text-white group-hover:text-amber-300 transition-colors">
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors">
                     {ins.title}
                   </h3>
-                  <p className="text-sm text-zinc-300 leading-relaxed">
+                  <p className="text-sm text-slate-600 dark:text-zinc-300 leading-relaxed">
                     {ins.summary}
                   </p>
                 </div>
 
-                <div className="mt-4 pt-3.5 border-t border-zinc-800/60 flex items-start gap-2.5 text-xs text-amber-300/90 bg-amber-950/20 p-3 rounded-xl border border-amber-500/10">
-                  <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="mt-4 pt-3.5 border-t border-slate-200 dark:border-zinc-800/60 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-300/90 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-xl border border-amber-200 dark:border-amber-500/10">
+                  <Zap className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-amber-200">Lời khuyên hành động:</strong> {ins.actionableAdvice}
+                    <strong className="text-amber-800 dark:text-amber-200">Lời khuyên hành động:</strong> {ins.actionableAdvice}
                   </div>
                 </div>
               </div>
@@ -506,23 +506,23 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
       <div className="space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2.5">
-              <Brain className="w-5 h-5 text-indigo-400" />
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+              <Brain className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               Ký Ức & Quy Tắc Cá Nhân Hóa Đã Tiếp Thu ({filteredMemories.length})
             </h2>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
               AI liên tục tra cứu những ký ức này để điều chỉnh phong cách phản hồi và tự động hóa công việc cho bạn
             </p>
           </div>
 
           {/* Category Filter Pills */}
-          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-zinc-900 border border-zinc-800">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
             <button
               onClick={() => setSelectedCategory('all')}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 selectedCategory === 'all'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-blue-600 dark:bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Tất cả ({memories.length})
@@ -535,8 +535,8 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
                   onClick={() => setSelectedCategory(catKey)}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     selectedCategory === catKey
-                      ? 'bg-zinc-700 text-white'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-slate-900 shadow-xs dark:bg-zinc-700 dark:text-white'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   {config.label.split(' ')[0]} ({count})
@@ -548,10 +548,10 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
 
         {/* Memory Fact Cards Grid */}
         {filteredMemories.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl bg-zinc-900/40 border border-zinc-800">
-            <Brain className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-            <h3 className="text-base font-semibold text-zinc-300">Chưa có ký ức nào trong phân loại này</h3>
-            <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto">
+          <div className="p-12 text-center rounded-2xl bg-white dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-800">
+            <Brain className="w-12 h-12 text-slate-400 dark:text-zinc-600 mx-auto mb-3" />
+            <h3 className="text-base font-semibold text-slate-700 dark:text-zinc-300">Chưa có ký ức nào trong phân loại này</h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1 max-w-md mx-auto">
               Bạn có thể nói với AI bất kỳ thói quen nào như: &quot;Từ nay hãy xưng hô là Alex&quot;, &quot;Luôn ưu tiên giải quyết việc gấp trước&quot; để AI tự động học tập!
             </p>
           </div>
@@ -567,8 +567,8 @@ export const AiLearningView: React.FC<AiLearningViewProps> = ({
                   key={mem.id}
                   className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
                     isInactive
-                      ? 'bg-zinc-900/30 border-zinc-800/60 opacity-60'
-                      : 'bg-zinc-900/80 border-zinc-800 hover:border-indigo-500/40 shadow-md'
+                      ? 'bg-slate-50/70 border-slate-200 dark:bg-zinc-900/30 dark:border-zinc-800/60 opacity-60'
+                      : 'bg-white border-slate-200 hover:border-blue-400 dark:bg-zinc-900/80 dark:border-zinc-800 dark:hover:border-indigo-500/40 shadow-xs'
                   }`}
                 >
                   <div className="space-y-3">
