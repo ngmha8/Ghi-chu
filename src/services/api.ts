@@ -199,12 +199,18 @@ export const api = {
   },
 
   uploadFile: async (fileData: Partial<DriveFile>): Promise<DriveFile> => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      throw new Error('Không có kết nối mạng Internet. Không thể tải tệp lên khi thiết bị đang ngoại tuyến.');
+    }
     const res = await fetch('/api/files', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fileData),
     });
-    if (!res.ok) throw new Error('Failed to upload file');
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData?.error || `Lỗi tải tệp lên máy chủ (HTTP ${res.status})`);
+    }
     return res.json();
   },
 

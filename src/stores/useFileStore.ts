@@ -71,15 +71,18 @@ export const useFileStore = create<FileState>((set, get) => ({
   },
 
   uploadFile: async (fileData) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      throw new Error('Không có kết nối mạng Internet. Không thể tải tệp lên khi thiết bị đang ngoại tuyến.');
+    }
     try {
       const created = await api.uploadFile(fileData);
       set(s => ({
         files: [created, ...s.files.filter(f => f.id !== created.id)],
       }));
       return created;
-    } catch (err) {
-      console.error('Error uploading file:', err);
-      return null;
+    } catch (err: any) {
+      console.error('Error uploading file in store:', err);
+      throw err;
     }
   },
 

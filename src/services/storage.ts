@@ -83,6 +83,10 @@ export async function uploadFileToStorage(
   file: File | Blob,
   options: UploadOptions = {}
 ): Promise<StorageUploadResult> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('Không có kết nối mạng Internet. Không thể tải tệp lên Cloud Storage khi thiết bị đang ngoại tuyến.');
+  }
+
   const storage = getFirebaseStorage();
   const folder = options.folder || 'documents';
   const originalName = (file as File).name || 'file.bin';

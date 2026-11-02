@@ -17,6 +17,10 @@ export async function uploadLocalFileToUserGoogleDrive(
   notice?: string;
   requiresAdminLogin?: boolean;
 }> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('Không có kết nối mạng Internet. Vui lòng kết nối mạng để tải tệp lên Google Drive.');
+  }
+
   let token = getGoogleAccessToken();
 
   const headers: Record<string, string> = {
@@ -26,16 +30,24 @@ export async function uploadLocalFileToUserGoogleDrive(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`/api/files/upload-to-user-drive/${fileId}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      folderId: targetFolderId,
-      base64Data,
-      purgeLocalAfterUpload,
-      deleteLocalRecord,
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api/files/upload-to-user-drive/${fileId}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        folderId: targetFolderId,
+        base64Data,
+        purgeLocalAfterUpload,
+        deleteLocalRecord,
+      }),
+    });
+  } catch (networkErr: any) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      throw new Error('Mất kết nối mạng Internet trong lúc tải tệp lên Google Drive.');
+    }
+    throw new Error(`Lỗi kết nối máy chủ: ${networkErr?.message || 'Không thể liên lạc với máy chủ'}`);
+  }
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));

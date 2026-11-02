@@ -198,12 +198,16 @@ export const FilesView: React.FC<FilesViewProps> = ({
   // Syncing state per file
   const [syncingFileIds, setSyncingFileIds] = useState<Record<string, boolean>>({});
 
+  // Network connectivity status
+  const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+
   // Upload progress for local ingestion
   const [uploadProgress, setUploadProgress] = useState<{
     fileName: string;
     progress: number;
     statusText: string;
     active: boolean;
+    isError?: boolean;
   } | null>(null);
 
   // Google Drive Sync Progress State (Progress Bar & Current File)
@@ -318,6 +322,25 @@ export const FilesView: React.FC<FilesViewProps> = ({
     };
   }, []);
 
+  // Monitor network connection (online / offline)
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setAuthError(null);
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setAuthError('⚠️ Đã mất kết nối Internet! Mọi thao tác tải lên và đồng bộ tạm thời bị dừng để tránh báo hoàn tất ảo.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   // Load Service Account config on mount
   useEffect(() => {
     api.getDriveServiceAccountConfig()
@@ -370,6 +393,11 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Handle Sync with Service Account
   const handleSyncFromServiceAccount = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setSyncStatusMsg('❌ Không có kết nối mạng Internet! Vui lòng kết nối mạng để đồng bộ từ Google Drive.');
+      setTimeout(() => setSyncStatusMsg(null), 5000);
+      return;
+    }
     setIsSyncingSa(true);
     setSyncStatusMsg('Đang quét và đồng bộ tệp từ Google Drive (Service Account)...');
     try {
@@ -535,6 +563,12 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Internal executor for single file sync to Google Drive
   const executeSyncSingleFile = async (file: DriveFile) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAuthError(`❌ Không có kết nối mạng Internet! Không thể tải tệp "${file.name}" lên Google Drive khi ngoại tuyến.`);
+      setDriveSyncProgress(null);
+      return;
+    }
+
     setSyncingDriveFileId(file.id);
     setAuthError(null);
     setDriveSyncProgress({
@@ -542,10 +576,10 @@ export const FilesView: React.FC<FilesViewProps> = ({
       current: 1,
       total: 1,
       percent: 25,
-      statusText: 'Đang chuẩn bị tải tệp lên Google Drive của Admin...',
+      statusText: 'Đang chuẩn bị tải tệp lên Google Drive...',
       active: true,
     });
-    setSyncStatusMsg(`Đang đẩy tệp "${file.name}" lên Google Drive của Admin...`);
+    setSyncStatusMsg(`Đang đẩy tệp "${file.name}" lên Google Drive...`);
 
     try {
       const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
@@ -638,6 +672,11 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Internal executor for syncing all local files
   const executeSyncAllLocalFiles = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAuthError('❌ Không có kết nối mạng Internet! Không thể đồng bộ tệp lên Google Drive khi thiết bị đang ngoại tuyến.');
+      return;
+    }
+
     const localFiles = files.filter(f => !f.isSyncedToDrive && f.syncStatus !== 'synced');
     if (localFiles.length === 0) {
       setSyncStatusMsg('Tất cả các tệp hiện tại đã được đồng bộ trên Google Drive!');
@@ -672,6 +711,10 @@ export const FilesView: React.FC<FilesViewProps> = ({
     const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
 
     for (let i = 0; i < localFiles.length; i++) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setAuthError('❌ Đã mất kết nối mạng Internet giữa chừng! Đã dừng tiến trình đồng bộ các tệp còn lại.');
+        break;
+      }
       const f = localFiles[i];
       const currentPercent = Math.round(((i) / localFiles.length) * 100);
       setSyncingDriveFileId(f.id);
@@ -739,6 +782,10 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Open Sync & Purge modal or notify if all files are already synced
   const handleOpenSyncPurgeModal = () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAuthError('❌ Không có kết nối mạng Internet! Không thể thực hiện đồng bộ lên Google Drive khi thiết bị đang ngoại tuyến.');
+      return;
+    }
     if (localFiles.length === 0) {
       setSyncStatusMsg('✅ Tất cả tệp hiện tại đã được đồng bộ an toàn trên Google Drive!');
       setTimeout(() => setSyncStatusMsg(null), 4000);
@@ -750,6 +797,11 @@ export const FilesView: React.FC<FilesViewProps> = ({
   // Execute Batch Sync to Google Drive and Purge local originals
   const handleExecuteSyncAndPurgeLocal = async () => {
     if (localFiles.length === 0) return;
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAuthError('❌ Không có kết nối mạng Internet! Không thể đồng bộ tệp lên Google Drive & xóa local khi đang ngoại tuyến.');
+      return;
+    }
 
     // MANDATORY GOOGLE LOGIN CHECK
     const currentToken = getGoogleAccessToken();
@@ -776,6 +828,10 @@ export const FilesView: React.FC<FilesViewProps> = ({
     const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
 
     for (let i = 0; i < localFiles.length; i++) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setAuthError('❌ Mất kết nối mạng Internet giữa chừng! Đã dừng đồng bộ và bảo toàn toàn bộ tệp cục bộ chưa tải lên.');
+        break;
+      }
       const f = localFiles[i];
       const currentPercent = Math.round((i / localFiles.length) * 100);
       setSyncingDriveFileId(f.id);
@@ -881,6 +937,11 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const handleUnifiedSyncDriveFiles = async () => {
     setAuthError(null);
     setSyncStatusMsg(null);
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAuthError('❌ Không có kết nối mạng Internet! Không thể đồng bộ từ Google Drive khi thiết bị đang ngoại tuyến.');
+      return;
+    }
 
     // Prefer Service Account if connected or configured
     if (saConfig?.isConnected || (saConfig?.clientEmail && saConfig?.folderId)) {
@@ -1041,8 +1102,22 @@ export const FilesView: React.FC<FilesViewProps> = ({
     });
   };
 
-  // Process Upload
+  // Process Upload with real-time offline detection and zero false-positive completion
   const handleProcessUpload = async (rawFile: File) => {
+    // 0. Pre-check network connectivity before starting
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAuthError(`❌ Không có kết nối mạng Internet! Không thể tải lên tệp "${rawFile.name}" khi thiết bị đang ngoại tuyến.`);
+      setUploadProgress({
+        active: false,
+        fileName: rawFile.name,
+        progress: 0,
+        statusText: '❌ Thất bại: Không có kết nối mạng Internet',
+        isError: true,
+      });
+      setTimeout(() => setUploadProgress(null), 5000);
+      return;
+    }
+
     const formatCat = detectFormatCategory(rawFile.name, rawFile.type);
     const fileId = `file-${Date.now()}`;
     // Assign classification based on currently selected filter, or fallback to 'unclassified' (Chưa xác định)
@@ -1051,124 +1126,169 @@ export const FilesView: React.FC<FilesViewProps> = ({
     let gcsResult: any = null;
     let base64Data = '';
 
-    // 1. Direct upload to Google Cloud Storage (GCS) using Firebase storage bucket
-    if (isCloudStorageConfigured()) {
-      try {
-        setUploadProgress({
-          active: true,
-          fileName: rawFile.name,
-          progress: 25,
-          statusText: 'Đang tải trực tiếp lên Google Cloud Storage (GCS)...'
-        });
+    try {
+      // 1. Direct upload to Google Cloud Storage (GCS) using Firebase storage bucket
+      if (isCloudStorageConfigured()) {
+        try {
+          setUploadProgress({
+            active: true,
+            fileName: rawFile.name,
+            progress: 25,
+            statusText: 'Đang tải trực tiếp lên Google Cloud Storage (GCS)...',
+            isError: false,
+          });
 
-        gcsResult = await uploadFileToStorage(rawFile, {
-          folder: 'documents',
-          customFileName: `${fileId}_${rawFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
-          onProgress: (percent) => {
-            setUploadProgress({
-              active: true,
-              fileName: rawFile.name,
-              progress: Math.min(25 + Math.round(percent * 0.45), 70),
-              statusText: `Đang tải lên Google Cloud Storage (${percent}%)...`
-            });
-          }
-        });
-      } catch (gcsErr) {
-        console.warn('[GCS Storage] Direct upload notice, falling back to server vault:', gcsErr);
-      }
-    }
-
-    if (!gcsResult) {
-      setUploadProgress({
-        active: true,
-        fileName: rawFile.name,
-        progress: 40,
-        statusText: 'Đang chuẩn bị tệp và mã hóa dữ liệu...'
-      });
-
-      try {
-        base64Data = await fileToBase64(rawFile);
-      } catch (e) {}
-    }
-
-    setUploadProgress({
-      active: true,
-      fileName: rawFile.name,
-      progress: 75,
-      statusText: 'Đang lưu trữ dữ liệu và đồng bộ hóa...'
-    });
-
-    const filePayload: Partial<DriveFile> & { base64Data?: string; storagePath?: string } = {
-      id: fileId,
-      name: rawFile.name,
-      mimeType: rawFile.type || 'application/octet-stream',
-      size: rawFile.size,
-      category: formatCat,
-      classification: targetClassification,
-      tags: [],
-      isSyncedToDrive: false,
-      syncStatus: gcsResult ? 'synced' : 'local_only',
-      storageType: gcsResult ? 'gcs' : undefined,
-      storagePath: gcsResult?.storagePath,
-      downloadUrl: gcsResult?.downloadUrl || `/api/files/download/${fileId}`,
-      previewUrl: gcsResult?.downloadUrl || `/api/files/preview/${fileId}`,
-      uploadedAt: new Date().toISOString(),
-      base64Data: base64Data || undefined,
-    };
-
-    const created = await onFileUpload(filePayload);
-
-    // If user is authenticated with Google Account, automatically sync file/image to Google Drive
-    const userToken = getGoogleAccessToken();
-    if (created && userToken && !created.isSyncedToDrive) {
-      try {
-        setUploadProgress({
-          active: true,
-          fileName: rawFile.name,
-          progress: 85,
-          statusText: 'Đang tự động lưu tệp lên Google Drive của bạn...'
-        });
-        const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
-        const uploaded = await uploadLocalFileToUserGoogleDrive(created.id, targetFolderId, base64Data);
-        if (onFileUpdate && uploaded.file) {
-          onFileUpdate(created.id, uploaded.file);
+          gcsResult = await uploadFileToStorage(rawFile, {
+            folder: 'documents',
+            customFileName: `${fileId}_${rawFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+            onProgress: (percent) => {
+              setUploadProgress({
+                active: true,
+                fileName: rawFile.name,
+                progress: Math.min(25 + Math.round(percent * 0.45), 70),
+                statusText: `Đang tải lên Google Cloud Storage (${percent}%)...`,
+                isError: false,
+              });
+            }
+          });
+        } catch (gcsErr) {
+          console.warn('[GCS Storage] Direct upload notice, falling back to server vault:', gcsErr);
         }
-      } catch (driveErr) {
-        console.info('Auto Drive upload deferred:', driveErr);
       }
-    }
 
-    if (created?.isSyncedToDrive && created?.webViewLink) {
+      if (!gcsResult) {
+        setUploadProgress({
+          active: true,
+          fileName: rawFile.name,
+          progress: 40,
+          statusText: 'Đang chuẩn bị tệp và mã hóa dữ liệu...',
+          isError: false,
+        });
+
+        try {
+          base64Data = await fileToBase64(rawFile);
+        } catch (e) {}
+      }
+
+      // Check network again right before persisting to server
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Mất kết nối mạng Internet trong quá trình nén và chuẩn bị tệp.');
+      }
+
       setUploadProgress({
         active: true,
         fileName: rawFile.name,
-        progress: 100,
-        statusText: '✅ Đã tải lên và lưu trữ Google Drive thành công!'
+        progress: 75,
+        statusText: 'Đang lưu trữ dữ liệu lên máy chủ và lập chỉ mục...',
+        isError: false,
       });
-    } else if (gcsResult?.downloadUrl) {
+
+      const filePayload: Partial<DriveFile> & { base64Data?: string; storagePath?: string } = {
+        id: fileId,
+        name: rawFile.name,
+        mimeType: rawFile.type || 'application/octet-stream',
+        size: rawFile.size,
+        category: formatCat,
+        classification: targetClassification,
+        tags: [],
+        isSyncedToDrive: false,
+        syncStatus: gcsResult ? 'synced' : 'local_only',
+        storageType: gcsResult ? 'gcs' : undefined,
+        storagePath: gcsResult?.storagePath,
+        downloadUrl: gcsResult?.downloadUrl || `/api/files/download/${fileId}`,
+        previewUrl: gcsResult?.downloadUrl || `/api/files/preview/${fileId}`,
+        uploadedAt: new Date().toISOString(),
+        base64Data: base64Data || undefined,
+      };
+
+      const created = await onFileUpload(filePayload);
+
+      // CRITICAL: Ensure file was actually saved. If null/undefined, upload failed!
+      if (!created) {
+        throw new Error(
+          (typeof navigator !== 'undefined' && !navigator.onLine)
+            ? 'Mất kết nối Internet trong lúc gửi dữ liệu lên máy chủ.'
+            : 'Máy chủ từ chối lưu trữ tệp hoặc không phản hồi. Vui lòng kiểm tra lại kết nối mạng.'
+        );
+      }
+
+      // If user is authenticated with Google Account, automatically sync file/image to Google Drive
+      const userToken = getGoogleAccessToken();
+      if (userToken && !created.isSyncedToDrive && (typeof navigator !== 'undefined' && navigator.onLine)) {
+        try {
+          setUploadProgress({
+            active: true,
+            fileName: rawFile.name,
+            progress: 85,
+            statusText: 'Đang tự động lưu tệp lên Google Drive của bạn...',
+            isError: false,
+          });
+          const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
+          const uploaded = await uploadLocalFileToUserGoogleDrive(created.id, targetFolderId, base64Data);
+          if (onFileUpdate && uploaded.file) {
+            onFileUpdate(created.id, uploaded.file);
+          }
+        } catch (driveErr) {
+          console.info('Auto Drive upload deferred:', driveErr);
+        }
+      }
+
+      if (created?.isSyncedToDrive && created?.webViewLink) {
+        setUploadProgress({
+          active: true,
+          fileName: rawFile.name,
+          progress: 100,
+          statusText: '✅ Đã tải lên và lưu trữ Google Drive thành công!',
+          isError: false,
+        });
+      } else if (gcsResult?.downloadUrl) {
+        setUploadProgress({
+          active: true,
+          fileName: rawFile.name,
+          progress: 100,
+          statusText: '✅ Đã lưu trữ vĩnh viễn trên Google Cloud Storage (GCS)!',
+          isError: false,
+        });
+      } else {
+        setUploadProgress({
+          active: true,
+          fileName: rawFile.name,
+          progress: 100,
+          statusText: '✅ Đã lưu trữ an toàn trong kho dữ liệu & lập chỉ mục AI!',
+          isError: false,
+        });
+      }
+      setTimeout(() => setUploadProgress(null), 3000);
+    } catch (err: any) {
+      console.error('Upload failed with error:', err);
+      const msg = err?.message || 'Lỗi mạng hoặc máy chủ không phản hồi';
       setUploadProgress({
-        active: true,
+        active: false,
         fileName: rawFile.name,
-        progress: 100,
-        statusText: '✅ Đã lưu trữ vĩnh viễn trên Google Cloud Storage (GCS)!'
+        progress: 0,
+        statusText: `❌ Thất bại: ${msg}`,
+        isError: true,
       });
-    } else {
-      setUploadProgress({
-        active: true,
-        fileName: rawFile.name,
-        progress: 100,
-        statusText: '✅ Đã lưu trữ an toàn trong kho dữ liệu & lập chỉ mục AI!'
-      });
+      setAuthError(`❌ Lỗi tải lên tệp "${rawFile.name}": ${msg}`);
+      setTimeout(() => setUploadProgress(null), 5000);
     }
-    setTimeout(() => setUploadProgress(null), 2500);
   };
 
   const handleTriggerPicker = () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAuthError('❌ Không có kết nối mạng Internet! Không thể chọn tải tệp khi thiết bị đang ngoại tuyến.');
+      return;
+    }
     fileInputRef.current?.click();
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setAuthError('❌ Không có kết nối mạng Internet! Không thể tải tệp lên khi đang ngoại tuyến.');
+        e.target.value = '';
+        return;
+      }
       Array.from(e.target.files).forEach((f: File) => {
         handleProcessUpload(f);
       });
@@ -1713,6 +1833,21 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
         </div>
       </div>
 
+      {/* Global Offline Network Status Alert Banner */}
+      {!isOnline && (
+        <div className="p-3.5 rounded-sm bg-amber-950/40 border border-amber-500/80 text-amber-200 flex items-center justify-between gap-3 shadow-md animate-in fade-in">
+          <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium">
+            <CloudOff className="w-5 h-5 text-amber-400 flex-shrink-0 animate-pulse" />
+            <div>
+              <strong className="text-amber-300 font-bold">Mất kết nối Internet (Ngoại tuyến):</strong> Thiết bị của bạn đang không có mạng. Tính năng tải tệp lên và đồng bộ Google Drive tạm thời bị khóa để bảo đảm dữ liệu và tránh báo hoàn tất ảo.
+            </div>
+          </div>
+          <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 whitespace-nowrap">
+            OFFLINE
+          </span>
+        </div>
+      )}
+
       {/* Google Drive Sync Progress Indicator if active */}
       {driveSyncProgress && (
         <div className="p-4 rounded-sm bg-[#121E18] border border-emerald-500/80 space-y-2.5 shadow-xl animate-in fade-in">
@@ -1745,18 +1880,42 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
 
       {/* Upload Progress Indicator if active */}
       {uploadProgress && (
-        <div className="p-4 rounded-sm bg-[#151515] border border-[#D4AF37]/80 space-y-2 animate-pulse shadow-lg">
+        <div
+          className={`p-4 rounded-sm border space-y-2 shadow-lg transition-all ${
+            uploadProgress.isError
+              ? 'bg-[#1e1010] border-rose-500/90 text-rose-200'
+              : 'bg-[#151515] border-[#D4AF37]/80'
+          }`}
+        >
           <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-[#D4AF37] font-bold">
-              <UploadCloud className="w-4 h-4 animate-bounce" />
-              <span>{uploadProgress.statusText}: <strong className="text-white">{uploadProgress.fileName}</strong></span>
+            <div
+              className={`flex items-center gap-2 font-bold ${
+                uploadProgress.isError ? 'text-rose-400' : 'text-[#D4AF37]'
+              }`}
+            >
+              {uploadProgress.isError ? (
+                <AlertCircle className="w-4 h-4 text-rose-400 animate-pulse flex-shrink-0" />
+              ) : (
+                <UploadCloud className="w-4 h-4 animate-bounce flex-shrink-0" />
+              )}
+              <span>
+                {uploadProgress.statusText}: <strong className="text-white">{uploadProgress.fileName}</strong>
+              </span>
             </div>
-            <span className="font-mono text-[#D4AF37] font-bold">{uploadProgress.progress}%</span>
+            <span
+              className={`font-mono font-bold ${
+                uploadProgress.isError ? 'text-rose-400' : 'text-[#D4AF37]'
+              }`}
+            >
+              {uploadProgress.progress}%
+            </span>
           </div>
           <div className="w-full bg-[#0C0C0C] h-2.5 rounded-full overflow-hidden border border-[#2A2A2A]">
             <div
-              className="bg-[#D4AF37] h-full transition-all duration-300 ease-out"
-              style={{ width: `${uploadProgress.progress}%` }}
+              className={`h-full transition-all duration-300 ease-out ${
+                uploadProgress.isError ? 'bg-rose-500' : 'bg-[#D4AF37]'
+              }`}
+              style={{ width: `${uploadProgress.isError ? 100 : uploadProgress.progress}%` }}
             />
           </div>
         </div>
@@ -1765,11 +1924,18 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
       {/* Drag & Drop Upload Box */}
       <div
         onClick={handleTriggerPicker}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (isOnline) setDragOver(true);
+        }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
+          if (!isOnline) {
+            setAuthError('❌ Không thể tải lên khi thiết bị đang ngoại tuyến. Vui lòng kết nối mạng Internet.');
+            return;
+          }
           if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             Array.from(e.dataTransfer.files).forEach((f: File) => {
               handleProcessUpload(f);
@@ -1777,22 +1943,40 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
           }
         }}
         className={`p-6 rounded-sm border border-dashed text-center transition-all cursor-pointer group ${
-          dragOver ? 'border-[#D4AF37] bg-[#1A1A1A]' : 'border-[#2A2A2A] bg-[#151515] hover:border-[#D4AF37]'
+          !isOnline
+            ? 'border-amber-600/50 bg-amber-950/10 cursor-not-allowed'
+            : dragOver
+            ? 'border-[#D4AF37] bg-[#1A1A1A]'
+            : 'border-[#2A2A2A] bg-[#151515] hover:border-[#D4AF37]'
         }`}
       >
-        <UploadCloud className="w-8 h-8 text-[#D4AF37] mx-auto mb-2 group-hover:scale-110 transition-transform" />
-        <h3 className="text-sm font-editorial-serif font-bold text-white group-hover:text-[#D4AF37] transition-colors">
-          Kéo thả tệp vào đây hoặc nhấn để Tải tài liệu lên
-        </h3>
-        <p className="text-xs text-[#888888] italic mt-1 max-w-lg mx-auto">
-          {selectedClassification !== 'all' ? (
-            <span className="text-[#D4AF37] font-medium">
-              📁 Tệp mới tải lên sẽ tự động được xếp vào nhóm: <strong>{resolveCategory(selectedClassification, categories).name}</strong>
-            </span>
-          ) : (
-            <span>Hỗ trợ PDF, Excel, Word, PowerPoint, hình ảnh. Có thể thay đổi phân loại linh hoạt bất kỳ lúc nào.</span>
-          )}
-        </p>
+        {!isOnline ? (
+          <>
+            <CloudOff className="w-8 h-8 text-amber-400 mx-auto mb-2 animate-pulse" />
+            <h3 className="text-sm font-editorial-serif font-bold text-amber-300">
+              Thiết bị đang ngoại tuyến — Vui lòng kết nối Internet để tải tài liệu lên
+            </h3>
+            <p className="text-xs text-amber-200/70 italic mt-1 max-w-lg mx-auto">
+              Hệ thống tạm khóa tính năng tải lên để ngăn chặn báo hoàn tất ảo khi không có mạng.
+            </p>
+          </>
+        ) : (
+          <>
+            <UploadCloud className="w-8 h-8 text-[#D4AF37] mx-auto mb-2 group-hover:scale-110 transition-transform" />
+            <h3 className="text-sm font-editorial-serif font-bold text-white group-hover:text-[#D4AF37] transition-colors">
+              Kéo thả tệp vào đây hoặc nhấn để Tải tài liệu lên
+            </h3>
+            <p className="text-xs text-[#888888] italic mt-1 max-w-lg mx-auto">
+              {selectedClassification !== 'all' ? (
+                <span className="text-[#D4AF37] font-medium">
+                  📁 Tệp mới tải lên sẽ tự động được xếp vào nhóm: <strong>{resolveCategory(selectedClassification, categories).name}</strong>
+                </span>
+              ) : (
+                <span>Hỗ trợ PDF, Excel, Word, PowerPoint, hình ảnh. Có thể thay đổi phân loại linh hoạt bất kỳ lúc nào.</span>
+              )}
+            </p>
+          </>
+        )}
       </div>
 
       {/* Filter Info / Results Header & Sorting Toolbar */}
