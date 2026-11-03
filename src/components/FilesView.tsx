@@ -66,6 +66,7 @@ import {
   FolderLock,
   Tag,
   ChevronDown,
+  ChevronUp,
   Briefcase,
   User,
   DollarSign,
@@ -92,6 +93,21 @@ import {
   DEFAULT_DOCUMENT_CATEGORIES
 } from '../services/docClassification.js';
 import { ManageCategoriesModal, renderCategoryIcon } from './ManageCategoriesModal.js';
+
+export interface UploadQueueItem {
+  id: string;
+  fileId: string;
+  file: File;
+  name: string;
+  size: number;
+  category: DriveFile['category'];
+  classification: string;
+  progress: number;
+  status: 'pending' | 'uploading' | 'processing' | 'completed' | 'error';
+  statusText: string;
+  error?: string;
+  isSyncedToDrive?: boolean;
+}
 
 export interface FilesViewProps {
   files?: DriveFile[];
@@ -201,7 +217,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
   // Network connectivity status
   const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
 
-  // Upload progress for local ingestion
+  // Upload progress for local ingestion (legacy single-file fallback)
   const [uploadProgress, setUploadProgress] = useState<{
     fileName: string;
     progress: number;
@@ -209,6 +225,52 @@ export const FilesView: React.FC<FilesViewProps> = ({
     active: boolean;
     isError?: boolean;
   } | null>(null);
+
+  // Batch Multi-File Upload Queue & Statistics
+  const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
+  const [isUploadPanelExpanded, setIsUploadPanelExpanded] = useState<boolean>(true);
+
+  // Helper for human-readable file size format
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes || bytes === 0) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  // Master Overall Multi-File Batch Progress Statistics
+  const uploadOverallStats = useMemo(() => {
+    if (uploadQueue.length === 0) return null;
+    const totalFiles = uploadQueue.length;
+    const completedFiles = uploadQueue.filter(i => i.status === 'completed').length;
+    const errorFiles = uploadQueue.filter(i => i.status === 'error').length;
+    const activeFiles = uploadQueue.filter(i => i.status === 'uploading' || i.status === 'processing').length;
+    const pendingFiles = uploadQueue.filter(i => i.status === 'pending').length;
+
+    const totalBytes = uploadQueue.reduce((acc, i) => acc + (i.size || 0), 0);
+    const uploadedBytes = uploadQueue.reduce((acc, i) => {
+      const frac = (i.progress || 0) / 100;
+      return acc + ((i.size || 0) * frac);
+    }, 0);
+
+    const overallPercent = totalBytes > 0
+      ? Math.min(100, Math.round((uploadedBytes / totalBytes) * 100))
+      : Math.round(uploadQueue.reduce((acc, i) => acc + i.progress, 0) / totalFiles);
+
+    const isAllFinished = completedFiles + errorFiles === totalFiles;
+
+    return {
+      totalFiles,
+      completedFiles,
+      errorFiles,
+      activeFiles,
+      pendingFiles,
+      totalBytes,
+      uploadedBytes,
+      overallPercent,
+      isAllFinished,
+    };
+  }, [uploadQueue]);
 
   // Google Drive Sync Progress State (Progress Bar & Current File)
   const [driveSyncProgress, setDriveSyncProgress] = useState<{
@@ -242,7 +304,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
     drivePreviewEmbedUrl?: string;
     downloadUrl?: string;
     rawUrl?: string;
-    previewType: 'docx' | 'pdf' | 'image' | 'spreadsheet' | 'text' | 'binary';
+    previewType: 'docx' | 'doc' | 'pdf' | 'image' | 'spreadsheet' | 'text' | 'binary';
     htmlContent?: string;
     textContent?: string;
     notes?: string;
@@ -280,7 +342,7 @@ export const FilesView: React.FC<FilesViewProps> = ({
 
   // Identify all files currently stored locally and not yet synced to Google Drive
   const localFiles = useMemo(() => {
-    return files.filter(f => !f.driveFileId || !f.isSyncedToDrive || f.syncStatus === 'local_only' || f.syncStatus === 'sync_error' || f.storageType === 'disk' || f.storageType === 'firestore_vault');
+    return files.filter(f => !f.driveFileId || !f.isSyncedToDrive || f.syncStatus === 'local_only' || f.syncStatus === 'sync_error');
   }, [files]);
 
   // Sync & Purge Local Modal State
@@ -410,6 +472,31 @@ export const FilesView: React.FC<FilesViewProps> = ({
       setSyncStatusMsg(`❌ ${err.message || 'Lỗi khi đồng bộ từ Google Drive'}`);
     } finally {
       setIsSyncingSa(false);
+    }
+  };
+
+  // Handle Intelligent Clean-up of Duplicate Files on Google Drive
+  const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
+  const handleCleanDriveDuplicates = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAuthError('❌ Không có kết nối mạng Internet! Vui lòng kết nối mạng để dọn dẹp Google Drive.');
+      return;
+    }
+    setIsCleaningDuplicates(true);
+    setSyncStatusMsg('Đang quét và dọn dẹp các tệp trùng lặp và tệp rác trên Google Drive...');
+    try {
+      const res = await api.cleanDriveDuplicates(saConfig?.folderId);
+      setSyncStatusMsg(`✅ ${res.message}`);
+      if (res.cleanedCount > 0) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      }
+      setTimeout(() => setSyncStatusMsg(null), 6000);
+    } catch (err: any) {
+      setAuthError(`Lỗi dọn dẹp tệp trùng: ${err?.message || 'Không thể liên lạc Google Drive'}`);
+    } finally {
+      setIsCleaningDuplicates(false);
     }
   };
 
@@ -566,6 +653,13 @@ export const FilesView: React.FC<FilesViewProps> = ({
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       setAuthError(`❌ Không có kết nối mạng Internet! Không thể tải tệp "${file.name}" lên Google Drive khi ngoại tuyến.`);
       setDriveSyncProgress(null);
+      return;
+    }
+
+    // Pre-check: If file is already synced and has driveFileId, avoid redundant duplicate sync!
+    if (file.driveFileId && file.isSyncedToDrive && file.syncStatus === 'synced') {
+      setSyncStatusMsg(`ℹ️ Tệp "${file.name}" đã được đồng bộ an toàn trên Google Drive.`);
+      setTimeout(() => setSyncStatusMsg(null), 3000);
       return;
     }
 
@@ -1102,176 +1196,248 @@ export const FilesView: React.FC<FilesViewProps> = ({
     });
   };
 
-  // Process Upload with real-time offline detection and zero false-positive completion
-  const handleProcessUpload = async (rawFile: File) => {
-    // 0. Pre-check network connectivity before starting
+  // =========================================================================
+  // MULTI-FILE BATCH UPLOAD ENGINE (Dual-Worker Concurrency & Isolated Progress)
+  // =========================================================================
+  const handleBatchUpload = async (rawFiles: File[]) => {
+    if (!rawFiles || rawFiles.length === 0) return;
+
+    // 0. Pre-check network connectivity before starting batch
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      setAuthError(`❌ Không có kết nối mạng Internet! Không thể tải lên tệp "${rawFile.name}" khi thiết bị đang ngoại tuyến.`);
-      setUploadProgress({
-        active: false,
-        fileName: rawFile.name,
-        progress: 0,
-        statusText: '❌ Thất bại: Không có kết nối mạng Internet',
-        isError: true,
-      });
-      setTimeout(() => setUploadProgress(null), 5000);
+      setAuthError('❌ Không có kết nối mạng Internet! Không thể tải lên tệp khi thiết bị đang ngoại tuyến.');
       return;
     }
 
-    const formatCat = detectFormatCategory(rawFile.name, rawFile.type);
-    const fileId = `file-${Date.now()}`;
-    // Assign classification based on currently selected filter, or fallback to 'unclassified' (Chưa xác định)
     const targetClassification = selectedClassification !== 'all' ? selectedClassification : 'unclassified';
+    const timestamp = Date.now();
 
-    let gcsResult: any = null;
-    let base64Data = '';
+    // Create high-entropy unique IDs for each file to eliminate race condition collisions
+    const newItems: UploadQueueItem[] = rawFiles.map((file, idx) => {
+      const entropy = Math.random().toString(36).substring(2, 9);
+      const uniqueFileId = `file-${timestamp}-${entropy}-${idx}`;
+      const queueId = `queue-${timestamp}-${entropy}-${idx}`;
+      const formatCat = detectFormatCategory(file.name, file.type);
 
-    try {
-      // 1. Direct upload to Google Cloud Storage (GCS) using Firebase storage bucket
-      if (isCloudStorageConfigured()) {
-        try {
-          setUploadProgress({
-            active: true,
-            fileName: rawFile.name,
-            progress: 25,
-            statusText: 'Đang tải trực tiếp lên Google Cloud Storage (GCS)...',
-            isError: false,
-          });
-
-          gcsResult = await uploadFileToStorage(rawFile, {
-            folder: 'documents',
-            customFileName: `${fileId}_${rawFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
-            onProgress: (percent) => {
-              setUploadProgress({
-                active: true,
-                fileName: rawFile.name,
-                progress: Math.min(25 + Math.round(percent * 0.45), 70),
-                statusText: `Đang tải lên Google Cloud Storage (${percent}%)...`,
-                isError: false,
-              });
-            }
-          });
-        } catch (gcsErr) {
-          console.warn('[GCS Storage] Direct upload notice, falling back to server vault:', gcsErr);
-        }
-      }
-
-      if (!gcsResult) {
-        setUploadProgress({
-          active: true,
-          fileName: rawFile.name,
-          progress: 40,
-          statusText: 'Đang chuẩn bị tệp và mã hóa dữ liệu...',
-          isError: false,
-        });
-
-        try {
-          base64Data = await fileToBase64(rawFile);
-        } catch (e) {}
-      }
-
-      // Check network again right before persisting to server
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        throw new Error('Mất kết nối mạng Internet trong quá trình nén và chuẩn bị tệp.');
-      }
-
-      setUploadProgress({
-        active: true,
-        fileName: rawFile.name,
-        progress: 75,
-        statusText: 'Đang lưu trữ dữ liệu lên máy chủ và lập chỉ mục...',
-        isError: false,
-      });
-
-      const filePayload: Partial<DriveFile> & { base64Data?: string; storagePath?: string } = {
-        id: fileId,
-        name: rawFile.name,
-        mimeType: rawFile.type || 'application/octet-stream',
-        size: rawFile.size,
+      return {
+        id: queueId,
+        fileId: uniqueFileId,
+        file,
+        name: file.name,
+        size: file.size,
         category: formatCat,
         classification: targetClassification,
-        tags: [],
-        isSyncedToDrive: false,
-        syncStatus: gcsResult ? 'synced' : 'local_only',
-        storageType: gcsResult ? 'gcs' : undefined,
-        storagePath: gcsResult?.storagePath,
-        downloadUrl: gcsResult?.downloadUrl || `/api/files/download/${fileId}`,
-        previewUrl: gcsResult?.downloadUrl || `/api/files/preview/${fileId}`,
-        uploadedAt: new Date().toISOString(),
-        base64Data: base64Data || undefined,
+        progress: 0,
+        status: 'pending',
+        statusText: 'Đang xếp hàng chờ tải lên...',
       };
+    });
 
-      const created = await onFileUpload(filePayload);
+    // Enqueue items into multi-file upload queue
+    setUploadQueue(prev => [...prev, ...newItems]);
+    setIsUploadPanelExpanded(true);
 
-      // CRITICAL: Ensure file was actually saved. If null/undefined, upload failed!
-      if (!created) {
-        throw new Error(
-          (typeof navigator !== 'undefined' && !navigator.onLine)
-            ? 'Mất kết nối Internet trong lúc gửi dữ liệu lên máy chủ.'
-            : 'Máy chủ từ chối lưu trữ tệp hoặc không phản hồi. Vui lòng kiểm tra lại kết nối mạng.'
-        );
+    // Concurrency control: 2 parallel workers (prevents browser socket exhaustion & memory overload)
+    const CONCURRENCY_LIMIT = 2;
+    const queueToProcess = [...newItems];
+    let cursor = 0;
+
+    const updateItem = (id: string, patch: Partial<UploadQueueItem>) => {
+      setUploadQueue(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item));
+    };
+
+    const processOneItem = async (item: UploadQueueItem) => {
+      // Offline network check per item
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        updateItem(item.id, {
+          status: 'error',
+          statusText: 'Thất bại: Không có kết nối mạng Internet',
+          error: 'Mất kết nối mạng Internet',
+          progress: 0,
+        });
+        return;
       }
 
-      // If user is authenticated with Google Account, automatically sync file/image to Google Drive
-      const userToken = getGoogleAccessToken();
-      if (userToken && !created.isSyncedToDrive && (typeof navigator !== 'undefined' && navigator.onLine)) {
-        try {
-          setUploadProgress({
-            active: true,
-            fileName: rawFile.name,
-            progress: 85,
-            statusText: 'Đang tự động lưu tệp lên Google Drive của bạn...',
-            isError: false,
-          });
-          const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
-          const uploaded = await uploadLocalFileToUserGoogleDrive(created.id, targetFolderId, base64Data);
-          if (onFileUpdate && uploaded.file) {
-            onFileUpdate(created.id, uploaded.file);
+      updateItem(item.id, {
+        status: 'uploading',
+        statusText: 'Đang đọc và chuẩn bị tệp...',
+        progress: 15,
+      });
+
+      let gcsResult: any = null;
+      let base64Data = '';
+
+      try {
+        // 1. Direct upload to Google Cloud Storage (GCS) if configured
+        if (isCloudStorageConfigured()) {
+          try {
+            updateItem(item.id, {
+              status: 'uploading',
+              statusText: 'Đang tải lên Google Cloud Storage (GCS)...',
+              progress: 25,
+            });
+
+            gcsResult = await uploadFileToStorage(item.file, {
+              folder: 'documents',
+              customFileName: `${item.fileId}_${item.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+              onProgress: (percent) => {
+                const adjusted = Math.min(25 + Math.round(percent * 0.45), 70);
+                updateItem(item.id, {
+                  progress: adjusted,
+                  statusText: `Đang tải lên Cloud Storage (${percent}%)...`,
+                });
+              }
+            });
+          } catch (gcsErr) {
+            console.warn('[GCS Storage] Direct upload notice, falling back to local server storage:', gcsErr);
           }
-        } catch (driveErr) {
-          console.info('Auto Drive upload deferred:', driveErr);
+        }
+
+        if (!gcsResult) {
+          updateItem(item.id, {
+            status: 'uploading',
+            statusText: 'Đang mã hóa dữ liệu nhị phân...',
+            progress: 35,
+          });
+          try {
+            base64Data = await fileToBase64(item.file);
+          } catch (e) {
+            console.warn('Base64 encoding notice:', e);
+          }
+        }
+
+        // Online check before committing to backend database
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          throw new Error('Mất kết nối mạng Internet trong quá trình truyền dữ liệu.');
+        }
+
+        updateItem(item.id, {
+          status: 'processing',
+          statusText: 'Đang lưu trữ dữ liệu lên máy chủ và lập chỉ mục...',
+          progress: 75,
+        });
+
+        const filePayload: Partial<DriveFile> & { base64Data?: string; storagePath?: string } = {
+          id: item.fileId,
+          name: item.name,
+          mimeType: item.file.type || 'application/octet-stream',
+          size: item.size,
+          category: item.category,
+          classification: item.classification,
+          tags: [],
+          isSyncedToDrive: false,
+          syncStatus: gcsResult ? 'synced' : 'local_only',
+          storageType: gcsResult ? 'gcs' : undefined,
+          storagePath: gcsResult?.storagePath,
+          downloadUrl: gcsResult?.downloadUrl || `/api/files/download/${item.fileId}`,
+          previewUrl: gcsResult?.downloadUrl || `/api/files/preview/${item.fileId}`,
+          uploadedAt: new Date().toISOString(),
+          base64Data: base64Data || undefined,
+        };
+
+        const created = await onFileUpload(filePayload);
+
+        if (!created) {
+          throw new Error(
+            (typeof navigator !== 'undefined' && !navigator.onLine)
+              ? 'Mất kết nối Internet trong lúc gửi dữ liệu lên máy chủ.'
+              : 'Máy chủ từ chối lưu trữ tệp hoặc không phản hồi. Vui lòng kiểm tra lại kết nối mạng.'
+          );
+        }
+
+        // Auto Drive sync if user is authenticated with Google Account
+        let isSyncedToDrive = false;
+        const userToken = getGoogleAccessToken();
+        if (userToken && !created.isSyncedToDrive && (typeof navigator !== 'undefined' && navigator.onLine)) {
+          try {
+            updateItem(item.id, {
+              status: 'processing',
+              statusText: 'Đang tự động lưu tệp lên Google Drive...',
+              progress: 90,
+            });
+            const targetFolderId = saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined;
+            const uploaded = await uploadLocalFileToUserGoogleDrive(created.id, targetFolderId, base64Data);
+            if (uploaded?.driveFileId) {
+              isSyncedToDrive = true;
+              if (onFileUpdate && uploaded.file) {
+                onFileUpdate(created.id, uploaded.file);
+              }
+            }
+          } catch (driveErr) {
+            console.info('Auto Drive upload deferred:', driveErr);
+          }
+        }
+
+        updateItem(item.id, {
+          status: 'completed',
+          statusText: isSyncedToDrive
+            ? 'Đã tải lên và lưu trữ Google Drive thành công!'
+            : gcsResult?.downloadUrl
+            ? 'Đã lưu trữ Google Cloud Storage thành công!'
+            : 'Đã lưu trữ an toàn & lập chỉ mục AI!',
+          progress: 100,
+          isSyncedToDrive,
+        });
+
+      } catch (err: any) {
+        console.error(`Upload error for "${item.name}":`, err);
+        const msg = err?.message || 'Lỗi mạng hoặc máy chủ không phản hồi';
+        updateItem(item.id, {
+          status: 'error',
+          statusText: `Lỗi: ${msg}`,
+          error: msg,
+          progress: 0,
+        });
+        setAuthError(`❌ Lỗi tải lên tệp "${item.name}": ${msg}`);
+      }
+    };
+
+    // Worker loop
+    const runWorker = async () => {
+      while (cursor < queueToProcess.length) {
+        const nextItem = queueToProcess[cursor++];
+        if (nextItem) {
+          await processOneItem(nextItem);
         }
       }
+    };
 
-      if (created?.isSyncedToDrive && created?.webViewLink) {
-        setUploadProgress({
-          active: true,
-          fileName: rawFile.name,
-          progress: 100,
-          statusText: '✅ Đã tải lên và lưu trữ Google Drive thành công!',
-          isError: false,
-        });
-      } else if (gcsResult?.downloadUrl) {
-        setUploadProgress({
-          active: true,
-          fileName: rawFile.name,
-          progress: 100,
-          statusText: '✅ Đã lưu trữ vĩnh viễn trên Google Cloud Storage (GCS)!',
-          isError: false,
-        });
-      } else {
-        setUploadProgress({
-          active: true,
-          fileName: rawFile.name,
-          progress: 100,
-          statusText: '✅ Đã lưu trữ an toàn trong kho dữ liệu & lập chỉ mục AI!',
-          isError: false,
-        });
-      }
-      setTimeout(() => setUploadProgress(null), 3000);
-    } catch (err: any) {
-      console.error('Upload failed with error:', err);
-      const msg = err?.message || 'Lỗi mạng hoặc máy chủ không phản hồi';
-      setUploadProgress({
-        active: false,
-        fileName: rawFile.name,
-        progress: 0,
-        statusText: `❌ Thất bại: ${msg}`,
-        isError: true,
-      });
-      setAuthError(`❌ Lỗi tải lên tệp "${rawFile.name}": ${msg}`);
-      setTimeout(() => setUploadProgress(null), 5000);
-    }
+    const workers = Array.from(
+      { length: Math.min(CONCURRENCY_LIMIT, queueToProcess.length) },
+      () => runWorker()
+    );
+    await Promise.all(workers);
+  };
+
+  // Legacy single file adapter
+  const handleProcessUpload = async (rawFile: File) => {
+    await handleBatchUpload([rawFile]);
+  };
+
+  // Retry an individual failed item
+  const handleRetryUploadItem = async (itemId: string) => {
+    const target = uploadQueue.find(i => i.id === itemId);
+    if (!target) return;
+    setUploadQueue(prev => prev.filter(i => i.id !== itemId));
+    handleBatchUpload([target.file]);
+  };
+
+  // Retry all failed items
+  const handleRetryAllFailed = () => {
+    const failedItems = uploadQueue.filter(i => i.status === 'error');
+    if (failedItems.length === 0) return;
+    const filesToRetry = failedItems.map(i => i.file);
+    setUploadQueue(prev => prev.filter(i => i.status !== 'error'));
+    handleBatchUpload(filesToRetry);
+  };
+
+  // Clear all completed uploads
+  const handleClearCompletedUploads = () => {
+    setUploadQueue(prev => prev.filter(i => i.status !== 'completed'));
+  };
+
+  // Remove a single item from the upload queue
+  const handleRemoveUploadItem = (itemId: string) => {
+    setUploadQueue(prev => prev.filter(i => i.id !== itemId));
   };
 
   const handleTriggerPicker = () => {
@@ -1289,10 +1455,9 @@ export const FilesView: React.FC<FilesViewProps> = ({
         e.target.value = '';
         return;
       }
-      Array.from(e.target.files).forEach((f: File) => {
-        handleProcessUpload(f);
-      });
+      const filesArray = Array.from(e.target.files) as File[];
       e.target.value = '';
+      handleBatchUpload(filesArray);
     }
   };
 
@@ -1633,6 +1798,17 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             <span>{isSyncing || isSyncingSa ? 'Đang nạp...' : 'Nạp Tệp Từ Drive'}</span>
           </button>
 
+          {/* Clean Duplicate & Stub Files on Google Drive Button */}
+          <button
+            onClick={handleCleanDriveDuplicates}
+            disabled={isCleaningDuplicates}
+            className="px-3 py-2 rounded-sm bg-white hover:bg-rose-50 text-rose-700 border border-slate-300 dark:bg-[#1A1212] dark:hover:bg-[#251515] dark:text-rose-300 dark:border-rose-600/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+            title="Tự động quét Google Drive và xóa các bản sao trùng lặp, tệp rỗng/stub 260 byte để dọn dẹp thư mục"
+          >
+            <ShieldCheck className={`w-3.5 h-3.5 text-rose-600 dark:text-rose-400 ${isCleaningDuplicates ? 'animate-spin' : ''}`} />
+            <span>{isCleaningDuplicates ? 'Đang dọn...' : 'Dọn Trùng Drive'}</span>
+          </button>
+
           {/* Dedicated Button to Sync ALL Local Files to Drive & Purge Local Originals */}
           <button
             onClick={handleOpenSyncPurgeModal}
@@ -1878,46 +2054,211 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
         </div>
       )}
 
-      {/* Upload Progress Indicator if active */}
-      {uploadProgress && (
-        <div
-          className={`p-4 rounded-sm border space-y-2 shadow-lg transition-all ${
-            uploadProgress.isError
-              ? 'bg-[#1e1010] border-rose-500/90 text-rose-200'
-              : 'bg-[#151515] border-[#D4AF37]/80'
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs">
-            <div
-              className={`flex items-center gap-2 font-bold ${
-                uploadProgress.isError ? 'text-rose-400' : 'text-[#D4AF37]'
-              }`}
-            >
-              {uploadProgress.isError ? (
-                <AlertCircle className="w-4 h-4 text-rose-400 animate-pulse flex-shrink-0" />
-              ) : (
-                <UploadCloud className="w-4 h-4 animate-bounce flex-shrink-0" />
-              )}
-              <span>
-                {uploadProgress.statusText}: <strong className="text-white">{uploadProgress.fileName}</strong>
-              </span>
+      {/* ============================================================== */}
+      {/* 3. EXECUTIVE MULTI-FILE BATCH PROGRESS DASHBOARD */}
+      {/* ============================================================== */}
+      {uploadOverallStats && (
+        <div className="p-4 rounded-sm bg-[#151515] border border-[#D4AF37]/80 shadow-2xl space-y-3 animate-in fade-in transition-all">
+          {/* Master Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-sm bg-[#1A1A1A] border border-[#D4AF37]/40 text-[#D4AF37]">
+                <UploadCloud className={`w-5 h-5 ${!uploadOverallStats.isAllFinished ? 'animate-bounce text-[#D4AF37]' : 'text-emerald-400'}`} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-editorial-serif font-bold text-white flex items-center gap-1.5">
+                    <span>Tiến độ tải lên đa tệp</span>
+                    <span className="font-mono text-xs text-[#D4AF37] font-semibold">
+                      ({uploadOverallStats.completedFiles}/{uploadOverallStats.totalFiles} tệp hoàn tất)
+                    </span>
+                  </h3>
+                  {uploadOverallStats.isAllFinished ? (
+                    uploadOverallStats.errorFiles > 0 ? (
+                      <span className="text-[10px] bg-amber-950/80 text-amber-300 border border-amber-600/60 px-2 py-0.5 rounded font-mono font-bold">
+                        Đã tải xong với {uploadOverallStats.errorFiles} lỗi
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-600/60 px-2 py-0.5 rounded font-mono font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        Hoàn tất 100%
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-[10px] bg-blue-950/80 text-sky-300 border border-sky-600/60 px-2 py-0.5 rounded font-mono font-bold flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3 animate-spin text-sky-400" />
+                      Đang tải {uploadOverallStats.activeFiles} tệp...
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-[#888888] font-mono mt-0.5">
+                  Dung lượng: {formatFileSize(uploadOverallStats.uploadedBytes)} / {formatFileSize(uploadOverallStats.totalBytes)} • Hàng đợi luồng đôi (Dual-Worker Concurrency)
+                </p>
+              </div>
             </div>
-            <span
-              className={`font-mono font-bold ${
-                uploadProgress.isError ? 'text-rose-400' : 'text-[#D4AF37]'
-              }`}
-            >
-              {uploadProgress.progress}%
-            </span>
+
+            {/* Master Actions & Master Percentage */}
+            <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+              {uploadOverallStats.errorFiles > 0 && (
+                <button
+                  onClick={handleRetryAllFailed}
+                  className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider bg-rose-950/80 hover:bg-rose-900 text-rose-200 border border-rose-600/80 rounded-sm cursor-pointer flex items-center gap-1 transition-colors"
+                  title="Thử lại các tệp bị lỗi"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Thử lại {uploadOverallStats.errorFiles} lỗi</span>
+                </button>
+              )}
+              {uploadOverallStats.completedFiles > 0 && (
+                <button
+                  onClick={handleClearCompletedUploads}
+                  className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider bg-[#1A1A1A] hover:bg-[#252525] text-[#AAAAAA] hover:text-white border border-[#333333] rounded-sm cursor-pointer transition-colors"
+                  title="Xóa danh sách các tệp đã tải xong"
+                >
+                  Xóa tệp xong
+                </button>
+              )}
+              <button
+                onClick={() => setIsUploadPanelExpanded(!isUploadPanelExpanded)}
+                className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] border border-[#D4AF37]/40 rounded-sm cursor-pointer flex items-center gap-1 transition-colors"
+                title={isUploadPanelExpanded ? 'Thu gọn danh sách chi tiết' : 'Mở rộng xem chi tiết từng tệp'}
+              >
+                <span>{isUploadPanelExpanded ? 'Thu gọn' : 'Chi tiết'}</span>
+                {isUploadPanelExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+              {uploadOverallStats.isAllFinished && (
+                <button
+                  onClick={() => setUploadQueue([])}
+                  className="p-1 text-[#888888] hover:text-white rounded hover:bg-[#222222] cursor-pointer"
+                  title="Đóng bảng tiến độ"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <div className="font-mono text-base font-extrabold text-[#D4AF37] min-w-[50px] text-right">
+                {uploadOverallStats.overallPercent}%
+              </div>
+            </div>
           </div>
-          <div className="w-full bg-[#0C0C0C] h-2.5 rounded-full overflow-hidden border border-[#2A2A2A]">
-            <div
-              className={`h-full transition-all duration-300 ease-out ${
-                uploadProgress.isError ? 'bg-rose-500' : 'bg-[#D4AF37]'
-              }`}
-              style={{ width: `${uploadProgress.isError ? 100 : uploadProgress.progress}%` }}
-            />
+
+          {/* Master Overall Progress Bar */}
+          <div className="space-y-1">
+            <div className="w-full bg-[#0C0C0C] h-3 rounded-full overflow-hidden border border-[#2A2A2A] p-0.5">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ease-out shadow-sm ${
+                  uploadOverallStats.isAllFinished && uploadOverallStats.errorFiles === 0
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                    : uploadOverallStats.errorFiles > 0
+                    ? 'bg-gradient-to-r from-amber-500 via-rose-500 to-rose-400'
+                    : 'bg-gradient-to-r from-[#B8860B] via-[#D4AF37] to-[#F3E5AB]'
+                }`}
+                style={{ width: `${Math.max(3, Math.min(100, uploadOverallStats.overallPercent))}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[11px] font-mono text-[#888888]">
+              <span>Tổng tiến trình tất cả tệp ({uploadOverallStats.completedFiles}/{uploadOverallStats.totalFiles} tệp hoàn tất)</span>
+              <span className="font-bold text-white">{uploadOverallStats.overallPercent}%</span>
+            </div>
           </div>
+
+          {/* Granular Individual File Item List (Collapsible) */}
+          {isUploadPanelExpanded && (
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1 scrollbar-thin border-t border-[#222222] pt-2.5">
+              {uploadQueue.map((item, index) => {
+                const isItemError = item.status === 'error';
+                const isItemCompleted = item.status === 'completed';
+                const isItemActive = item.status === 'uploading' || item.status === 'processing';
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`p-2.5 rounded-sm border transition-all text-xs space-y-1.5 ${
+                      isItemError
+                        ? 'bg-[#1e1010] border-rose-500/70 text-rose-200'
+                        : isItemCompleted
+                        ? 'bg-[#0f1712] border-emerald-500/50 text-emerald-100'
+                        : isItemActive
+                        ? 'bg-[#181818] border-[#D4AF37]/50 text-white'
+                        : 'bg-[#121212] border-[#222222] text-[#AAAAAA]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="font-mono text-[10px] text-[#666666] w-4">{index + 1}.</span>
+                        <div className="shrink-0">{getFileFormatIcon(item.category)}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate text-white" title={item.name}>
+                            {item.name}
+                          </div>
+                          <div className="text-[10px] text-[#777777] font-mono flex items-center gap-1.5">
+                            <span>{formatFileSize(item.size)}</span>
+                            <span>•</span>
+                            <span className="truncate max-w-[200px]">{item.statusText}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Status Badge & Item Progress */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isItemError ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 text-[10px] font-mono font-bold">
+                              Lỗi
+                            </span>
+                            <button
+                              onClick={() => handleRetryUploadItem(item.id)}
+                              className="p-1 hover:bg-rose-900/60 text-rose-300 hover:text-white rounded cursor-pointer"
+                              title="Thử lại tệp này"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : isItemCompleted ? (
+                          <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700 text-[10px] font-mono font-bold flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            {item.isSyncedToDrive ? 'Drive 100%' : '100%'}
+                          </span>
+                        ) : isItemActive ? (
+                          <span className="px-2 py-0.5 rounded bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/40 text-[10px] font-mono font-bold flex items-center gap-1">
+                            <RefreshCw className="w-3 h-3 animate-spin text-[#D4AF37]" />
+                            {item.progress}%
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-[#1A1A1A] text-[#777777] border border-[#2A2A2A] text-[10px] font-mono">
+                            Chờ
+                          </span>
+                        )}
+
+                        <button
+                          onClick={() => handleRemoveUploadItem(item.id)}
+                          className="p-1 text-[#666666] hover:text-[#AAAAAA] hover:bg-[#252525] rounded cursor-pointer"
+                          title="Xóa khỏi hàng đợi"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Item Individual Progress Bar */}
+                    <div className="w-full bg-[#0C0C0C] h-1.5 rounded-full overflow-hidden border border-[#252525]">
+                      <div
+                        className={`h-full transition-all duration-200 ease-out ${
+                          isItemError
+                            ? 'bg-rose-500'
+                            : isItemCompleted
+                            ? 'bg-emerald-500'
+                            : isItemActive
+                            ? 'bg-[#D4AF37]'
+                            : 'bg-[#333333]'
+                        }`}
+                        style={{ width: `${isItemError ? 100 : Math.max(isItemActive ? 5 : 0, item.progress)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1937,9 +2278,8 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             return;
           }
           if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            Array.from(e.dataTransfer.files).forEach((f: File) => {
-              handleProcessUpload(f);
-            });
+            const filesArray = Array.from(e.dataTransfer.files) as File[];
+            handleBatchUpload(filesArray);
           }
         }}
         className={`p-6 rounded-sm border border-dashed text-center transition-all cursor-pointer group ${
@@ -2712,15 +3052,55 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-600 dark:text-[#D4AF37]" />
                         <p className="text-xs font-medium">Đang trích xuất và hiển thị nội dung tài liệu...</p>
                       </div>
-                    ) : previewData?.previewType === 'docx' && previewData?.htmlContent ? (
-                      /* WORD DOCX RENDERER (Mammoth HTML Conversion) */
+                    ) : (previewData?.previewType === 'docx' || previewData?.previewType === 'doc') && previewData?.htmlContent ? (
+                      /* WORD DOCX & DOC RENDERER (Mammoth & WordExtractor Conversion) */
                       <div className="space-y-3">
-                        <div className="p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded text-[11px] text-blue-800 dark:text-blue-300 flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 shrink-0 text-blue-600" />
-                          <span>Đã chuyển đổi cấu trúc Word (.docx) sang giao diện tương thích trực tiếp.</span>
+                        <div className="p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded text-[11px] text-blue-800 dark:text-blue-300 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 shrink-0 text-blue-600" />
+                            <span>
+                              Đã chuyển đổi cấu trúc Word ({previewData?.previewType === 'doc' ? 'Microsoft Word .doc' : 'Word .docx'}) sang giao diện tương thích trực tiếp.
+                            </span>
+                          </div>
+                          {previewFile.webViewLink && (
+                            <a
+                              href={previewFile.webViewLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-semibold underline text-[11px] shrink-0 flex items-center gap-1"
+                            >
+                              <span>Mở Google Docs</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
                         </div>
                         <div
                           className="prose dark:prose-invert max-w-none text-slate-800 dark:text-zinc-100 p-5 bg-white dark:bg-[#121212] rounded border border-slate-200 dark:border-[#222222] shadow-xs leading-relaxed text-sm [&_p]:mb-3 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:text-slate-900 dark:[&_h1]:text-white [&_h1]:border-b [&_h1]:pb-1 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-slate-900 dark:[&_h2]:text-white [&_table]:border-collapse [&_table]:w-full [&_table]:my-3 [&_td]:border [&_td]:border-slate-300 dark:[&_td]:border-[#333333] [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 dark:[&_th]:border-[#333333] [&_th]:p-2 [&_th]:bg-slate-100 dark:[&_th]:bg-[#1A1A1A] [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                          dangerouslySetInnerHTML={{ __html: previewData.htmlContent }}
+                        />
+                      </div>
+                    ) : previewData?.previewType === 'spreadsheet' && previewData?.htmlContent ? (
+                      /* SPREADSHEET (EXCEL/CSV) RENDERER */
+                      <div className="space-y-3">
+                        <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 rounded text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                            <span>Bảng tính Excel (.xlsx, .xls, .csv) được hiển thị trực quan dạng bảng HTML.</span>
+                          </div>
+                          {previewFile.webViewLink && (
+                            <a
+                              href={previewFile.webViewLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 font-semibold underline text-[11px] shrink-0 flex items-center gap-1"
+                            >
+                              <span>Mở Google Sheets</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                        <div
+                          className="overflow-x-auto p-4 bg-white dark:bg-[#121212] rounded border border-slate-200 dark:border-[#222222] shadow-xs text-xs [&_table]:border-collapse [&_table]:w-full [&_td]:border [&_td]:border-slate-300 dark:[&_td]:border-[#333333] [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 dark:[&_th]:border-[#333333] [&_th]:p-2 [&_th]:bg-slate-100 dark:[&_th]:bg-[#1A1A1A] [&_td]:whitespace-nowrap"
                           dangerouslySetInnerHTML={{ __html: previewData.htmlContent }}
                         />
                       </div>
@@ -2754,13 +3134,44 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                         {previewContent}
                       </pre>
                     ) : (
-                      /* EMPTY / BINARY FALLBACK */
-                      <div className="py-12 text-center text-slate-500 dark:text-[#888888] space-y-2.5">
-                        <FileCheck className="w-10 h-10 mx-auto text-amber-500 dark:text-[#D4AF37]/60" />
-                        <p className="text-sm text-slate-800 dark:text-white font-medium">{previewFile.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-[#777777] max-w-md mx-auto leading-relaxed">
-                          Tệp nhị phân đã được lưu trữ an toàn trong Multi-Tier Storage (Disk &amp; Cloud Vault). Bạn có thể mở qua tab Google Drive Cloud Hub hoặc Tải Về Máy.
-                        </p>
+                      /* EMPTY / BINARY FALLBACK WITH ACTION BUTTONS */
+                      <div className="py-10 text-center text-slate-500 dark:text-[#888888] space-y-4">
+                        <FileCheck className="w-12 h-12 mx-auto text-amber-500 dark:text-[#D4AF37]/70" />
+                        <div className="space-y-1">
+                          <p className="text-sm text-slate-800 dark:text-white font-bold">{previewFile.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-[#777777] max-w-md mx-auto leading-relaxed">
+                            Tệp đã được lưu trữ an toàn trong Multi-Tier Storage (Disk &amp; Cloud Vault). Bạn có thể xem trực tuyến trên Google Drive hoặc tải về máy.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                          {previewFile.webViewLink && (
+                            <a
+                              href={previewFile.webViewLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Mở trên Google Drive / Docs ↗</span>
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setPreviewTab('drive')}
+                            className="px-3 py-1.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-[#1E1E1E] dark:hover:bg-[#2A2A2A] dark:text-[#CCCCCC] font-medium text-xs flex items-center gap-1.5 transition-colors"
+                          >
+                            <Cloud className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Xem Cloud Hub</span>
+                          </button>
+                          <a
+                            href={previewFile.downloadUrl || `/api/files/download/${previewFile.id}`}
+                            download={previewFile.name}
+                            className="px-3 py-1.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-[#1E1E1E] dark:hover:bg-[#2A2A2A] dark:text-[#CCCCCC] font-medium text-xs flex items-center gap-1.5 transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Tải Về Máy</span>
+                          </a>
+                        </div>
                       </div>
                     )}
                   </div>

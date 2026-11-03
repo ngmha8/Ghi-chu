@@ -292,11 +292,32 @@ export async function uploadFileToDriveFolder(
   try {
     const token = await getServiceAccountAccessToken(config.clientEmail, config.privateKey);
 
-    const metadata = {
+    // Deduplication check: Check if an active file with this exact filename exists in targetFolderId
+    let existingFileId: string | null = null;
+    try {
+      const safeName = fileName.replace(/'/g, "\\'");
+      const searchQ = encodeURIComponent(`'${cleanFolderId}' in parents and name = '${safeName}' and trashed = false`);
+      const searchRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${searchQ}&fields=files(id,name,size,webViewLink)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const searchData = await searchRes.json().catch(() => ({}));
+      if (searchData.files && searchData.files.length > 0) {
+        // Sort by size descending so genuine files are prioritized over stubs
+        searchData.files.sort((a: any, b: any) => (parseInt(b.size || '0', 10) - parseInt(a.size || '0', 10)));
+        existingFileId = searchData.files[0].id;
+      }
+    } catch (e) {
+      console.warn('Deduplication search notice:', e);
+    }
+
+    const metadata: any = {
       name: fileName,
-      parents: [cleanFolderId],
       mimeType: mimeType,
     };
+    if (!existingFileId) {
+      metadata.parents = [cleanFolderId];
+    }
 
     const boundary = '-------314159265358979323846';
     const delimiter = `\r\n--${boundary}\r\n`;
@@ -315,18 +336,36 @@ export async function uploadFileToDriveFolder(
       Buffer.from(closeDelimiter),
     ]);
 
-    const res = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,webViewLink,webContentLink&supportsAllDrives=true',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': `multipart/related; boundary=${boundary}`,
-          'Content-Length': multipartRequestBody.length.toString(),
-        },
-        body: multipartRequestBody,
-      }
-    );
+    let res: Response;
+    if (existingFileId) {
+      // UPDATE EXISTING FILE IN PLACE (PATCH) - PREVENTS DUPLICATE FILES ON GOOGLE DRIVE
+      res = await fetch(
+        `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=id,name,mimeType,size,webViewLink,webContentLink&supportsAllDrives=true`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': `multipart/related; boundary=${boundary}`,
+            'Content-Length': multipartRequestBody.length.toString(),
+          },
+          body: multipartRequestBody,
+        }
+      );
+    } else {
+      // Create new file (POST) only when no file with this name exists in the folder
+      res = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,webViewLink,webContentLink&supportsAllDrives=true',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': `multipart/related; boundary=${boundary}`,
+            'Content-Length': multipartRequestBody.length.toString(),
+          },
+          body: multipartRequestBody,
+        }
+      );
+    }
 
     const data = await res.json();
     if (!res.ok) {

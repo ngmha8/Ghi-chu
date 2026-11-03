@@ -19,7 +19,18 @@ import { getGeminiClient } from '../aiService.ts';
 import { safeGenerateContent } from '../geminiHelper.ts';
 import mammoth from 'mammoth';
 import { PDFParse } from 'pdf-parse';
+import WordExtractor from 'word-extractor';
+import * as XLSX from 'xlsx';
 import type { DriveFile } from '../../src/types/index.ts';
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 const router = Router();
 
@@ -36,7 +47,7 @@ router.get('/', async (req: Request, res: Response) => {
 // POST /api/files
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const fileId = req.body.id || `file-${Date.now()}`;
+    const fileId = req.body.id || `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const fileName = req.body.name || 'document.pdf';
     const mimeType = req.body.mimeType || 'application/pdf';
     const size = req.body.size || 102400;
@@ -220,13 +231,15 @@ router.get('/preview/:id', async (req: Request, res: Response) => {
 
   const ext = path.extname(file.name).toLowerCase();
   const isDocx = ext === '.docx' || (file.mimeType && file.mimeType.includes('wordprocessingml'));
+  const isDoc = ext === '.doc' || (file.mimeType && (file.mimeType.includes('msword') || file.mimeType === 'application/doc'));
   const isPdf = ext === '.pdf' || file.category === 'pdf' || (file.mimeType && file.mimeType.includes('pdf'));
   const isImage = file.category === 'image' || (file.mimeType && file.mimeType.startsWith('image/')) || ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif'].includes(ext);
-  const isSpreadsheet = file.category === 'spreadsheet' || ['.xlsx', '.xls', '.csv'].includes(ext);
+  const isSpreadsheet = file.category === 'spreadsheet' || ['.xlsx', '.xls', '.csv'].includes(ext) || (file.mimeType && (file.mimeType.includes('spreadsheet') || file.mimeType.includes('excel')));
   const isText = ['.txt', '.md', '.json', '.js', '.ts', '.html', '.css', '.log', '.xml', '.yml', '.yaml'].includes(ext);
 
-  let previewType: 'docx' | 'pdf' | 'image' | 'spreadsheet' | 'text' | 'binary' = 'binary';
+  let previewType: 'docx' | 'doc' | 'pdf' | 'image' | 'spreadsheet' | 'text' | 'binary' = 'binary';
   if (isDocx) previewType = 'docx';
+  else if (isDoc) previewType = 'doc';
   else if (isPdf) previewType = 'pdf';
   else if (isImage) previewType = 'image';
   else if (isSpreadsheet) previewType = 'spreadsheet';
@@ -245,7 +258,7 @@ router.get('/preview/:id', async (req: Request, res: Response) => {
     console.warn(`[Preview] getPersistentBinary notice for ${file.name}:`, e);
   }
 
-  // Extract DOCX content using Mammoth
+  // 1. Extract DOCX content using Mammoth (with WordExtractor fallback)
   if (isDocx && persistentBuffer) {
     try {
       const htmlResult = await mammoth.convertToHtml({ buffer: persistentBuffer });
@@ -253,15 +266,68 @@ router.get('/preview/:id', async (req: Request, res: Response) => {
       htmlContent = htmlResult.value;
       if (textResult.value && textResult.value.trim().length > 0) {
         textContent = textResult.value.trim();
-        // Update textContent in background for vector search & embeddings
         if (!file.textContent) {
           saveDbFile({ ...file, textContent }).catch(() => {});
         }
       }
     } catch (docxErr) {
       console.warn(`[Mammoth] DOCX parse warning for ${file.name}:`, docxErr);
+      try {
+        const extractor = new WordExtractor();
+        const extractedDoc = await extractor.extract(persistentBuffer);
+        const bodyText = (extractedDoc.getBody() || '').trim();
+        if (bodyText) {
+          textContent = bodyText;
+          htmlContent = bodyText
+            .split(/\r?\n\r?\n+/)
+            .map(p => `<p class="mb-3 text-slate-800 dark:text-zinc-100 leading-relaxed">${escapeHtml(p.trim()).replace(/\n/g, '<br/>')}</p>`)
+            .join('');
+        }
+      } catch (e) {}
     }
-  } else if (isPdf && persistentBuffer && (!textContent || textContent.trim().length === 0)) {
+  }
+
+  // 2. Extract legacy Word .doc content using WordExtractor
+  else if (isDoc && persistentBuffer) {
+    try {
+      const extractor = new WordExtractor();
+      const extractedDoc = await extractor.extract(persistentBuffer);
+      const bodyText = (extractedDoc.getBody() || '').trim();
+      const headers = (extractedDoc.getHeaders() || '').trim();
+      const footers = (extractedDoc.getFooters() || '').trim();
+
+      let fullText = bodyText;
+      if (headers) fullText = `${headers}\n\n${fullText}`;
+      if (footers) fullText = `${fullText}\n\n${footers}`;
+
+      if (fullText.length > 0) {
+        textContent = fullText;
+        if (!file.textContent) {
+          saveDbFile({ ...file, textContent }).catch(() => {});
+        }
+
+        const paragraphs = fullText
+          .split(/\r?\n\r?\n+/)
+          .map(p => p.trim())
+          .filter(Boolean);
+
+        htmlContent = paragraphs
+          .map(p => {
+            const isHeading = p.length < 120 && (/^[I|V|X]+\.|\bBÁO CÁO\b|\bCỘNG HÒA\b|\bQUY ĐỊNH\b|\bĐỀ XUẤT\b/i.test(p) || (p === p.toUpperCase() && p.length > 5));
+            if (isHeading) {
+              return `<h2 class="text-base font-bold text-slate-900 dark:text-white mt-4 mb-2 pb-1 border-b border-slate-200 dark:border-zinc-800">${escapeHtml(p)}</h2>`;
+            }
+            return `<p class="mb-3 text-slate-800 dark:text-zinc-100 leading-relaxed">${escapeHtml(p).replace(/\n/g, '<br/>')}</p>`;
+          })
+          .join('');
+      }
+    } catch (docErr) {
+      console.warn(`[WordExtractor] DOC parse warning for ${file.name}:`, docErr);
+    }
+  }
+
+  // 3. Extract PDF content
+  else if (isPdf && persistentBuffer && (!textContent || textContent.trim().length === 0)) {
     try {
       const parser = new PDFParse({ data: persistentBuffer });
       const textResult = await parser.getText();
@@ -275,11 +341,31 @@ router.get('/preview/:id', async (req: Request, res: Response) => {
     } catch (pdfErr) {
       console.warn(`[PDF-Parse] PDF parse warning for ${file.name}:`, pdfErr);
     }
-  } else if (isText && persistentBuffer && !textContent) {
+  }
+
+  // 4. Extract Spreadsheet (.xlsx, .xls, .csv)
+  else if (isSpreadsheet && persistentBuffer) {
     try {
-      textContent = persistentBuffer.toString('utf-8');
-    } catch (e) {}
-  } else if (isSpreadsheet && ext === '.csv' && persistentBuffer && !textContent) {
+      const workbook = XLSX.read(persistentBuffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      if (sheetName) {
+        const sheet = workbook.Sheets[sheetName];
+        htmlContent = XLSX.utils.sheet_to_html(sheet, { id: 'sheet-table' });
+        textContent = XLSX.utils.sheet_to_txt(sheet);
+        if (textContent && !file.textContent) {
+          saveDbFile({ ...file, textContent }).catch(() => {});
+        }
+      }
+    } catch (sheetErr) {
+      console.warn(`[XLSX] Parse warning for ${file.name}:`, sheetErr);
+      if (ext === '.csv') {
+        try { textContent = persistentBuffer.toString('utf-8'); } catch (e) {}
+      }
+    }
+  }
+
+  // 5. Plain text
+  else if (isText && persistentBuffer && !textContent) {
     try {
       textContent = persistentBuffer.toString('utf-8');
     } catch (e) {}
@@ -333,12 +419,26 @@ router.post('/ai-summary/:id', async (req: Request, res: Response) => {
             const textResult = await mammoth.extractRawText({ buffer: persistent.buffer });
             docText = textResult.value.trim();
           } catch (e) {}
+        } else if (ext === '.doc' || (file.mimeType && file.mimeType.includes('msword'))) {
+          try {
+            const extractor = new WordExtractor();
+            const extractedDoc = await extractor.extract(persistent.buffer);
+            docText = (extractedDoc.getBody() || '').trim();
+          } catch (e) {}
         } else if (ext === '.pdf' || (file.mimeType && file.mimeType.includes('pdf'))) {
           try {
             const parser = new PDFParse({ data: persistent.buffer });
             const textResult = await parser.getText();
             docText = textResult?.text ? textResult.text.trim() : '';
             await parser.destroy();
+          } catch (e) {}
+        } else if (['.xlsx', '.xls'].includes(ext) || (file.mimeType && (file.mimeType.includes('spreadsheet') || file.mimeType.includes('excel')))) {
+          try {
+            const workbook = XLSX.read(persistent.buffer, { type: 'buffer' });
+            const sheetName = workbook.SheetNames[0];
+            if (sheetName) {
+              docText = XLSX.utils.sheet_to_txt(workbook.Sheets[sheetName]);
+            }
           } catch (e) {}
         } else if (['.txt', '.md', '.json', '.csv', '.log'].includes(ext)) {
           docText = persistent.buffer.toString('utf-8');
@@ -451,8 +551,24 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
       }
     }
 
-    // 3. Resilient Image & Document Generator Fallback if binary is unavailable
+    // 3. Handle case where binary is unavailable locally
     if (!fileBuffer) {
+      // If file already has a driveFileId or is already synced, do NOT create a duplicate or generate a fake stub!
+      if (file.driveFileId) {
+        const updated: DriveFile = {
+          ...file,
+          isSyncedToDrive: true,
+          syncStatus: 'synced',
+        };
+        await saveDbFile(updated);
+        return res.json({
+          success: true,
+          file: updated,
+          driveResult: { id: file.driveFileId, webViewLink: file.webViewLink },
+          notice: `Tệp "${file.name}" đã sẵn sàng trên Google Drive, không cần tạo lại bản sao.`,
+        });
+      }
+
       const isImg = file.category === 'image' || (file.mimeType && file.mimeType.startsWith('image/')) || /\.(jpe?g|png|webp|gif|svg)$/i.test(file.name);
       if (isImg) {
         const cleanName = file.name.replace(/[<>&"]/g, '');
@@ -475,8 +591,10 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
         </svg>`;
         fileBuffer = Buffer.from(svg, 'utf-8');
       } else {
-        const textFallback = `--- TÀI LIỆU HỆ THỐNG: ${file.name} ---\nPhân loại: ${file.classification || 'Tài liệu'}\nKích thước: ${file.size} bytes\nThời gian: ${file.uploadedAt}\n\nTài liệu được lưu trữ và đồng bộ hóa tự động bởi AI Personal Assistant Vault.`;
-        fileBuffer = Buffer.from(textFallback, 'utf-8');
+        // CRITICAL: DO NOT upload a 260-byte plain text string disguised as a Word/Excel document!
+        return res.status(400).json({
+          error: `Không tìm thấy dữ liệu nhị phân gốc của tệp "${file.name}" để tải lên Google Drive. Vui lòng chọn tệp từ máy tính để tải lên lại.`,
+        });
       }
     }
 
@@ -548,11 +666,31 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
       });
     }
 
+    // 4. Deduplication Check for OAuth Upload: Check if this file already exists in target folder or by driveFileId
+    let existingDriveFileId = file.driveFileId;
+    if (!existingDriveFileId && targetFolderId) {
+      try {
+        const safeName = file.name.replace(/'/g, "\\'");
+        const searchQ = encodeURIComponent(`'${targetFolderId.trim()}' in parents and name = '${safeName}' and trashed = false`);
+        const searchRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files?q=${searchQ}&fields=files(id,name,size,webViewLink)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+          { headers: { Authorization: `Bearer ${userToken}` } }
+        );
+        const searchData = await searchRes.json().catch(() => ({}));
+        if (searchData.files && searchData.files.length > 0) {
+          searchData.files.sort((a: any, b: any) => (parseInt(b.size || '0', 10) - parseInt(a.size || '0', 10)));
+          existingDriveFileId = searchData.files[0].id;
+        }
+      } catch (searchErr) {
+        console.warn('OAuth deduplication search warning:', searchErr);
+      }
+    }
+
     const metadata: { name: string; mimeType: string; parents?: string[] } = {
       name: file.name,
       mimeType: file.mimeType || 'application/octet-stream',
     };
-    if (targetFolderId && targetFolderId.trim().length > 0) {
+    if (!existingDriveFileId && targetFolderId && targetFolderId.trim().length > 0) {
       metadata.parents = [targetFolderId.trim()];
     }
 
@@ -570,18 +708,36 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
 
     const multipartBody = Buffer.concat([metadataPart, mediaHeaderPart, fileBuffer, endPart]);
 
-    const driveRes = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${userToken}`,
-          'Content-Type': `multipart/related; boundary=${boundary}`,
-          'Content-Length': multipartBody.length.toString(),
-        },
-        body: multipartBody,
-      }
-    );
+    let driveRes: any;
+    if (existingDriveFileId) {
+      // UPDATE EXISTING FILE IN PLACE WITH PATCH - NO DUPLICATE FILE CREATED
+      driveRes = await fetch(
+        `https://www.googleapis.com/upload/drive/v3/files/${existingDriveFileId}?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+            'Content-Type': `multipart/related; boundary=${boundary}`,
+            'Content-Length': multipartBody.length.toString(),
+          },
+          body: multipartBody,
+        }
+      );
+    } else {
+      // Create new file with POST
+      driveRes = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+            'Content-Type': `multipart/related; boundary=${boundary}`,
+            'Content-Length': multipartBody.length.toString(),
+          },
+          body: multipartBody,
+        }
+      );
+    }
 
     if (!driveRes.ok) {
       const errText = await driveRes.text();

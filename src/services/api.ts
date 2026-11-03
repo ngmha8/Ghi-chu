@@ -532,6 +532,30 @@ export const api = {
     return data;
   },
 
+  cleanDriveDuplicates: async (folderId?: string): Promise<{
+    success: boolean;
+    cleanedCount: number;
+    details: string[];
+    dbUpdatedCount: number;
+    message: string;
+  }> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('google_access_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch('/api/drive-service-account/clean-duplicates', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ folderId }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data?.error || 'Lỗi khi dọn dẹp tệp trùng lặp trên Google Drive');
+    }
+    return data;
+  },
+
   // Centralized Security PIN API (persists across all devices, browsers, and Render deploys)
   getSecurityPinSettings: async (): Promise<SecurityPinSettings> => {
     try {
