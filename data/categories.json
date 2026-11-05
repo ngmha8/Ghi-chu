@@ -1,90 +1,98 @@
 [
   {
-    "color": "rose",
+    "isDefault": false,
     "icon": "Scale",
     "description": "Quy chuẩn an toàn bức xạ và hạt nhân",
+    "color": "rose",
     "name": "An toàn bức xạ",
-    "id": "cat-1787642812780",
+    "id": "cat-1787642812780"
+  },
+  {
+    "name": "chấm công",
+    "isDefault": false,
+    "color": "cyan",
+    "id": "cat-1793696677663",
+    "description": "Phân loại chấm công",
+    "icon": "Tag"
+  },
+  {
+    "name": "Kiểm định",
+    "color": "emerald",
+    "id": "cat-1793697042324",
+    "description": "Phân loại Kiểm định",
+    "icon": "Tag",
     "isDefault": false
   },
   {
-    "isDefault": false,
-    "description": "Phân loại chấm công",
-    "color": "cyan",
-    "name": "chấm công",
-    "id": "cat-1793696677663",
-    "icon": "Tag"
-  },
-  {
-    "isDefault": false,
-    "id": "cat-1793697042324",
-    "color": "emerald",
-    "name": "Kiểm định",
-    "description": "Phân loại Kiểm định",
-    "icon": "Tag"
-  },
-  {
+    "icon": "Tag",
     "isDefault": false,
     "id": "cat-1793697126774",
-    "description": "Phân loại Kiểm xạ",
-    "icon": "Tag",
     "color": "blue",
+    "description": "Phân loại Kiểm xạ",
     "name": "Kiểm xạ"
   },
   {
-    "isDefault": false,
     "color": "amber",
-    "name": "Giấy phép",
-    "description": "Phân loại Giấy phép",
     "icon": "Tag",
-    "id": "cat-1793697302641"
+    "id": "cat-1793697302641",
+    "isDefault": false,
+    "name": "Giấy phép",
+    "description": "Phân loại Giấy phép"
   },
   {
-    "name": "Tài chính",
+    "name": "X quang",
+    "color": "teal",
+    "id": "cat-1793801145799",
+    "isDefault": false,
+    "icon": "Tag",
+    "description": "Phân loại X quang"
+  },
+  {
     "isDefault": true,
     "id": "finance",
-    "color": "teal",
     "icon": "DollarSign",
-    "description": "Báo cáo tài chính, hóa đơn, bảng kê chi phí, ngân sách"
+    "description": "Báo cáo tài chính, hóa đơn, bảng kê chi phí, ngân sách",
+    "color": "teal",
+    "name": "Tài chính"
   },
   {
-    "name": "Khác",
+    "isDefault": true,
     "description": "Tài liệu tổng hợp hoặc chưa phân nhóm cụ thể",
     "id": "other",
-    "isDefault": true,
+    "name": "Khác",
     "icon": "FileText",
     "color": "zinc"
   },
   {
-    "icon": "User",
-    "id": "personal",
     "name": "Cá nhân",
+    "id": "personal",
     "description": "Giấy tờ tùy thân, tài liệu học tập, hồ sơ cá nhân",
-    "color": "blue",
-    "isDefault": true
+    "icon": "User",
+    "isDefault": true,
+    "color": "blue"
   },
   {
-    "name": "Dự án",
-    "description": "Kế hoạch triển khai, thuyết minh dự án, sơ đồ kiến trúc",
     "id": "projects",
-    "icon": "FolderKanban",
+    "name": "Dự án",
     "color": "purple",
+    "icon": "FolderKanban",
+    "description": "Kế hoạch triển khai, thuyết minh dự án, sơ đồ kiến trúc",
     "isDefault": true
   },
   {
-    "name": "Mẫu giấy tờ",
-    "color": "amber",
-    "id": "templates",
     "icon": "FileCheck",
     "isDefault": true,
+    "id": "templates",
+    "color": "amber",
+    "name": "Mẫu giấy tờ",
     "description": "Biểu mẫu, tờ trình, mẫu đơn, template báo cáo chuẩn"
   },
   {
-    "color": "emerald",
-    "icon": "Briefcase",
-    "name": "Công việc",
-    "isDefault": true,
     "id": "work",
-    "description": "Tài liệu dự án, công việc chuyên môn, quy trình công ty"
+    "name": "Công việc",
+    "description": "Tài liệu dự án, công việc chuyên môn, quy trình công ty",
+    "isDefault": true,
+    "icon": "Briefcase",
+    "color": "emerald"
   }
 ]

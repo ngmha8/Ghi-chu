@@ -652,8 +652,11 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
             purgedLocal: !!req.body.purgeLocalAfterUpload,
           });
         } else {
+          const authNotice = (uploadRes.notice && uploadRes.notice.includes('Shared Drive'))
+            ? 'Thư mục Google Drive cá nhân (@gmail.com) yêu cầu Đăng nhập tài khoản Google để tải tệp lên (tránh giới hạn lưu trữ của Service Account). Vui lòng nhấn "Đăng nhập Google" để tiếp tục.'
+            : (uploadRes.notice || 'Chưa thể tải tệp lên Google Drive. Bắt buộc đăng nhập tài khoản Google để đồng bộ thực tế.');
           return res.status(401).json({
-            error: uploadRes.notice || 'Chưa thể tải tệp lên Google Drive. Bắt buộc đăng nhập tài khoản Google để đồng bộ thực tế.',
+            error: authNotice,
             requiresAdminLogin: true,
             uploadedToDrive: false,
           });
@@ -742,82 +745,117 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
     if (!driveRes.ok) {
       const errText = await driveRes.text();
       const isAuthError = driveRes.status === 401 || errText.includes('authError') || errText.includes('Invalid Credentials');
+
+      // If user OAuth token is expired or unauthorized, immediately ask for re-authentication
       if (isAuthError) {
-        console.warn('OAuth user token expired or invalid; automatically falling back to Service Account upload.');
-      } else {
-        console.warn('Google Drive API OAuth upload warning (falling back to Service Account):', errText);
+        return res.status(401).json({
+          error: 'Phiên đăng nhập Google của bạn đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại tài khoản Google để tiếp tục tải tệp lên Drive.',
+          tokenExpired: true,
+          requiresAdminLogin: true,
+        });
       }
 
-      // Resilient Fallback: Upload via configured Google Drive Service Account
-      const saConfig = await getDbDriveServiceAccountConfig();
-      if (saConfig?.clientEmail && saConfig?.privateKey && (targetFolderId || saConfig?.folderId)) {
-        const uploadRes = await uploadFileToDriveFolder(
-          {
-            ...saConfig,
-            folderId: targetFolderId || saConfig.folderId,
-          },
-          file.name,
-          file.mimeType || 'application/octet-stream',
-          fileBuffer
-        );
-
-        if (uploadRes.uploadedToDrive && uploadRes.id) {
-          if (req.body.purgeLocalAfterUpload) {
-            await deletePersistentBinary(file.id);
+      // If folder permission error (404/403 with parents), retry uploading to root of user's Google Drive
+      if ((driveRes.status === 404 || driveRes.status === 403) && metadata.parents) {
+        try {
+          const rootMetadata = { name: file.name, mimeType: file.mimeType || 'application/octet-stream' };
+          const rootMetadataPart = Buffer.from(`${delimiter}Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(rootMetadata)}`);
+          const rootBody = Buffer.concat([rootMetadataPart, mediaHeaderPart, fileBuffer, endPart]);
+          const retryRes = await fetch(
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true',
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${userToken}`,
+                'Content-Type': `multipart/related; boundary=${boundary}`,
+                'Content-Length': rootBody.length.toString(),
+              },
+              body: rootBody,
+            }
+          );
+          if (retryRes.ok) {
+            driveRes = retryRes;
           }
-          if (req.body.deleteLocalRecord) {
-            await deleteDbFile(file.id);
-            return res.json({
-              success: true,
-              file: null,
-              deletedRecord: true,
-              purgedLocal: true,
-              driveResult: uploadRes,
-              viaServiceAccount: true,
-              tokenExpired: isAuthError,
-            });
-          }
-          const updated: DriveFile = {
-            ...file,
-            driveFileId: uploadRes.id,
-            webViewLink: uploadRes.webViewLink || `https://drive.google.com/file/d/${uploadRes.id}/view`,
-            isSyncedToDrive: true,
-            syncStatus: 'synced',
-            syncError: undefined,
-            ...(req.body.purgeLocalAfterUpload ? {
-              storageType: 'drive',
-              hasBinary: false,
-              base64Data: undefined,
-              textContent: undefined,
-              storagePath: undefined,
-              downloadUrl: `/api/drive-service-account/download/${uploadRes.id}`,
-            } : {}),
-          };
-          const saved = await saveDbFile(updated);
-          return res.json({
-            success: true,
-            file: saved,
-            driveResult: uploadRes,
-            viaServiceAccount: true,
-            tokenExpired: isAuthError,
-            purgedLocal: !!req.body.purgeLocalAfterUpload,
-          });
-        } else {
-          return res.status(401).json({
-            error: uploadRes.notice || 'Chưa thể tải tệp lên Google Drive. Bắt buộc đăng nhập tài khoản Google để đồng bộ thực tế.',
-            requiresAdminLogin: true,
-            uploadedToDrive: false,
-            tokenExpired: isAuthError,
-          });
+        } catch (retryErr) {
+          console.warn('Retry to root Drive warning:', retryErr);
         }
       }
 
-      let errMsg = `Lỗi Google Drive (${driveRes.status})`;
-      try {
-        const parsed = JSON.parse(errText);
-        if (parsed?.error?.message) errMsg = parsed.error.message;
-      } catch (e) {}
-      return res.status(driveRes.status).json({ error: errMsg, tokenExpired: isAuthError });
+      if (!driveRes.ok) {
+        // Resilient Fallback: Upload via configured Google Drive Service Account
+        const saConfig = await getDbDriveServiceAccountConfig();
+        if (saConfig?.clientEmail && saConfig?.privateKey && (targetFolderId || saConfig?.folderId)) {
+          const uploadRes = await uploadFileToDriveFolder(
+            {
+              ...saConfig,
+              folderId: targetFolderId || saConfig.folderId,
+            },
+            file.name,
+            file.mimeType || 'application/octet-stream',
+            fileBuffer
+          );
+
+          if (uploadRes.uploadedToDrive && uploadRes.id) {
+            if (req.body.purgeLocalAfterUpload) {
+              await deletePersistentBinary(file.id);
+            }
+            if (req.body.deleteLocalRecord) {
+              await deleteDbFile(file.id);
+              return res.json({
+                success: true,
+                file: null,
+                deletedRecord: true,
+                purgedLocal: true,
+                driveResult: uploadRes,
+                viaServiceAccount: true,
+                tokenExpired: isAuthError,
+              });
+            }
+            const updated: DriveFile = {
+              ...file,
+              driveFileId: uploadRes.id,
+              webViewLink: uploadRes.webViewLink || `https://drive.google.com/file/d/${uploadRes.id}/view`,
+              isSyncedToDrive: true,
+              syncStatus: 'synced',
+              syncError: undefined,
+              ...(req.body.purgeLocalAfterUpload ? {
+                storageType: 'drive',
+                hasBinary: false,
+                base64Data: undefined,
+                textContent: undefined,
+                storagePath: undefined,
+                downloadUrl: `/api/drive-service-account/download/${uploadRes.id}`,
+              } : {}),
+            };
+            const saved = await saveDbFile(updated);
+            return res.json({
+              success: true,
+              file: saved,
+              driveResult: uploadRes,
+              viaServiceAccount: true,
+              tokenExpired: isAuthError,
+              purgedLocal: !!req.body.purgeLocalAfterUpload,
+            });
+          } else {
+            const authNotice = (uploadRes.notice && uploadRes.notice.includes('Shared Drive'))
+              ? 'Thư mục Google Drive cá nhân (@gmail.com) yêu cầu Đăng nhập tài khoản Google để tải tệp lên (tránh giới hạn lưu trữ của Service Account). Vui lòng nhấn "Đăng nhập Google" để tiếp tục.'
+              : (uploadRes.notice || 'Chưa thể tải tệp lên Google Drive. Bắt buộc đăng nhập tài khoản Google để đồng bộ thực tế.');
+            return res.status(401).json({
+              error: authNotice,
+              requiresAdminLogin: true,
+              uploadedToDrive: false,
+              tokenExpired: isAuthError,
+            });
+          }
+        }
+
+        let errMsg = `Lỗi Google Drive (${driveRes.status})`;
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed?.error?.message) errMsg = parsed.error.message;
+        } catch (e) {}
+        return res.status(driveRes.status).json({ error: errMsg, tokenExpired: isAuthError });
+      }
     }
 
     const driveResult: any = await driveRes.json();

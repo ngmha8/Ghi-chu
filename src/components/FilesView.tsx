@@ -81,7 +81,11 @@ import {
   MessageSquareQuote,
   Info,
   Shield,
-  Lock
+  Lock,
+  CheckSquare,
+  Square,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import {
   getStoredCategories,
@@ -335,15 +339,35 @@ export const FilesView: React.FC<FilesViewProps> = ({
   // Delete Confirmation Modal
   const [fileToDelete, setFileToDelete] = useState<DriveFile | null>(null);
 
-  // Quick Inline Category Switcher state (fileId -> open/close)
+  // Quick Inline Category Switcher state (fileId -> open/close) & Fast Tag Search/Add
   const [openCategoryPopoverFileId, setOpenCategoryPopoverFileId] = useState<string | null>(null);
+  const [popoverSearchQuery, setPopoverSearchQuery] = useState('');
 
-  const [popoverNewCatInput, setPopoverNewCatInput] = useState('');
+  // View mode: 'grid' (thẻ) or 'list' (danh sách)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('files_view_mode') as 'grid' | 'list') || 'grid';
+    }
+    return 'grid';
+  });
+
+  const handleSetViewMode = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('files_view_mode', mode);
+    }
+  };
 
   // Identify all files currently stored locally and not yet synced to Google Drive
   const localFiles = useMemo(() => {
     return files.filter(f => !f.driveFileId || !f.isSyncedToDrive || f.syncStatus === 'local_only' || f.syncStatus === 'sync_error');
   }, [files]);
+
+  // Google Drive Authentication State Gate (Determines whether Drive operational buttons are revealed)
+  const isGoogleLoggedIn = Boolean(googleUser?.email || getGoogleAccessToken());
+
+  // Centralized Google Drive Management Dashboard Modal
+  const [isDriveManageModalOpen, setIsDriveManageModalOpen] = useState(false);
 
   // Sync & Purge Local Modal State
   const [isSyncPurgeModalOpen, setIsSyncPurgeModalOpen] = useState(false);
@@ -437,17 +461,41 @@ export const FilesView: React.FC<FilesViewProps> = ({
     }
   };
 
-  // Compute file counts per classification
+  // Helper: check if a category/tag is assigned/selected for a file
+  const isCategorySelectedForFile = (file: DriveFile, cat: DocumentCategory): boolean => {
+    if (!file || !cat) return false;
+    if (file.classification === cat.id || file.classification?.toLowerCase() === cat.name.toLowerCase()) {
+      return true;
+    }
+    if (Array.isArray(file.tags)) {
+      return file.tags.some(t => {
+        const clean = t.toLowerCase().trim();
+        return clean === cat.name.toLowerCase() || clean === cat.id.toLowerCase();
+      });
+    }
+    return false;
+  };
+
+  // Helper: get list of all assigned categories for a file
+  const getFileSelectedCategories = (file: DriveFile): DocumentCategory[] => {
+    if (!file) return [];
+    return categories.filter(cat => isCategorySelectedForFile(file, cat));
+  };
+
+  // Compute file counts per classification (including multi-tag assignments)
   const classificationCounts = useMemo(() => {
     const counts: Record<string, number> = { all: files.length };
     categories.forEach(c => { counts[c.id] = 0; });
 
     files.forEach(f => {
-      const cat = f.classification || 'other';
-      // Match by ID or Name
-      const match = categories.find(c => c.id === cat || c.name.toLowerCase() === cat.toLowerCase());
-      const catKey = match ? match.id : (cat || 'other');
-      counts[catKey] = (counts[catKey] || 0) + 1;
+      const assigned = categories.filter(c => isCategorySelectedForFile(f, c));
+      if (assigned.length === 0) {
+        counts['other'] = (counts['other'] || 0) + 1;
+      } else {
+        assigned.forEach(c => {
+          counts[c.id] = (counts[c.id] || 0) + 1;
+        });
+      }
     });
 
     return counts;
@@ -840,9 +888,24 @@ export const FilesView: React.FC<FilesViewProps> = ({
         const nextPercent = Math.round(((i + 1) / localFiles.length) * 100);
         setDriveSyncProgress(prev => prev ? { ...prev, percent: nextPercent, statusText: `Đã xử lý (${i + 1}/${localFiles.length}): ${f.name}` } : null);
       } catch (err: any) {
-        console.error(`Error syncing file ${f.name}:`, err);
+        console.warn(`Sync notice for "${f.name}":`, err?.message || err);
         failedCount++;
-        setAuthError(`Lỗi khi tải tệp "${f.name}": ${err?.message || 'Lỗi xác thực'}`);
+        const msg = err?.message || 'Lỗi xác thực';
+        const isAuthError = err?.requiresAdminLogin || err?.status === 401 || msg.includes('401') || msg.includes('đăng nhập') || msg.includes('xác thực') || msg.includes('Shared Drive') || msg.includes('hạn mức') || msg.includes('quota') || msg.includes('quyền') || msg.includes('hết hạn');
+
+        if (isAuthError) {
+          setGoogleUser(null);
+          setAuthError('⚠️ Phiên đăng nhập Google Drive đã hết hạn. Vui lòng đăng nhập lại tài khoản Google để tiếp tục.');
+          setDriveSyncProgress(null);
+          setAdminLoginPrompt({
+            isOpen: true,
+            isSyncAll: true,
+            notice: 'Để đồng bộ tệp lên Google Drive cá nhân (@gmail.com), hệ thống cần bạn đăng nhập tài khoản Google để cấp quyền lưu trữ.',
+          });
+          break;
+        } else {
+          setAuthError(`Lỗi khi tải tệp "${f.name}": ${msg}`);
+        }
       }
     }
 
@@ -900,7 +963,8 @@ export const FilesView: React.FC<FilesViewProps> = ({
     // MANDATORY GOOGLE LOGIN CHECK
     const currentToken = getGoogleAccessToken();
     if (!googleUser || !currentToken) {
-      setAuthError('⚠️ Bắt buộc phải đăng nhập tài khoản Google trước khi đồng bộ lên Google Drive (Chặn đồng bộ ảo).');
+      setAuthError('⚠️ Bắt buộc phải đăng nhập tài khoản Google trước khi đồng bộ lên Google Drive.');
+      setIsSyncPurgeModalOpen(false);
       handleGoogleSignInClick();
       return;
     }
@@ -981,9 +1045,25 @@ export const FilesView: React.FC<FilesViewProps> = ({
             : null
         );
       } catch (err: any) {
-        console.error(`Error syncing file ${f.name}:`, err);
+        console.warn(`Sync notice for "${f.name}":`, err?.message || err);
         failedCount++;
-        setAuthError(`Lỗi khi tải tệp "${f.name}": ${err?.message || 'Lỗi xác thực'}`);
+        const msg = err?.message || 'Lỗi xác thực Google Drive';
+        const isAuthError = err?.requiresAdminLogin || err?.status === 401 || msg.includes('401') || msg.includes('đăng nhập') || msg.includes('xác thực') || msg.includes('Shared Drive') || msg.includes('hạn mức') || msg.includes('quota') || msg.includes('quyền') || msg.includes('hết hạn');
+
+        if (isAuthError) {
+          setGoogleUser(null);
+          setAuthError('⚠️ Phiên đăng nhập Google Drive đã hết hạn. Vui lòng đăng nhập lại tài khoản Google để tải tệp lên Drive cá nhân.');
+          setIsSyncPurgeModalOpen(false);
+          setDriveSyncProgress(null);
+          setAdminLoginPrompt({
+            isOpen: true,
+            isSyncAll: true,
+            notice: 'Để đồng bộ tệp lên Google Drive cá nhân (@gmail.com), hệ thống cần bạn đăng nhập tài khoản Google để cấp quyền lưu trữ.',
+          });
+          break; // Stop immediately to avoid repeating errors across all files
+        } else {
+          setAuthError(`Lỗi khi tải tệp "${f.name}": ${msg}`);
+        }
       }
     }
 
@@ -1125,6 +1205,129 @@ export const FilesView: React.FC<FilesViewProps> = ({
     if (targetFileId) {
       handleUpdateFileClassification(targetFileId, newCat.id);
     }
+  };
+
+  // Toggle a category/tag for a file (Multi-select without closing popover)
+  const handleToggleFileCategory = (fileId: string, categoryId: string) => {
+    const targetFile = files.find(f => f.id === fileId);
+    if (!targetFile) return;
+
+    const targetCat = categories.find(c => c.id === categoryId);
+    if (!targetCat) return;
+
+    const isCurrentlySelected = isCategorySelectedForFile(targetFile, targetCat);
+
+    let nextClassification = targetFile.classification || 'other';
+    let currentTags = Array.isArray(targetFile.tags) ? [...targetFile.tags] : [];
+
+    // Filter out placeholder tokens
+    currentTags = currentTags.filter(t => {
+      const clean = t.toLowerCase().trim();
+      return clean && clean !== 'unclassified' && clean !== 'chưa xác định' && clean !== 'chưa phân loại';
+    });
+
+    if (isCurrentlySelected) {
+      // UNCHECK / REMOVE: Remove from tags
+      currentTags = currentTags.filter(t => 
+        t.toLowerCase() !== targetCat.name.toLowerCase() && 
+        t.toLowerCase() !== targetCat.id.toLowerCase()
+      );
+
+      // If this category was the primary classification, reassign to another tag or 'other'
+      const isPrimary = nextClassification === targetCat.id || nextClassification.toLowerCase() === targetCat.name.toLowerCase();
+      if (isPrimary) {
+        if (currentTags.length > 0) {
+          const firstRemainingCat = categories.find(c => currentTags.some(t => t.toLowerCase() === c.name.toLowerCase() || t.toLowerCase() === c.id.toLowerCase()));
+          nextClassification = firstRemainingCat ? firstRemainingCat.id : currentTags[0];
+        } else {
+          nextClassification = 'other';
+        }
+      }
+    } else {
+      // CHECK / ADD: Add tag name to tags
+      const alreadyInTags = currentTags.some(t => t.toLowerCase() === targetCat.name.toLowerCase() || t.toLowerCase() === targetCat.id.toLowerCase());
+      if (!alreadyInTags) {
+        currentTags.push(targetCat.name);
+      }
+
+      // If current classification is empty or 'other', set this as primary classification
+      if (!nextClassification || nextClassification === 'other' || nextClassification === 'unclassified') {
+        nextClassification = targetCat.id;
+      }
+    }
+
+    const updatedPatch = {
+      classification: nextClassification,
+      tags: currentTags,
+    };
+
+    if (onFileUpdate) {
+      onFileUpdate(fileId, updatedPatch);
+    }
+    if (previewFile?.id === fileId) {
+      setPreviewFile({
+        ...previewFile,
+        ...updatedPatch,
+      });
+    }
+    // Keep popover open so user can toggle multiple tags seamlessly!
+  };
+
+  // Add a new tag from popover search input or toggle if already exists
+  const handlePopoverAddOrToggle = (fileId: string) => {
+    const trimmed = popoverSearchQuery.trim();
+    if (!trimmed) return;
+
+    // Check if category already exists (case-insensitive)
+    const existing = categories.find(c => 
+      c.name.toLowerCase() === trimmed.toLowerCase() || 
+      c.id.toLowerCase() === trimmed.toLowerCase()
+    );
+
+    if (existing) {
+      // If it exists, toggle it for this file
+      handleToggleFileCategory(fileId, existing.id);
+      setPopoverSearchQuery('');
+      return;
+    }
+
+    // Otherwise create new category
+    const PALETTE = ['emerald', 'blue', 'amber', 'teal', 'rose', 'purple', 'indigo', 'cyan'];
+    const nextColor = PALETTE[categories.length % PALETTE.length];
+
+    const newCat: DocumentCategory = {
+      id: `cat-${Date.now()}`,
+      name: trimmed,
+      color: nextColor,
+      icon: 'Tag',
+      description: `Phân loại ${trimmed}`,
+      isDefault: false,
+    };
+
+    const updatedCategories = [...categories, newCat];
+    handleSaveCategories(updatedCategories);
+
+    // Also attach to this file immediately
+    const targetFile = files.find(f => f.id === fileId);
+    if (targetFile) {
+      let currentTags = Array.isArray(targetFile.tags) ? [...targetFile.tags] : [];
+      if (!currentTags.some(t => t.toLowerCase() === trimmed.toLowerCase())) {
+        currentTags.push(trimmed);
+      }
+      const nextClassification = (!targetFile.classification || targetFile.classification === 'other' || targetFile.classification === 'unclassified')
+        ? newCat.id
+        : targetFile.classification;
+
+      const patch = {
+        classification: nextClassification,
+        tags: currentTags,
+      };
+
+      if (onFileUpdate) onFileUpdate(fileId, patch);
+      if (previewFile?.id === fileId) setPreviewFile({ ...previewFile, ...patch });
+    }
+
+    setPopoverSearchQuery('');
   };
 
   // Request category deletion with active document warning
@@ -1584,13 +1787,15 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
   // Main file filtering: Classification + Format + Search Keyword across (Name, Notes, Description, Content, Tags, Categories)
   const filteredFiles = useMemo(() => {
     const filtered = files.filter(f => {
-      // 1. Classification filter (Công việc, Cá nhân, Mẫu giấy tờ...)
+      // 1. Classification filter (Hỗ trợ đa tag - kiểm tra cả phân loại chính và các tag phụ)
       if (selectedClassification !== 'all') {
-        const fileCat = f.classification || 'other';
         const targetCategory = categories.find(c => c.id === selectedClassification);
-        const matchId = fileCat === selectedClassification;
-        const matchName = targetCategory && fileCat.toLowerCase() === targetCategory.name.toLowerCase();
-        if (!matchId && !matchName) return false;
+        if (targetCategory) {
+          if (!isCategorySelectedForFile(f, targetCategory)) return false;
+        } else {
+          const fileCat = f.classification || 'other';
+          if (fileCat !== selectedClassification) return false;
+        }
       }
 
       // 2. Format filter (Document, Spreadsheet, PDF...)
@@ -1679,6 +1884,205 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
   const getLinkedTasks = (fileId: string) => tasks.filter(t => t.attachedFileIds?.includes(fileId));
   const getLinkedNotes = (fileId: string) => notes.filter(n => n.attachedFileIds?.includes(fileId));
 
+  // Shared Category Badge & Multi-Select Popover Component
+  const renderCategoryBadgeAndPopover = (file: DriveFile, resolvedCat: DocumentCategory, colorCfg: any) => {
+    const isCategoryPopoverOpen = openCategoryPopoverFileId === file.id;
+    const assignedCats = getFileSelectedCategories(file);
+
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => {
+            if (isCategoryPopoverOpen) {
+              setOpenCategoryPopoverFileId(null);
+              setPopoverSearchQuery('');
+            } else {
+              setOpenCategoryPopoverFileId(file.id);
+              setPopoverSearchQuery('');
+            }
+          }}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold border transition-all cursor-pointer ${colorCfg.bg} ${colorCfg.text} ${colorCfg.border} hover:opacity-90 shadow-xs`}
+          title="Bấm vào để tìm nhanh hoặc tích chọn nhiều tag phân loại"
+        >
+          {renderCategoryIcon(resolvedCat.icon, 'w-3 h-3')}
+          <span>{resolvedCat.name}</span>
+          {assignedCats.length > 1 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-white/20 dark:bg-black/30 font-mono font-bold" title={`Đã gán ${assignedCats.length} tag: ${assignedCats.map(c => c.name).join(', ')}`}>
+              +{assignedCats.length - 1}
+            </span>
+          )}
+          <ChevronDown className="w-3 h-3 opacity-60" />
+        </button>
+
+        {/* Popover Quick Category Selector with Top Search, Real-Time Filter & Multi-Select Checkboxes */}
+        {isCategoryPopoverOpen && (
+          <div className="absolute top-full left-0 mt-1 z-30 w-72 sm:w-80 bg-[#181818] border border-[#3A3A3A] rounded shadow-2xl p-3 space-y-2.5 animate-in fade-in">
+            {/* Header */}
+            <div className="text-[10px] font-bold text-slate-500 dark:text-[#AAAAAA] uppercase px-0.5 pb-1.5 border-b border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
+                <span>Phân loại tài liệu (Chọn nhiều tag)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenCategoryPopoverFileId(null);
+                  setPopoverSearchQuery('');
+                }}
+                className="text-slate-400 hover:text-slate-700 dark:text-[#666666] dark:hover:text-white cursor-pointer px-1 text-xs"
+                title="Đóng bảng phân loại"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Top: Fast Tag Search Bar with + Button on the Right */}
+            <div className="flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-slate-400 dark:text-[#777777] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Tìm nhanh tag hoặc nhập tên mới..."
+                  value={popoverSearchQuery}
+                  onChange={(e) => setPopoverSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handlePopoverAddOrToggle(file.id);
+                    }
+                  }}
+                  className="w-full pl-8 pr-6 py-1.5 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#333333] focus:border-blue-500 dark:focus:border-[#D4AF37] rounded text-xs text-slate-800 dark:text-[#E0E0E0] placeholder:text-slate-400 dark:placeholder:text-[#666666] focus:outline-none transition-colors"
+                  autoFocus
+                />
+                {popoverSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setPopoverSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-[#888888] dark:hover:text-white text-xs cursor-pointer"
+                    title="Xóa tìm kiếm"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* + Button directly to the right of search bar */}
+              <button
+                type="button"
+                onClick={() => handlePopoverAddOrToggle(file.id)}
+                disabled={!popoverSearchQuery.trim()}
+                className="h-8 px-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-[#D4AF37] dark:hover:bg-[#c29f2e] text-white dark:text-black disabled:opacity-30 disabled:cursor-not-allowed font-bold rounded text-xs shrink-0 cursor-pointer flex items-center justify-center transition-all shadow-xs"
+                title={popoverSearchQuery.trim() ? `Thêm hoặc gắn tag "${popoverSearchQuery.trim()}"` : 'Nhập tên tag để thêm mới'}
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+              </button>
+            </div>
+
+            {/* List of categories with Multi-Select Checkboxes (Auto-filtered in real-time) */}
+            <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 scrollbar-thin">
+              {(() => {
+                const q = popoverSearchQuery.trim().toLowerCase();
+                const filteredCategories = q
+                  ? categories.filter(c => c.name.toLowerCase().includes(q) || (c.description && c.description.toLowerCase().includes(q)))
+                  : categories;
+
+                if (filteredCategories.length === 0) {
+                  return (
+                    <div className="py-3 px-2 text-center text-xs text-slate-500 dark:text-[#888888] bg-slate-50 dark:bg-[#121212] rounded border border-dashed border-slate-200 dark:border-[#2A2A2A]">
+                      <p>Chưa có tag nào là <strong className="text-slate-800 dark:text-white">"{popoverSearchQuery}"</strong></p>
+                      <button
+                        type="button"
+                        onClick={() => handlePopoverAddOrToggle(file.id)}
+                        className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-[#D4AF37]/20 dark:text-[#D4AF37] dark:hover:bg-[#D4AF37]/30 border border-blue-200 dark:border-[#D4AF37]/40 rounded text-[11px] font-bold cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3 h-3 stroke-[3]" />
+                        <span>Tạo và gắn tag "{popoverSearchQuery.trim()}"</span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return filteredCategories.map(cat => {
+                  const cCfg = CATEGORY_COLORS[cat.color] || CATEGORY_COLORS.zinc;
+                  const isSelected = isCategorySelectedForFile(file, cat);
+                  const catDocCount = classificationCounts[cat.id] || classificationCounts[cat.name] || 0;
+
+                  return (
+                    <div
+                      key={cat.id}
+                      className={`group/catitem w-full px-2 py-1.5 rounded text-xs flex items-center justify-between transition-colors ${
+                        isSelected
+                          ? 'bg-blue-50 text-blue-900 border border-blue-200 dark:bg-[#262626] dark:text-white dark:border-[#404040] font-bold shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-50 border border-transparent dark:text-[#CCCCCC] dark:hover:bg-[#202020]'
+                      }`}
+                    >
+                      {/* Toggle button with Checkbox */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFileCategory(file.id, cat.id)}
+                        className="flex-1 text-left flex items-center gap-2 min-w-0 cursor-pointer py-0.5"
+                        title={isSelected ? `Bỏ chọn tag "${cat.name}"` : `Tích chọn tag "${cat.name}"`}
+                      >
+                        {/* Multi-select Checkbox */}
+                        {isSelected ? (
+                          <CheckSquare className="w-4 h-4 text-blue-600 dark:text-[#D4AF37] shrink-0" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-400 dark:text-[#555555] group-hover/catitem:text-slate-600 dark:group-hover/catitem:text-[#888888] shrink-0" />
+                        )}
+
+                        {/* Category Icon and Name */}
+                        <span className={`flex items-center gap-1.5 truncate ${cCfg.text}`}>
+                          {renderCategoryIcon(cat.icon, 'w-3.5 h-3.5 shrink-0')}
+                          <span className="truncate">{cat.name}</span>
+                        </span>
+
+                        {/* Document count */}
+                        <span className="text-[10px] text-slate-400 dark:text-[#666666] font-mono shrink-0 ml-auto mr-1">
+                          ({catDocCount})
+                        </span>
+                      </button>
+
+                      {/* Delete button on the right */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRequestDeleteCategory(cat);
+                        }}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:text-[#666666] dark:hover:text-rose-400 dark:hover:bg-rose-950/60 rounded transition-all cursor-pointer shrink-0 opacity-60 group-hover/catitem:opacity-100 ml-1"
+                        title={`Xóa phân loại "${cat.name}"${catDocCount > 0 ? ` (đang có ${catDocCount} tài liệu)` : ''}`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Bottom Footer: Selected Tag Count & Done Button */}
+            <div className="pt-2 border-t border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between text-xs">
+              <span className="text-[11px] text-slate-500 dark:text-[#888888]">
+                Đã chọn: <strong className="text-blue-600 dark:text-[#D4AF37] font-mono">{getFileSelectedCategories(file).length}</strong> tag
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenCategoryPopoverFileId(null);
+                  setPopoverSearchQuery('');
+                }}
+                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white dark:bg-[#252525] dark:hover:bg-[#333333] dark:text-white rounded text-[11px] font-bold cursor-pointer transition-colors shadow-xs"
+              >
+                Xong (Đóng)
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Hidden Real File Input */}
@@ -1699,14 +2103,15 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-editorial-serif font-bold text-white">Quản lý & Phân loại Tài liệu</h1>
-              {saConfig?.isConnected ? (
-                <span className="text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-700/80 px-2.5 py-0.5 rounded font-mono font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                  <span>Google Drive SA: {saConfig.folderName || 'Thư Mục Cố Định'}</span>
+              {isGoogleLoggedIn ? (
+                <span className="text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-700/80 px-2.5 py-0.5 rounded font-mono font-bold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Google Drive: {googleUser?.email || saConfig?.folderName || 'Đã kết nối'}</span>
                 </span>
               ) : (
-                <span className="text-[10px] bg-[#0C0C0C] text-[#AAAAAA] border border-[#2A2A2A] px-2 py-0.5 rounded font-mono">
-                  📁 {saConfig?.folderName || 'Google Drive'}
+                <span className="text-[10px] bg-amber-950/40 text-amber-300 border border-amber-600/50 px-2.5 py-0.5 rounded font-mono flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span>Google Drive: Chưa đăng nhập</span>
                 </span>
               )}
             </div>
@@ -1717,67 +2122,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Google Drive Status (Prioritize Service Account Auto-Connected) */}
-          {saConfig?.isConnected ? (
-            <div className="flex items-center gap-2">
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border text-[11px] font-mono shadow-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-[#064E3B] dark:border-[#059669] dark:text-white"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="font-bold text-emerald-700 dark:text-[#6EE7B7]">Drive:</span>
-                <span className="font-semibold truncate max-w-[160px] text-emerald-900 dark:text-white" title={saConfig.folderName || 'Thư mục Drive'}>
-                  {saConfig.folderName || 'AI Assistant Documents'}
-                </span>
-                <span
-                  className="text-[10px] px-1.5 py-0.2 rounded border font-bold bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-[#022C22] dark:text-[#6EE7B7] dark:border-[#059669]"
-                >
-                  Tự động
-                </span>
-              </div>
-              <button
-                onClick={handleUnifiedSyncDriveFiles}
-                disabled={isSyncingSa}
-                className="px-3 py-1.5 rounded-sm bg-white hover:bg-slate-50 text-blue-600 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-[#D4AF37] dark:hover:text-white dark:border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                title="Làm mới kết nối và kiểm tra lại thư mục Google Drive"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSa ? 'animate-spin' : ''}`} />
-                <span>{isSyncingSa ? 'Đang làm mới...' : 'Làm Mới Drive'}</span>
-              </button>
-            </div>
-          ) : googleUser ? (
-            <div
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border text-[11px] font-mono shadow-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-[#064E3B] dark:border-[#059669] dark:text-white"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="truncate max-w-[140px] font-semibold text-emerald-900 dark:text-white" title={googleUser.email || ''}>
-                {googleUser.email}
-              </span>
-              <button
-                onClick={handleGoogleSignOutClick}
-                className="text-[10px] underline cursor-pointer ml-1 font-bold text-emerald-700 dark:text-[#6EE7B7]"
-                title="Đăng xuất tài khoản Google"
-              >
-                Thoát
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleGoogleSignInClick}
-              disabled={isLoggingInGoogle}
-              className="px-3 py-2 rounded-sm bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-white dark:border-[#3A3A3A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-              title="Đăng nhập Google Account để đồng bộ 1-Click sang Drive"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-              </svg>
-              <span>{isLoggingInGoogle ? 'Đang kết nối...' : 'Đăng Nhập Google'}</span>
-            </button>
-          )}
-
-          {/* Quick Category Manager Button */}
+          {/* Quick Category Manager Button (Always available for local document organization) */}
           <button
             onClick={() => setIsManagingCategories(true)}
             className="px-3 py-2 rounded-sm bg-white hover:bg-slate-50 text-blue-600 border border-slate-300 dark:bg-[#0C0C0C] dark:hover:bg-[#1A1A1A] dark:text-[#D4AF37] dark:border-[#D4AF37]/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
@@ -1787,70 +2132,155 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             <span>Phân Loại ({categories.length})</span>
           </button>
 
-          {/* Prominent Sync Pre-existing Files from Google Drive Button */}
-          <button
-            onClick={handleUnifiedSyncDriveFiles}
-            disabled={isSyncing || isSyncingSa}
-            className="px-3 py-2 rounded-sm bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-[#D4AF37] dark:border-[#D4AF37]/60 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-            title="Nạp và hiển thị toàn bộ các tệp có sẵn trên Google Drive về ứng dụng"
-          >
-            <FolderSync className={`w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37] ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
-            <span>{isSyncing || isSyncingSa ? 'Đang nạp...' : 'Nạp Tệp Từ Drive'}</span>
-          </button>
-
-          {/* Clean Duplicate & Stub Files on Google Drive Button */}
-          <button
-            onClick={handleCleanDriveDuplicates}
-            disabled={isCleaningDuplicates}
-            className="px-3 py-2 rounded-sm bg-white hover:bg-rose-50 text-rose-700 border border-slate-300 dark:bg-[#1A1212] dark:hover:bg-[#251515] dark:text-rose-300 dark:border-rose-600/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-            title="Tự động quét Google Drive và xóa các bản sao trùng lặp, tệp rỗng/stub 260 byte để dọn dẹp thư mục"
-          >
-            <ShieldCheck className={`w-3.5 h-3.5 text-rose-600 dark:text-rose-400 ${isCleaningDuplicates ? 'animate-spin' : ''}`} />
-            <span>{isCleaningDuplicates ? 'Đang dọn...' : 'Dọn Trùng Drive'}</span>
-          </button>
-
-          {/* Dedicated Button to Sync ALL Local Files to Drive & Purge Local Originals */}
-          <button
-            onClick={handleOpenSyncPurgeModal}
-            disabled={isSyncingAndPurging || !!syncingDriveFileId}
-            className={`px-3.5 py-2 rounded-sm text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50 ${
-              localFiles.length > 0
-                ? 'bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 dark:bg-gradient-to-r dark:from-amber-950 dark:via-[#261B09] dark:to-[#161616] dark:text-[#FEF08A] dark:border-amber-500'
-                : 'bg-slate-100 text-slate-500 border border-slate-200 dark:bg-[#121212] dark:hover:bg-[#1A1A1A] dark:text-zinc-400 dark:border-zinc-800'
-            }`}
-            title="Đồng bộ tất cả các tệp hiện lưu local nhưng chưa có trên Google Drive và xóa tệp gốc trên local để giải phóng bộ nhớ"
-          >
-            <UploadCloud
-              className={`w-4 h-4 shrink-0 text-white dark:text-[#FEF08A] ${isSyncingAndPurging ? 'animate-bounce' : ''}`}
-            />
-            <span className="text-white dark:text-[#FEF08A]">
-              {isSyncingAndPurging ? 'Đang Đẩy Lên Drive...' : 'Đẩy Lên Drive & Xóa Local'}
-            </span>
-            {localFiles.length > 0 && (
-              <span
-                className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-amber-600 text-white border border-amber-400 dark:bg-amber-950/60 dark:text-[#FEF08A] dark:border-amber-500"
-              >
-                {localFiles.length}
-              </span>
-            )}
-          </button>
-
-          {/* Quick External Link to Google Drive folder */}
-          {saConfig?.folderId && (
-            <a
-              href={`https://drive.google.com/drive/folders/${saConfig.folderId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
-              title="Mở thư mục này trực tiếp trên Google Drive"
+          {/* Conditional Google Drive Master Control Architecture */}
+          {!isGoogleLoggedIn ? (
+            /* ============================================================== */
+            /* 1. NOT LOGGED IN: Single Master Button to Connect Google Drive */
+            /* ============================================================== */
+            <button
+              type="button"
+              onClick={handleGoogleSignInClick}
+              disabled={isLoggingInGoogle}
+              className="px-4 py-2 rounded-sm bg-gradient-to-r from-[#181818] via-[#221C0D] to-[#161616] hover:from-[#242424] hover:to-[#2A2210] text-[#D4AF37] hover:text-[#F3E7A0] border border-[#D4AF37]/70 hover:border-[#D4AF37] text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+              title="Nhấn để đăng nhập tài khoản Google Drive và mở khóa các tính năng: Đẩy lên Drive, Nạp tệp từ Drive, Dọn trùng Drive"
             >
-              <FolderOpen className="w-3.5 h-3.5 text-[#D4AF37]" />
-              <span>Mở Drive</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
+              {isLoggingInGoogle ? (
+                <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" />
+              ) : (
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 87.3 78" fill="none">
+                  <path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5l5.4 9.35z" fill="#0066DA"/>
+                  <path d="M43.65 25L29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44C.4 49.9 0 51.45 0 53h27.5L43.65 25z" fill="#00AC47"/>
+                  <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 10.15 7.9 13.65z" fill="#EA4335"/>
+                  <path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.4-4.5 1.2L43.65 25z" fill="#00832D"/>
+                  <path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.4 4.5-1.2L59.8 53z" fill="#2684FC"/>
+                  <path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.5c0-1.55-.4-3.1-1.2-4.5l-12.7-22z" fill="#FFBA00"/>
+                </svg>
+              )}
+              <span>{isLoggingInGoogle ? 'Đang mở đăng nhập...' : 'Quản Lý Tệp Trên Google Drive'}</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#332508] text-amber-300 border border-amber-600/60 flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5" />
+                Đăng nhập
+              </span>
+            </button>
+          ) : (
+            /* ============================================================== */
+            /* 2. LOGGED IN: Reveal Full Drive Operational Suite & Controls    */
+            /* ============================================================== */
+            <>
+              {/* Connected Google Account Badge & Opener */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border text-[11px] font-mono shadow-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-[#064E3B] dark:border-[#059669] dark:text-white">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="font-bold text-emerald-700 dark:text-[#6EE7B7]">Drive:</span>
+                <button
+                  type="button"
+                  onClick={() => setIsDriveManageModalOpen(true)}
+                  className="font-semibold truncate max-w-[150px] text-emerald-900 dark:text-white hover:underline cursor-pointer"
+                  title={`Đã kết nối tài khoản ${googleUser?.email || 'Google'}. Nhấn để mở Trung Tâm Quản Lý Drive`}
+                >
+                  {googleUser?.email || saConfig?.folderName || 'Đã kết nối'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGoogleSignOutClick}
+                  className="text-[10px] underline cursor-pointer ml-1 font-bold text-emerald-700 hover:text-emerald-900 dark:text-[#6EE7B7] dark:hover:text-white"
+                  title="Đăng xuất tài khoản Google"
+                >
+                  Thoát
+                </button>
+              </div>
+
+              {/* Master Control Center Dashboard Button */}
+              <button
+                type="button"
+                onClick={() => setIsDriveManageModalOpen(true)}
+                className="px-3 py-2 rounded-sm bg-[#1A1A1A] hover:bg-[#252525] text-[#D4AF37] hover:text-white border border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                title="Mở Trung Tâm Quản Lý Google Drive (Chi tiết dung lượng, thư mục, đồng bộ)"
+              >
+                <HardDrive className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span>Quản Lý Drive</span>
+              </button>
+
+              {/* Dedicated Button to Sync ALL Local Files to Drive & Purge Local Originals */}
+              <button
+                type="button"
+                onClick={handleOpenSyncPurgeModal}
+                disabled={isSyncingAndPurging || !!syncingDriveFileId}
+                className={`px-3.5 py-2 rounded-sm text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50 ${
+                  localFiles.length > 0
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 dark:bg-gradient-to-r dark:from-amber-950 dark:via-[#261B09] dark:to-[#161616] dark:text-[#FEF08A] dark:border-amber-500'
+                    : 'bg-slate-100 text-slate-500 border border-slate-200 dark:bg-[#121212] dark:hover:bg-[#1A1A1A] dark:text-zinc-400 dark:border-zinc-800'
+                }`}
+                title="Đồng bộ tất cả các tệp hiện lưu local nhưng chưa có trên Google Drive và xóa tệp gốc trên local để giải phóng bộ nhớ"
+              >
+                <UploadCloud
+                  className={`w-4 h-4 shrink-0 text-white dark:text-[#FEF08A] ${isSyncingAndPurging ? 'animate-bounce' : ''}`}
+                />
+                <span className="text-white dark:text-[#FEF08A]">
+                  {isSyncingAndPurging ? 'Đang Đẩy Lên Drive...' : 'Đẩy Lên Drive & Xóa Local'}
+                </span>
+                {localFiles.length > 0 && (
+                  <span
+                    className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-amber-600 text-white border border-amber-400 dark:bg-amber-950/60 dark:text-[#FEF08A] dark:border-amber-500"
+                  >
+                    {localFiles.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Prominent Sync Pre-existing Files from Google Drive Button */}
+              <button
+                type="button"
+                onClick={handleUnifiedSyncDriveFiles}
+                disabled={isSyncing || isSyncingSa}
+                className="px-3 py-2 rounded-sm bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-[#D4AF37] dark:border-[#D4AF37]/60 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                title="Nạp và hiển thị toàn bộ các tệp có sẵn trên Google Drive về ứng dụng"
+              >
+                <FolderSync className={`w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37] ${isSyncing || isSyncingSa ? 'animate-spin' : ''}`} />
+                <span>{isSyncing || isSyncingSa ? 'Đang nạp...' : 'Nạp Tệp Từ Drive'}</span>
+              </button>
+
+              {/* Clean Duplicate & Stub Files on Google Drive Button */}
+              <button
+                type="button"
+                onClick={handleCleanDriveDuplicates}
+                disabled={isCleaningDuplicates}
+                className="px-3 py-2 rounded-sm bg-white hover:bg-rose-50 text-rose-700 border border-slate-300 dark:bg-[#1A1212] dark:hover:bg-[#251515] dark:text-rose-300 dark:border-rose-600/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                title="Tự động quét Google Drive và xóa các bản sao trùng lặp, tệp rỗng/stub 260 byte để dọn dẹp thư mục"
+              >
+                <ShieldCheck className={`w-3.5 h-3.5 text-rose-600 dark:text-rose-400 ${isCleaningDuplicates ? 'animate-spin' : ''}`} />
+                <span>{isCleaningDuplicates ? 'Đang dọn...' : 'Dọn Trùng Drive'}</span>
+              </button>
+
+              {/* Refresh Drive Button */}
+              <button
+                type="button"
+                onClick={handleUnifiedSyncDriveFiles}
+                disabled={isSyncingSa || isSyncing}
+                className="px-3 py-1.5 rounded-sm bg-white hover:bg-slate-50 text-blue-600 border border-slate-300 dark:bg-[#1A1A1A] dark:hover:bg-[#252525] dark:text-[#D4AF37] dark:hover:text-white dark:border-[#D4AF37]/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                title="Làm mới kết nối và kiểm tra lại thư mục Google Drive"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSa ? 'animate-spin' : ''}`} />
+                <span>{isSyncingSa ? 'Đang làm mới...' : 'Làm Mới Drive'}</span>
+              </button>
+
+              {/* Quick External Link to Google Drive folder */}
+              {saConfig?.folderId && (
+                <a
+                  href={`https://drive.google.com/drive/folders/${saConfig.folderId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                  title="Mở thư mục này trực tiếp trên Google Drive"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Mở Drive</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </>
           )}
 
-          {/* 1-Click Upload Button */}
+          {/* 1-Click Upload Button (Always available for local document ingestion) */}
           <button
             onClick={handleTriggerPicker}
             className="px-4 py-2 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-widest flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
@@ -2446,10 +2876,40 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             </select>
             <ChevronDown className="w-3 h-3 text-[#888888] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
+
+          {/* View Mode Toggle: Grid (Thẻ) vs List (Danh sách) */}
+          <div className="flex items-center bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm p-0.5">
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('grid')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-[#D4AF37] text-black shadow-xs'
+                  : 'text-[#888888] hover:text-white'
+              }`}
+              title="Chế độ xem dạng Thẻ (Grid View)"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Dạng Thẻ</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('list')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-[#D4AF37] text-black shadow-xs'
+                  : 'text-[#888888] hover:text-white'
+              }`}
+              title="Chế độ xem dạng Danh Sách (List View) - hiển thị tên đầy đủ"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Dạng Danh Sách</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Files Grid */}
+      {/* Files Display Section (Empty State / Card Grid View / List View) */}
       {filteredFiles.length === 0 ? (
         <div className="p-12 text-center bg-[#151515] border border-[#2A2A2A] rounded-sm space-y-3">
           <FileText className="w-12 h-12 text-[#444444] mx-auto" />
@@ -2464,53 +2924,53 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
             + Tải Tệp Vào Nhóm Này
           </button>
         </div>
-      ) : (
+      ) : viewMode === 'grid' ? (
+        /* ============================================================== */
+        /* OPTION A: DẠNG THẺ (CARD VIEW) - FULL DOCUMENT TITLE LAYOUT   */
+        /* ============================================================== */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredFiles.map(file => {
             const linkedTasks = getLinkedTasks(file.id);
             const linkedNotes = getLinkedNotes(file.id);
             const isSynced = file.isSyncedToDrive && file.syncStatus === 'synced' && !!file.webViewLink;
-            const isSyncingThis = !!syncingFileIds[file.id];
             const resolvedCat = resolveCategory(file.classification, categories);
             const colorCfg = CATEGORY_COLORS[resolvedCat.color] || CATEGORY_COLORS.zinc;
-            const isCategoryPopoverOpen = openCategoryPopoverFileId === file.id;
 
             return (
               <div
                 key={file.id}
                 className="p-4 rounded-sm bg-[#151515] border border-[#2A2A2A] hover:border-[#D4AF37]/50 transition-all space-y-3 flex flex-col justify-between relative group"
               >
-                <div className="space-y-2.5">
-                  {/* File Title & Icon */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div
-                      onClick={() => setPreviewFile(file)}
-                      className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1 group/title"
-                    >
-                      <div className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] shrink-0 group-hover/title:border-[#D4AF37]/40 transition-colors">
+                <div className="space-y-3">
+                  {/* Row 1: File Icon & Meta on Left, 5 Utility Actions on Right */}
+                  <div className="flex items-center justify-between gap-2 border-b border-[#222222] pb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        onClick={() => setPreviewFile(file)}
+                        className="p-2 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] shrink-0 text-[#D4AF37] cursor-pointer hover:border-[#D4AF37]/60 transition-colors"
+                        title="Bấm để xem trước tệp"
+                      >
                         {getFileFormatIcon(file.category)}
                       </div>
-                      <div className="min-w-0">
-                        <h3 className="text-xs font-editorial-serif font-bold text-white truncate group-hover/title:text-[#D4AF37] transition-colors" title={file.name}>
-                          {file.name}
-                        </h3>
-                        <div className="text-[10px] text-[#888888] font-mono flex items-center gap-1.5 flex-wrap">
-                          <span>{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
-                          <span>•</span>
-                          <span>{file.category.toUpperCase()}</span>
-                          {file.uploadedAt && (
-                            <>
-                              <span>•</span>
-                              <span className="text-zinc-400" title={`Thời gian tải lên: ${new Date(file.uploadedAt).toLocaleString('vi-VN')}`}>
-                                {new Date(file.uploadedAt).toLocaleDateString('vi-VN')}
-                              </span>
-                            </>
-                          )}
-                        </div>
+                      <div className="text-[10px] text-[#888888] font-mono flex items-center gap-1.5 flex-wrap">
+                        <span className="px-1.5 py-0.5 rounded bg-[#0C0C0C] text-[#AAAAAA] font-bold">
+                          {(file.size / (1024 * 1024)).toFixed(2)} MB
+                        </span>
+                        <span>•</span>
+                        <span className="uppercase text-[#888888] font-semibold">{file.category}</span>
+                        {file.uploadedAt && (
+                          <>
+                            <span>•</span>
+                            <span className="text-zinc-400" title={`Thời gian tải lên: ${new Date(file.uploadedAt).toLocaleString('vi-VN')}`}>
+                              {new Date(file.uploadedAt).toLocaleDateString('vi-VN')}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    {/* Quick Utility Icon Actions */}
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => handleOpenEditNote(file)}
                         className={`p-1.5 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] border transition-colors cursor-pointer ${
@@ -2540,8 +3000,8 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                           setEditingUrlFile(file);
                           setInputUrl(file.webViewLink || '');
                         }}
-                        className="p-1.5 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#888888] hover:text-[#D4AF37] border border-[#2A2A2A] transition-colors cursor-pointer"
-                        title="Gắn link Google Drive"
+                        className="p-1.5 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#888888] hover:text-white border border-[#2A2A2A] transition-colors cursor-pointer"
+                        title="Chỉnh sửa liên kết Google Drive"
                       >
                         <Link className="w-3.5 h-3.5" />
                       </button>
@@ -2555,134 +3015,44 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     </div>
                   </div>
 
-                  {/* Classification Badge & Fast Change Dropdown */}
-                  <div className="relative">
-                    <div className="flex items-center justify-between gap-2">
-                      <button
-                        onClick={() => setOpenCategoryPopoverFileId(isCategoryPopoverOpen ? null : file.id)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold border transition-all cursor-pointer ${colorCfg.bg} ${colorCfg.text} ${colorCfg.border} hover:opacity-90 shadow-xs`}
-                        title="Bấm vào để đổi nhóm phân loại nhanh"
-                      >
-                        {renderCategoryIcon(resolvedCat.icon, 'w-3 h-3')}
-                        <span>{resolvedCat.name}</span>
-                        <ChevronDown className="w-3 h-3 opacity-60" />
-                      </button>
+                  {/* Row 2: Full Width Document Name (Complete, Non-Truncated, Multi-line with Graceful Wrapping) */}
+                  <div
+                    onClick={() => setPreviewFile(file)}
+                    className="cursor-pointer group/title block"
+                  >
+                    <h3
+                      className="text-sm font-editorial-serif font-bold text-white group-hover/title:text-[#D4AF37] transition-colors leading-snug break-words"
+                      title={file.name}
+                    >
+                      {file.name}
+                    </h3>
+                  </div>
 
-                      {/* Storage Sync Badge */}
-                      {isSynced ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono" title="Đã lưu trữ vĩnh viễn trên Google Drive">
-                          <CheckCircle2 className="w-3 h-3" /> Drive
-                        </span>
-                      ) : file.storageType === 'gcs' ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-cyan-400 font-mono" title="Lưu trữ trực tiếp trên Google Cloud Storage (GCS)">
-                          <Cloud className="w-3 h-3" /> GCS Cloud
-                        </span>
-                      ) : file.storageType === 'firestore_vault' || file.hasBinary ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-sky-400 font-mono" title="Lưu trữ an toàn vĩnh viễn trên Cloud Vault">
-                          <Cloud className="w-3 h-3" /> Cloud Vault
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-mono" title="Lưu trữ cục bộ">
-                          <CloudOff className="w-3 h-3" /> Cục bộ
-                        </span>
-                      )}
-                    </div>
+                  {/* Row 3: Classification Badge & Storage Sync Badge */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    {renderCategoryBadgeAndPopover(file, resolvedCat, colorCfg)}
 
-                    {/* Popover Quick Category Selector */}
-                    {isCategoryPopoverOpen && (
-                      <div className="absolute top-full left-0 mt-1 z-30 w-64 bg-[#181818] border border-[#3A3A3A] rounded shadow-2xl p-2.5 space-y-2 animate-in fade-in">
-                        <div className="text-[10px] font-bold text-slate-500 dark:text-[#AAAAAA] uppercase px-1 pb-1.5 border-b border-slate-200 dark:border-[#2A2A2A] flex items-center justify-between">
-                          <span className="flex items-center gap-1">
-                            <Tag className="w-3 h-3 text-blue-600 dark:text-[#D4AF37]" />
-                            <span>Phân loại tài liệu</span>
-                          </span>
-                          <button
-                            onClick={() => setOpenCategoryPopoverFileId(null)}
-                            className="text-slate-400 hover:text-slate-700 dark:text-[#666666] dark:hover:text-white cursor-pointer px-1 text-xs"
-                          >
-                            ✕
-                          </button>
-                        </div>
-
-                        {/* List of categories with Delete button on the right */}
-                        <div className="max-h-52 overflow-y-auto space-y-1 pr-0.5 scrollbar-thin">
-                          {categories.map(cat => {
-                            const cCfg = CATEGORY_COLORS[cat.color] || CATEGORY_COLORS.zinc;
-                            const isCurrent = resolvedCat.id === cat.id;
-                            const catDocCount = classificationCounts[cat.id] || classificationCounts[cat.name] || 0;
-
-                            return (
-                              <div
-                                key={cat.id}
-                                className={`group/catitem w-full px-2 py-1.5 rounded text-xs flex items-center justify-between transition-colors ${
-                                  isCurrent
-                                    ? 'bg-slate-100 text-slate-900 border border-slate-300 dark:bg-[#262626] dark:text-white dark:border-[#404040] font-bold shadow-xs'
-                                    : 'text-slate-600 hover:bg-slate-50 border border-transparent dark:text-[#CCCCCC] dark:hover:bg-[#202020]'
-                                }`}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateFileClassification(file.id, cat.id)}
-                                  className="flex-1 text-left flex items-center gap-2 min-w-0 cursor-pointer"
-                                  title={`Chọn phân loại "${cat.name}"`}
-                                >
-                                  <span className={`flex items-center gap-1.5 truncate ${cCfg.text}`}>
-                                    {renderCategoryIcon(cat.icon, 'w-3.5 h-3.5 shrink-0')}
-                                    <span className="truncate">{cat.name}</span>
-                                  </span>
-                                  {isCurrent && <Check className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37] shrink-0 ml-auto mr-1" />}
-                                </button>
-
-                                {/* Delete button on the right */}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRequestDeleteCategory(cat);
-                                  }}
-                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:text-[#666666] dark:hover:text-rose-400 dark:hover:bg-rose-950/60 rounded transition-all cursor-pointer shrink-0 opacity-60 group-hover/catitem:opacity-100 ml-1"
-                                  title={`Xóa phân loại "${cat.name}"${catDocCount > 0 ? ` (đang có ${catDocCount} tài liệu)` : ''}`}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Direct New Category Input Form */}
-                        <div className="pt-2 border-t border-slate-200 dark:border-[#2A2A2A]">
-                          <form
-                            onSubmit={(e) => {
-                              e.preventDefault();
-                              if (!popoverNewCatInput.trim()) return;
-                              handleCreateNewCategory(popoverNewCatInput.trim(), file.id);
-                              setPopoverNewCatInput('');
-                            }}
-                            className="flex items-center gap-1.5"
-                          >
-                            <input
-                              type="text"
-                              placeholder="+ Nhập phân loại mới..."
-                              value={popoverNewCatInput}
-                              onChange={(e) => setPopoverNewCatInput(e.target.value)}
-                              className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#333333] rounded text-[11px] text-slate-800 dark:text-[#E0E0E0] placeholder:text-slate-400 dark:placeholder:text-[#666666] focus:outline-none focus:border-blue-500 dark:focus:border-[#D4AF37]"
-                            />
-                            <button
-                              type="submit"
-                              disabled={!popoverNewCatInput.trim()}
-                              className="px-2.5 py-1.5 bg-slate-900 dark:bg-[#D4AF37] hover:bg-slate-800 dark:hover:bg-[#c29f2e] disabled:opacity-30 disabled:cursor-not-allowed text-white dark:text-black font-bold rounded text-xs shrink-0 cursor-pointer flex items-center justify-center shadow-xs"
-                              title="Tạo và gán phân loại mới"
-                            >
-                              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                            </button>
-                          </form>
-                        </div>
-                      </div>
+                    {/* Storage Sync Badge */}
+                    {isSynced ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono" title="Đã lưu trữ vĩnh viễn trên Google Drive">
+                        <CheckCircle2 className="w-3 h-3" /> Drive
+                      </span>
+                    ) : file.storageType === 'gcs' ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-cyan-400 font-mono" title="Lưu trữ trực tiếp trên Google Cloud Storage (GCS)">
+                        <Cloud className="w-3 h-3" /> GCS Cloud
+                      </span>
+                    ) : file.storageType === 'firestore_vault' || file.hasBinary ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-sky-400 font-mono" title="Lưu trữ an toàn vĩnh viễn trên Cloud Vault">
+                        <Cloud className="w-3 h-3" /> Cloud Vault
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-mono" title="Lưu trữ cục bộ">
+                        <CloudOff className="w-3 h-3" /> Cục bộ
+                      </span>
                     )}
                   </div>
 
-                  {/* Document Note / Annotation Section */}
+                  {/* Row 4: Document Note / Annotation Section */}
                   {file.notes || file.description ? (
                     <div
                       onClick={() => handleOpenEditNote(file)}
@@ -2738,7 +3108,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                   )}
                 </div>
 
-                {/* Action Buttons */}
+                {/* Bottom Action Buttons */}
                 <div className="flex items-center justify-between pt-2 border-t border-[#2A2A2A] gap-1">
                   <button
                     onClick={() => openAiChatWithPrompt(`Hãy phân tích và tóm tắt nội dung tài liệu "${file.name}" (Nhóm: ${resolvedCat.name}, Định dạng: ${file.category})`)}
@@ -2762,7 +3132,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                       </button>
                     )}
 
-                    {/* Preview Button (Always available for both Local and Drive files) */}
+                    {/* Preview Button */}
                     <button
                       onClick={() => setPreviewFile(file)}
                       className="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 dark:bg-[#0C0C0C] dark:text-[#E0E0E0] dark:border-[#2A2A2A] dark:hover:bg-[#D4AF37] dark:hover:text-black text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
@@ -2784,6 +3154,188 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                         <ExternalLink className="w-2.5 h-2.5" />
                       </a>
                     )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ============================================================== */
+        /* OPTION B: DẠNG DANH SÁCH (LIST VIEW) - HIGH DENSITY TABLE ROW */
+        /* ============================================================== */
+        <div className="space-y-2">
+          {filteredFiles.map(file => {
+            const isSynced = file.isSyncedToDrive && file.syncStatus === 'synced' && !!file.webViewLink;
+            const resolvedCat = resolveCategory(file.classification, categories);
+            const colorCfg = CATEGORY_COLORS[resolvedCat.color] || CATEGORY_COLORS.zinc;
+
+            return (
+              <div
+                key={file.id}
+                className="p-3.5 rounded-sm bg-[#151515] border border-[#2A2A2A] hover:border-[#D4AF37]/60 transition-all space-y-2.5 relative group shadow-xs w-full"
+              >
+                {/* 1. TOP ROW: File Format Icon + FULL-WIDTH Document Title & Meta Line */}
+                <div className="flex items-start gap-3 w-full min-w-0">
+                  <div
+                    onClick={() => setPreviewFile(file)}
+                    className="p-2 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] shrink-0 text-[#D4AF37] cursor-pointer hover:border-[#D4AF37]/50 transition-colors mt-0.5"
+                    title="Bấm để xem trước tệp"
+                  >
+                    {getFileFormatIcon(file.category)}
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-1">
+                    {/* Full Width Document Name - Takes 100% of container width! */}
+                    <div className="w-full">
+                      <h3
+                        onClick={() => setPreviewFile(file)}
+                        className="text-sm font-editorial-serif font-bold text-white hover:text-[#D4AF37] cursor-pointer transition-colors leading-snug break-words"
+                        title={file.name}
+                      >
+                        {file.name}
+                      </h3>
+                    </div>
+
+                    {/* Metadata line stretching across full width */}
+                    <div className="text-[11px] text-[#888888] font-mono flex items-center gap-2 flex-wrap">
+                      {/* Storage Sync Badge */}
+                      {isSynced ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono shrink-0" title="Đã lưu trữ vĩnh viễn trên Google Drive">
+                          <CheckCircle2 className="w-3 h-3" /> Drive
+                        </span>
+                      ) : file.storageType === 'gcs' ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-cyan-400 font-mono shrink-0" title="Lưu trữ trên GCS">
+                          <Cloud className="w-3 h-3" /> GCS
+                        </span>
+                      ) : file.storageType === 'firestore_vault' || file.hasBinary ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-sky-400 font-mono shrink-0" title="Lưu trữ an toàn trên Cloud Vault">
+                          <Cloud className="w-3 h-3" /> Vault
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-mono shrink-0" title="Lưu trữ cục bộ">
+                          <CloudOff className="w-3 h-3" /> Cục bộ
+                        </span>
+                      )}
+
+                      <span>•</span>
+                      <span className="text-[#CCCCCC] font-semibold">{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                      <span>•</span>
+                      <span className="uppercase text-[#888888]">{file.category}</span>
+                      {file.uploadedAt && (
+                        <>
+                          <span>•</span>
+                          <span className="text-zinc-400" title={`Thời gian tải lên: ${new Date(file.uploadedAt).toLocaleString('vi-VN')}`}>
+                            {new Date(file.uploadedAt).toLocaleString('vi-VN')}
+                          </span>
+                        </>
+                      )}
+                      {(file.notes || file.description) && (
+                        <>
+                          <span>•</span>
+                          <span
+                            onClick={() => handleOpenEditNote(file)}
+                            className="text-[#D4AF37]/90 italic font-sans hover:underline cursor-pointer truncate max-w-md"
+                            title={`Chú thích: ${file.notes || file.description}`}
+                          >
+                            📝 &ldquo;{file.notes || file.description}&rdquo;
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. BOTTOM TOOLBAR ROW: Classification on Left, Actions on Right */}
+                <div className="pt-2 border-t border-[#222222] flex flex-wrap items-center justify-between gap-2">
+                  {/* Left: Classification Badge & Popover */}
+                  <div className="flex items-center gap-2">
+                    {renderCategoryBadgeAndPopover(file, resolvedCat, colorCfg)}
+                  </div>
+
+                  {/* Right: All Actions */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Ask AI */}
+                    <button
+                      onClick={() => openAiChatWithPrompt(`Hãy phân tích và tóm tắt nội dung tài liệu "${file.name}" (Nhóm: ${resolvedCat.name}, Định dạng: ${file.category})`)}
+                      className="px-2.5 py-1 rounded-sm bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 dark:bg-[#1A1813] dark:text-[#D4AF37] dark:hover:bg-[#252216] dark:border-[#D4AF37]/40 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                      title="Phân tích nội dung tài liệu bằng AI"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Hỏi AI</span>
+                    </button>
+
+                    {/* Save to Drive or Open Drive */}
+                    {!isSynced ? (
+                      <button
+                        onClick={() => handleSyncLocalFileToUserDrive(file)}
+                        disabled={syncingDriveFileId === file.id}
+                        className="px-2.5 py-1 rounded-sm bg-[#1A1A1A] hover:bg-[#D4AF37] text-[#D4AF37] hover:text-black border border-[#D4AF37]/50 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                        title="Đẩy tệp này lên Google Drive cá nhân của bạn"
+                      >
+                        <Cloud className={`w-3 h-3 ${syncingDriveFileId === file.id ? 'animate-bounce' : ''}`} />
+                        <span>{syncingDriveFileId === file.id ? 'Đang lưu...' : 'Lưu lên Drive'}</span>
+                      </button>
+                    ) : file.webViewLink ? (
+                      <a
+                        href={file.webViewLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 rounded-sm bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/80 dark:hover:bg-emerald-600 dark:hover:text-white text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors"
+                        title="Mở tệp trực tiếp trong Google Drive"
+                      >
+                        <span>Mở Drive</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    ) : null}
+
+                    {/* Preview Button */}
+                    <button
+                      onClick={() => setPreviewFile(file)}
+                      className="px-2.5 py-1 rounded-sm bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 dark:bg-[#0C0C0C] dark:text-[#E0E0E0] dark:border-[#2A2A2A] dark:hover:bg-[#D4AF37] dark:hover:text-black text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Xem trước tài liệu"
+                    >
+                      <Eye className="w-3 h-3 text-blue-600 dark:text-[#D4AF37]" />
+                      <span>Xem Trước</span>
+                    </button>
+
+                    {/* Action Icons */}
+                    <div className="flex items-center gap-0.5 border-l border-[#2A2A2A] pl-1.5 ml-0.5">
+                      <button
+                        onClick={() => handleOpenEditNote(file)}
+                        className={`p-1.5 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] border transition-colors cursor-pointer ${
+                          file.notes || file.description ? 'text-[#D4AF37] border-[#D4AF37]/50 shadow-xs' : 'text-[#888888] hover:text-[#D4AF37] border-[#2A2A2A]'
+                        }`}
+                        title={file.notes || file.description ? `Chú thích: "${file.notes || file.description}" (Bấm để sửa)` : 'Thêm chú thích cho tài liệu'}
+                      >
+                        <NotebookPen className="w-3.5 h-3.5" />
+                      </button>
+                      <a
+                        href={file.downloadUrl || `/api/files/download/${file.id}`}
+                        download={file.name}
+                        className="p-1.5 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#888888] hover:text-[#D4AF37] border border-[#2A2A2A] transition-colors cursor-pointer"
+                        title="Tải về máy"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </a>
+                      <button
+                        onClick={() => {
+                          setEditingUrlFile(file);
+                          setInputUrl(file.webViewLink || '');
+                        }}
+                        className="p-1.5 rounded-sm bg-[#0C0C0C] hover:bg-[#1A1A1A] text-[#888888] hover:text-white border border-[#2A2A2A] transition-colors cursor-pointer"
+                        title="Chỉnh sửa liên kết Drive"
+                      >
+                        <Link className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setFileToDelete(file)}
+                        className="p-1.5 rounded-sm bg-[#0C0C0C] hover:bg-rose-950 text-rose-400 border border-[#2A2A2A] transition-colors cursor-pointer"
+                        title="Xóa tệp"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3487,9 +4039,16 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
               {/* CLASSIFICATION & METADATA ACCORDION */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-[#0C0C0C] p-3 rounded-sm border border-slate-200 dark:border-[#2A2A2A]">
                 <div>
-                  <label className="text-[10px] text-blue-600 dark:text-[#D4AF37] font-bold uppercase tracking-wider block mb-1 flex items-center gap-1">
-                    <Tag className="w-3 h-3" />
-                    Phân Loại Mục Đích (Thay đổi linh hoạt):
+                  <label className="text-[10px] text-blue-600 dark:text-[#D4AF37] font-bold uppercase tracking-wider block mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Tag className="w-3 h-3" />
+                      Phân Loại Mục Đích:
+                    </span>
+                    {getFileSelectedCategories(previewFile).length > 1 && (
+                      <span className="text-[9px] font-mono text-blue-600 dark:text-[#D4AF37]">
+                        {getFileSelectedCategories(previewFile).length} tag được chọn
+                      </span>
+                    )}
                   </label>
                   <select
                     value={previewFile.classification || 'other'}
@@ -3509,6 +4068,35 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     ))}
                     <option value="__add_new__">+ Tạo hoặc tùy biến nhóm phân loại...</option>
                   </select>
+
+                  {/* Active Tags list chips with remove button */}
+                  {(() => {
+                    const assignedCats = getFileSelectedCategories(previewFile);
+                    if (assignedCats.length > 0) {
+                      return (
+                        <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                          <span className="text-[9px] font-mono uppercase text-slate-400 dark:text-[#666666]">Các tag:</span>
+                          {assignedCats.map(ac => (
+                            <span
+                              key={ac.id}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-[#1C1C1C] border border-slate-300 dark:border-[#333333] text-slate-700 dark:text-[#CCCCCC]"
+                            >
+                              <span>{ac.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleFileCategory(previewFile.id, ac.id)}
+                                className="text-slate-400 hover:text-rose-500 cursor-pointer ml-0.5 font-bold"
+                                title={`Gỡ tag "${ac.name}"`}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
@@ -4253,6 +4841,223 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     <span>Đăng Nhập Google Admin &amp; Tiếp Tục</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 5. CENTRALIZED GOOGLE DRIVE MANAGEMENT CONTROL CENTER MODAL   */}
+      {/* ============================================================== */}
+      {isDriveManageModalOpen && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-60 animate-in fade-in duration-200">
+          <div className="bg-[#141414] border border-[#D4AF37]/60 w-full max-w-xl rounded-sm shadow-2xl overflow-hidden flex flex-col text-slate-100">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-[#2A2A2A] p-4 bg-gradient-to-r from-[#1E190B] via-[#161616] to-[#0D1510]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#D4AF37]">
+                  <HardDrive className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-editorial-serif font-bold text-white text-base">
+                    Trung Tâm Quản Lý Tệp Google Drive
+                  </h3>
+                  <p className="text-[11px] text-[#A0A0A0] font-mono">
+                    Điều phối đồng bộ, dọn trùng lặp và lưu trữ đám mây
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDriveManageModalOpen(false)}
+                className="p-1 text-[#888888] hover:text-white transition-colors cursor-pointer"
+                title="Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+              {/* Account Status Card */}
+              <div className="p-3.5 bg-[#0C0C0C] border border-[#262626] rounded-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="font-bold text-white text-xs uppercase tracking-wider">
+                      Tài Khoản Google Đang Hoạt Động
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleGoogleSignOutClick();
+                      setIsDriveManageModalOpen(false);
+                    }}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 underline font-mono cursor-pointer"
+                  >
+                    Đăng xuất tài khoản
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono pt-1 text-[#CCCCCC]">
+                  <div>
+                    <span className="text-[#777777] block text-[10px] uppercase font-sans">Tài khoản Google:</span>
+                    <strong className="text-white select-all">{googleUser?.email || 'Tài khoản kết nối'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[#777777] block text-[10px] uppercase font-sans">Thư mục Drive:</span>
+                    <strong className="text-[#D4AF37]">{saConfig?.folderName || 'AI Assistant Documents'}</strong>
+                  </div>
+                </div>
+                {saConfig?.folderId && (
+                  <div className="pt-1.5 flex items-center justify-between text-[11px] border-t border-[#1C1C1C]">
+                    <span className="text-[#777777]">Mã thư mục: <code className="text-[#999999]">{saConfig.folderId}</code></span>
+                    <a
+                      href={`https://drive.google.com/drive/folders/${saConfig.folderId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#D4AF37] hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <span>Mở trên Google Drive</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Storage Stats Grid */}
+              <div className="grid grid-cols-3 gap-2.5 text-center">
+                <div className="p-3 bg-[#0E0E0E] border border-[#222222] rounded-sm">
+                  <span className="text-[10px] font-mono text-[#888888] uppercase block">Tổng tài liệu</span>
+                  <span className="text-lg font-bold text-white font-mono">{files.length}</span>
+                </div>
+                <div className="p-3 bg-[#0A1610] border border-emerald-900/60 rounded-sm">
+                  <span className="text-[10px] font-mono text-emerald-400 uppercase block">Đã có trên Drive</span>
+                  <span className="text-lg font-bold text-emerald-400 font-mono">
+                    {files.filter(f => f.isSyncedToDrive).length}
+                  </span>
+                </div>
+                <div className="p-3 bg-[#1C1608] border border-amber-900/60 rounded-sm">
+                  <span className="text-[10px] font-mono text-amber-300 uppercase block">Chưa đẩy lên Drive</span>
+                  <span className="text-lg font-bold text-amber-300 font-mono">
+                    {localFiles.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Suite */}
+              <div className="space-y-2 pt-1">
+                <span className="text-[10px] font-bold text-[#888888] uppercase tracking-wider block">
+                  Bộ Công Cụ Thao Tác Google Drive:
+                </span>
+
+                {/* 1. Sync & Purge */}
+                <div className="p-3 bg-[#161408] border border-amber-700/60 rounded-sm flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <h4 className="font-bold text-amber-200 text-xs flex items-center gap-1.5">
+                      <UploadCloud className="w-4 h-4 text-[#D4AF37]" />
+                      <span>Đẩy lên Drive &amp; Xóa Local ({localFiles.length} tệp)</span>
+                    </h4>
+                    <p className="text-[11px] text-[#C0C0C0]">
+                      Tự động tải các tệp local lên Google Drive và giải phóng 100% dung lượng bộ nhớ cục bộ.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDriveManageModalOpen(false);
+                      handleOpenSyncPurgeModal();
+                    }}
+                    disabled={localFiles.length === 0}
+                    className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-black font-bold text-xs uppercase tracking-wider rounded-sm shrink-0 cursor-pointer shadow transition-colors"
+                  >
+                    Bắt đầu
+                  </button>
+                </div>
+
+                {/* 2. Pull from Drive */}
+                <div className="p-3 bg-[#0E0E0E] border border-[#262626] rounded-sm flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
+                      <FolderSync className="w-4 h-4 text-blue-400" />
+                      <span>Nạp tệp từ Google Drive về ứng dụng</span>
+                    </h4>
+                    <p className="text-[11px] text-[#888888]">
+                      Quét toàn bộ tệp trong thư mục Drive và đồng bộ danh sách về ứng dụng.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDriveManageModalOpen(false);
+                      handleUnifiedSyncDriveFiles();
+                    }}
+                    disabled={isSyncing || isSyncingSa}
+                    className="px-3.5 py-1.5 bg-[#1F1F1F] hover:bg-[#2A2A2A] text-white border border-[#3A3A3A] font-bold text-xs uppercase tracking-wider rounded-sm shrink-0 cursor-pointer shadow transition-colors"
+                  >
+                    {isSyncing || isSyncingSa ? 'Đang nạp...' : 'Nạp tệp'}
+                  </button>
+                </div>
+
+                {/* 3. Deduplicate */}
+                <div className="p-3 bg-[#160E0E] border border-rose-900/60 rounded-sm flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <h4 className="font-bold text-rose-300 text-xs flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-rose-400" />
+                      <span>Dọn dẹp tệp trùng lặp &amp; tệp rỗng trên Drive</span>
+                    </h4>
+                    <p className="text-[11px] text-[#A0A0A0]">
+                      Tự động tìm kiếm các bản sao trùng tên và xóa các stub rỗng để thư mục gọn gàng.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDriveManageModalOpen(false);
+                      handleCleanDriveDuplicates();
+                    }}
+                    disabled={isCleaningDuplicates}
+                    className="px-3.5 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700/60 font-bold text-xs uppercase tracking-wider rounded-sm shrink-0 cursor-pointer shadow transition-colors"
+                  >
+                    {isCleaningDuplicates ? 'Đang dọn...' : 'Dọn trùng'}
+                  </button>
+                </div>
+
+                {/* 4. Refresh */}
+                <div className="p-3 bg-[#0E0E0E] border border-[#262626] rounded-sm flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
+                      <RefreshCw className="w-4 h-4 text-[#D4AF37]" />
+                      <span>Làm mới kết nối &amp; Kiểm tra thư mục</span>
+                    </h4>
+                    <p className="text-[11px] text-[#888888]">
+                      Làm mới token xác thực và kiểm tra trạng thái thư mục Google Drive.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDriveManageModalOpen(false);
+                      handleUnifiedSyncDriveFiles();
+                    }}
+                    disabled={isSyncingSa || isSyncing}
+                    className="px-3.5 py-1.5 bg-[#1F1F1F] hover:bg-[#2A2A2A] text-white border border-[#3A3A3A] font-bold text-xs uppercase tracking-wider rounded-sm shrink-0 cursor-pointer shadow transition-colors"
+                  >
+                    Làm mới
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end p-4 border-t border-[#2A2A2A] bg-[#0E0E0E]">
+              <button
+                type="button"
+                onClick={() => setIsDriveManageModalOpen(false)}
+                className="px-4 py-2 bg-[#1A1A1A] hover:bg-[#252525] text-white border border-[#333333] text-xs font-bold rounded-sm cursor-pointer"
+              >
+                Đóng
               </button>
             </div>
           </div>

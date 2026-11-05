@@ -2,7 +2,7 @@
   "pinHash": "8a34c4571aebd8f36f1f0ff63f1b7dd068623f9f53de0f6910fbae6b7709ccef",
   "salt": "87df7f1798605e6e4eb65b45dd205d99",
   "isEnabled": true,
-  "autolockMinutes": 0,
+  "autolockMinutes": 5,
   "hint": "Mã PIN mặc định là 1234",
-  "updatedAt": "2026-09-29T08:30:44.847Z"
+  "updatedAt": "2026-11-03T15:12:03.209Z"
 }

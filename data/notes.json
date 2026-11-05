@@ -1,68 +1,64 @@
 [
   {
+    "createdAt": "2026-08-25T11:18:22.550Z",
     "tags": [
       "Cá nhân"
     ],
-    "id": "note-1787656702550",
-    "content": "Kết nạp Đảng viên dự bị tại cơ quan vào ngày 26/08/2026",
     "attachedFileIds": [],
-    "updatedAt": "2026-08-26T14:15:35.062Z",
     "title": "Kết nạp Đảng",
     "linkedTaskIds": [
       "task-1787656644725"
     ],
     "isPinned": false,
-    "createdAt": "2026-08-25T11:18:22.550Z"
+    "content": "Kết nạp Đảng viên dự bị tại cơ quan vào ngày 26/08/2026",
+    "updatedAt": "2026-08-26T14:15:35.062Z",
+    "id": "note-1787656702550"
   },
   {
+    "createdAt": "2026-08-27T08:28:57.476Z",
+    "linkedTaskIds": [],
     "attachedFileIds": [],
+    "title": "Đã nộp hồ sơ xin cấp chứng chỉ nhân viên bức xạ (27/08/2026)",
     "tags": [
       "Công việc",
       "NXBX",
       "Hồ sơ"
     ],
-    "updatedAt": "2026-08-27T08:28:57.476Z",
+    "isPinned": false,
     "content": "Hồ sơ xin cấp chứng chỉ nhân viên bức xạ đã được nộp thành công vào ngày **27/08/2026**.\n\n### 📄 Tài liệu liên quan trong hệ thống:\n1. **Đơn đề nghị cấp Chứng chỉ NXBX (Mẫu số 05):**\n   * [Mẫu số 05-PL08-Mau Don de nghi cap Chung chi NXBX.docx](https://docs.google.com/document/d/1Y8syPh2gCENHCuU9nZTizNGttGF67v-s/edit?usp=drivesdk&ouid=117508515517163287358&rtpof=true&sd=true)\n2. **Văn bản xác nhận kinh nghiệm làm việc (Mẫu số 19):**\n   * [Mẫu số 19-PL07-Mau van ban xac nhan kinh nghiem lam viec.docx](https://docs.google.com/document/d/1UpTygtRAZ9g_cBpKvOpkN9jCfZ8N-xIQ/edit?usp=drivesdk&ouid=117508515517163287358&rtpof=true&sd=true)\n\n---\n*Ghi chú được tự động tạo và liên kết với công việc \"Xin cấp chứng chỉ nhân viên bức xạ\" (đã hoàn thành trước thời hạn 28/08/2026).*",
     "id": "note-1787819337476",
-    "linkedTaskIds": [],
-    "createdAt": "2026-08-27T08:28:57.476Z",
-    "isPinned": false,
-    "title": "Đã nộp hồ sơ xin cấp chứng chỉ nhân viên bức xạ (27/08/2026)"
+    "updatedAt": "2026-08-27T08:28:57.476Z"
   },
   {
-    "updatedAt": "2026-08-29T09:31:10.335Z",
+    "id": "note-1787995870335",
+    "isPinned": false,
     "attachedFileIds": [],
-    "content": "Hoàn thành kiểm định máy chụp CLVT và kiểm xạ hai máy x quang + máy chụp CLVT",
     "linkedTaskIds": [
       "task-1787713081768"
     ],
-    "isPinned": false,
     "createdAt": "2026-08-29T09:31:10.335Z",
+    "updatedAt": "2026-08-29T09:31:10.335Z",
     "title": "Hoàn thành kiểm định máy chụp CLVT",
     "tags": [],
-    "id": "note-1787995870335"
+    "content": "Hoàn thành kiểm định máy chụp CLVT và kiểm xạ hai máy x quang + máy chụp CLVT"
   },
   {
     "updatedAt": "2026-09-24T08:19:30.401Z",
+    "title": "Đi chụp x quang tại Nếnh, Việt Yên",
+    "isPinned": false,
     "attachedFileIds": [],
     "content": "Đi chụp x quang tại Nếnh, Việt Yên",
+    "id": "note-1790237970401",
     "linkedTaskIds": [],
     "noteDate": "2026-09-24T00:21:00.000Z",
-    "id": "note-1790237970401",
     "createdAt": "2026-09-24T00:21:00.000Z",
     "tags": [
       "Công việc"
-    ],
-    "isPinned": false,
-    "title": "Đi chụp x quang tại Nếnh, Việt Yên"
+    ]
   },
   {
-    "title": "Tổng kết: Gửi liều kế cá nhân nhân viên X-quang đi đọc kết quả",
+    "createdAt": "2026-09-25T15:43:30.710Z",
     "noteDate": "2026-09-25T15:43:30.710Z",
-    "attachedFileIds": [],
-    "content": "### 🎯 Mục tiêu & Kết quả hoàn thành\n- **Mục tiêu:** Gửi liều kế cá nhân của nhân viên X-quang đến đơn vị chuyên trách để đọc và báo cáo kết quả an toàn bức xạ định kỳ.\n- **Kết quả:** Đã hoàn tất xử lý và gửi thông tin/thiết bị theo đúng địa chỉ yêu cầu.\n\n### 📝 Nội dung & Điểm mấu chốt\n- **Cơ sở tiếp nhận:** Trung tâm Đánh giá Không phá hủy\n- **Địa chỉ:** 140 đường Nguyễn Tuân, phường Thanh Xuân Trung, quận Thanh Xuân, Hà Nội.\n- **Người tiếp nhận:** Vũ Xuân Thành\n- **Số điện thoại liên hệ:** 0834705874 - 0969227961\n\n### 💡 Bài học kinh nghiệm & Đúc kết\n- **Tối ưu thời gian xử lý:** Thời điểm hoàn thành (22:42) muộn hơn hạn chót dự kiến (19:17). Lần sau nên chủ động liên hệ đơn vị vận chuyển/bưu cục trong giờ hành chính để tránh phát sinh thời gian chờ muộn.\n- **Chuẩn hóa thông tin liên hệ:** Lưu thông tin anh Vũ Xuân Thành và Trung tâm Đánh giá Không phá hủy vào danh bạ đối tác cố định để tái sử dụng cho các đợt kiểm tra liều kế định kỳ tiếp theo.\n\n### 🚀 Gợi ý bước tiếp theo\n1. **Xác nhận giao nhận:** Liên hệ xác nhận với anh Vũ Xuân Thành khi bên tiếp nhận đã nhận đủ số lượng liều kế.\n2. **Theo dõi kết quả:** Tạo một nhắc nhở (Task/Reminder) để theo dõi thời hạn nhận lại báo cáo kết quả đọc liều.\n3. **Cập nhật hồ sơ:** Lưu báo cáo kết quả vào Hồ sơ An toàn Bức xạ của phòng khám/bệnh viện ngay khi nhận được.",
-    "updatedAt": "2026-09-25T15:43:30.710Z",
-    "isPinned": false,
     "tags": [
       "tong_ket",
       "hoan_thanh",
@@ -72,72 +68,76 @@
       "Công việc",
       "tong-ket"
     ],
-    "id": "note-1790351010710",
+    "attachedFileIds": [],
+    "title": "Tổng kết: Gửi liều kế cá nhân nhân viên X-quang đi đọc kết quả",
+    "isPinned": false,
     "linkedTaskIds": [
       "task-1790080853521"
     ],
-    "createdAt": "2026-09-25T15:43:30.710Z"
+    "content": "### 🎯 Mục tiêu & Kết quả hoàn thành\n- **Mục tiêu:** Gửi liều kế cá nhân của nhân viên X-quang đến đơn vị chuyên trách để đọc và báo cáo kết quả an toàn bức xạ định kỳ.\n- **Kết quả:** Đã hoàn tất xử lý và gửi thông tin/thiết bị theo đúng địa chỉ yêu cầu.\n\n### 📝 Nội dung & Điểm mấu chốt\n- **Cơ sở tiếp nhận:** Trung tâm Đánh giá Không phá hủy\n- **Địa chỉ:** 140 đường Nguyễn Tuân, phường Thanh Xuân Trung, quận Thanh Xuân, Hà Nội.\n- **Người tiếp nhận:** Vũ Xuân Thành\n- **Số điện thoại liên hệ:** 0834705874 - 0969227961\n\n### 💡 Bài học kinh nghiệm & Đúc kết\n- **Tối ưu thời gian xử lý:** Thời điểm hoàn thành (22:42) muộn hơn hạn chót dự kiến (19:17). Lần sau nên chủ động liên hệ đơn vị vận chuyển/bưu cục trong giờ hành chính để tránh phát sinh thời gian chờ muộn.\n- **Chuẩn hóa thông tin liên hệ:** Lưu thông tin anh Vũ Xuân Thành và Trung tâm Đánh giá Không phá hủy vào danh bạ đối tác cố định để tái sử dụng cho các đợt kiểm tra liều kế định kỳ tiếp theo.\n\n### 🚀 Gợi ý bước tiếp theo\n1. **Xác nhận giao nhận:** Liên hệ xác nhận với anh Vũ Xuân Thành khi bên tiếp nhận đã nhận đủ số lượng liều kế.\n2. **Theo dõi kết quả:** Tạo một nhắc nhở (Task/Reminder) để theo dõi thời hạn nhận lại báo cáo kết quả đọc liều.\n3. **Cập nhật hồ sơ:** Lưu báo cáo kết quả vào Hồ sơ An toàn Bức xạ của phòng khám/bệnh viện ngay khi nhận được.",
+    "updatedAt": "2026-09-25T15:43:30.710Z",
+    "id": "note-1790351010710"
   },
   {
-    "linkedTaskIds": [],
-    "updatedAt": "2026-11-02T02:35:52.985Z",
+    "id": "note-1793586952985",
+    "isPinned": false,
+    "createdAt": "2026-11-02T02:35:52.985Z",
     "title": "Lịch bảo dưỡng máy X-quang (08/11 - 09/11/2026)",
     "tags": [
       "Công việc",
       "Bảo dưỡng",
       "X-quang"
     ],
-    "id": "note-1793586952985",
-    "isPinned": false,
-    "createdAt": "2026-11-02T02:35:52.985Z",
+    "updatedAt": "2026-11-02T02:35:52.985Z",
+    "linkedTaskIds": [],
     "attachedFileIds": [],
     "content": "Lịch bảo dưỡng máy X-quang diễn ra trong 2 ngày: ngày 08/11/2026 và ngày 09/11/2026."
   },
   {
-    "content": "Lịch bảo dưỡng máy siêu âm diễn ra vào ngày 10/11/2026.",
-    "updatedAt": "2026-11-02T02:36:59.151Z",
-    "isPinned": false,
     "attachedFileIds": [],
     "linkedTaskIds": [],
+    "id": "note-1793587019151",
+    "updatedAt": "2026-11-02T02:36:59.151Z",
     "tags": [
       "Công việc",
       "Bảo dưỡng",
       "Siêu âm"
     ],
     "title": "Lịch bảo dưỡng máy siêu âm (10/11/2026)",
-    "id": "note-1793587019151",
-    "createdAt": "2026-11-02T02:36:59.151Z"
+    "createdAt": "2026-11-02T02:36:59.151Z",
+    "isPinned": false,
+    "content": "Lịch bảo dưỡng máy siêu âm diễn ra vào ngày 10/11/2026."
   },
   {
+    "title": "Lịch bảo dưỡng máy điện tim + LHN (Sáng 13/11/2026)",
     "isPinned": false,
-    "createdAt": "2026-11-02T02:50:00.000Z",
     "linkedTaskIds": [],
+    "createdAt": "2026-11-02T02:50:00.000Z",
     "content": "Ghi sổ ngày kiểm định máy điện tim vào 8h ngày 13/09/2026\nLịch bảo dưỡng máy điện tim và LHN diễn ra vào buổi sáng ngày 13/11/2026.",
+    "updatedAt": "2026-11-02T14:42:06.601Z",
     "attachedFileIds": [],
+    "id": "note-1793587807750",
     "noteDate": "2026-11-02T02:50:00.000Z",
     "tags": [
       "Công việc",
       "Bảo dưỡng",
       "Điện tim",
       "LHN"
-    ],
-    "title": "Lịch bảo dưỡng máy điện tim + LHN (Sáng 13/11/2026)",
-    "updatedAt": "2026-11-02T14:42:06.601Z",
-    "id": "note-1793587807750"
+    ]
   },
   {
     "linkedTaskIds": [],
+    "updatedAt": "2026-11-02T02:56:10.380Z",
+    "content": "Lịch bảo dưỡng máy nội soi diễn ra vào chiều ngày 13/11/2026.",
+    "isPinned": false,
+    "id": "note-1793588170380",
     "createdAt": "2026-11-02T02:56:10.380Z",
+    "attachedFileIds": [],
     "title": "Lịch bảo dưỡng máy nội soi (Chiều 13/11/2026)",
     "tags": [
       "Công việc",
       "Bảo dưỡng",
       "Nội soi"
-    ],
-    "isPinned": false,
-    "updatedAt": "2026-11-02T02:56:10.380Z",
-    "content": "Lịch bảo dưỡng máy nội soi diễn ra vào chiều ngày 13/11/2026.",
-    "id": "note-1793588170380",
-    "attachedFileIds": []
+    ]
   }
 ]

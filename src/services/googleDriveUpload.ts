@@ -51,12 +51,16 @@ export async function uploadLocalFileToUserGoogleDrive(
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
-    if (res.status === 401 || errData?.tokenExpired) {
+    if (res.status === 401 || errData?.tokenExpired || errData?.requiresAdminLogin) {
       setGoogleAccessToken(null);
     }
-    throw new Error(
-      errData?.error || `Lỗi tải lên Google Drive (HTTP ${res.status}). Vui lòng kiểm tra lại quyền truy cập.`
-    );
+    const cleanMsg = (res.status === 401 || errData?.requiresAdminLogin || errData?.tokenExpired)
+      ? (errData?.error || 'Phiên làm việc Google đã hết hạn. Vui lòng đăng nhập lại tài khoản Google để tải tệp lên Drive cá nhân.')
+      : (errData?.error || `Lỗi tải lên Google Drive (HTTP ${res.status}). Vui lòng kiểm tra lại quyền truy cập.`);
+    const errorObj: any = new Error(cleanMsg);
+    errorObj.status = res.status;
+    errorObj.requiresAdminLogin = !!(res.status === 401 || errData?.requiresAdminLogin || errData?.tokenExpired);
+    throw errorObj;
   }
 
   const data = await res.json();

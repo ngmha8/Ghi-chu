@@ -16,10 +16,10 @@
   "overdueReminderIntervalMinutes": 30,
   "maxOverdueReminders": 5,
   "escalateOverdueTone": true,
-  "lastEveningBriefingDate": "2026-11-02",
-  "lastMorningBriefingDate": "2026-11-03",
-  "lastEveningBriefingSentAt": "2026-11-02T14:00:06.369Z",
-  "lastMorningBriefingSentAt": "2026-11-03T00:00:06.785Z",
+  "lastEveningBriefingDate": "2026-11-04",
+  "lastMorningBriefingDate": "2026-11-05",
+  "lastEveningBriefingSentAt": "2026-11-04T14:00:08.361Z",
+  "lastMorningBriefingSentAt": "2026-11-05T00:00:08.646Z",
   "webhookSecret": "sec_ODg4OTkxODI2NTpBQUVtS255VFltWWJj",
   "webhookUrl": "https://ai-personal-assistant-bfiz.onrender.com/api/telegram/webhook"
 }
