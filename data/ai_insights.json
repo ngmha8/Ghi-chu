@@ -1,20 +1,20 @@
 [
   {
+    "summary": "Người dùng thường xử lý các đầu việc chiến lược và công nghệ vào buổi sáng và đầu giờ chiều.",
+    "id": "insight-1",
+    "actionableAdvice": "Ưu tiên xếp các công việc tư duy sâu và giải quyết vấn đề kỹ thuật phức tạp vào khung giờ 08:30 - 11:30.",
     "confidenceScore": 0.88,
     "title": "Nhịp sinh học và Hiệu suất Tập trung",
-    "summary": "Người dùng thường xử lý các đầu việc chiến lược và công nghệ vào buổi sáng và đầu giờ chiều.",
-    "generatedAt": "2026-08-25T15:31:34.709Z",
-    "actionableAdvice": "Ưu tiên xếp các công việc tư duy sâu và giải quyết vấn đề kỹ thuật phức tạp vào khung giờ 08:30 - 11:30.",
-    "id": "insight-1",
-    "category": "focus"
+    "category": "focus",
+    "generatedAt": "2026-08-25T15:31:34.709Z"
   },
   {
-    "confidenceScore": 0.85,
-    "id": "insight-2",
-    "generatedAt": "2026-08-25T15:31:34.709Z",
-    "title": "Tối ưu Hóa Quy Trình Ghi Chú & Quản Lý File",
+    "category": "productivity",
     "summary": "Các tài liệu công việc và kỹ thuật có xu hướng được tra cứu thường xuyên cùng với các ghi chú liên quan.",
+    "generatedAt": "2026-08-25T15:31:34.709Z",
     "actionableAdvice": "Tự động liên kết các tài liệu Drive liên quan khi tạo công việc mới có cùng chủ đề.",
-    "category": "productivity"
+    "confidenceScore": 0.85,
+    "title": "Tối ưu Hóa Quy Trình Ghi Chú & Quản Lý File",
+    "id": "insight-2"
   }
 ]

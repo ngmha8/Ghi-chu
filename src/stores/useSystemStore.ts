@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import {
   AppTheme,
+  AppFontSize,
   TelegramConfig,
   NotificationLog,
   ChatMessage
 } from '../types/index.js';
 import { getSavedTheme, applyTheme } from '../services/theme.js';
+import { getSavedFontSize, applyFontSize } from '../services/fontSize.js';
 import { api } from '../services/api.js';
 import {
   isSessionUnlocked,
@@ -27,6 +29,7 @@ export type AppTab =
 
 interface SystemState {
   theme: AppTheme;
+  fontSize: AppFontSize;
   isUnlocked: boolean;
   activeTab: AppTab;
   searchQuery: string;
@@ -42,6 +45,7 @@ interface SystemState {
   // Actions
   setTheme: (theme: AppTheme) => void;
   toggleTheme: () => void;
+  setFontSize: (size: AppFontSize) => void;
   setIsUnlocked: (unlocked: boolean) => void;
   lockApp: () => void;
   checkPinStatus: () => Promise<void>;
@@ -91,8 +95,12 @@ const initialTelegramData = getInitialCachedTelegram();
 const initialTheme = getSavedTheme();
 applyTheme(initialTheme);
 
+const initialFontSize = getSavedFontSize();
+applyFontSize(initialFontSize);
+
 export const useSystemStore = create<SystemState>((set, get) => ({
   theme: initialTheme,
+  fontSize: initialFontSize,
   isUnlocked: isSessionUnlocked(),
   activeTab: 'dashboard',
   searchQuery: '',
@@ -118,9 +126,16 @@ export const useSystemStore = create<SystemState>((set, get) => ({
 
   toggleTheme: () => {
     const current = get().theme;
-    const next = current === 'dark' ? 'light' : 'dark';
+    const cycle: AppTheme[] = ['light', 'light-blue', 'light-pink', 'light-purple', 'dark', 'dark-gray', 'dark-navy'];
+    const idx = cycle.indexOf(current);
+    const next = cycle[(idx + 1) % cycle.length] || 'light';
     applyTheme(next);
     set({ theme: next });
+  },
+
+  setFontSize: (size) => {
+    applyFontSize(size);
+    set({ fontSize: size });
   },
 
   setIsUnlocked: (unlocked) => set({ isUnlocked: unlocked }),

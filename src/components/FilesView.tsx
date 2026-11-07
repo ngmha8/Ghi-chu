@@ -12,7 +12,11 @@ import {
   signInWithGoogleWorkspace,
   googleSignOut,
   getGoogleAccessToken,
-  GoogleOAuthUser
+  getCachedGoogleUser,
+  isGoogleTokenExpired,
+  getGoogleAuthSnapshot,
+  GoogleOAuthUser,
+  GoogleAuthStatus,
 } from '../services/googleAuth.js';
 import { uploadLocalFileToUserGoogleDrive } from '../services/googleDriveUpload.js';
 import {
@@ -23,6 +27,7 @@ import {
 import {
   FolderSync,
   UploadCloud,
+  LogOut,
   FileText,
   FileSpreadsheet,
   FileCode,
@@ -97,6 +102,7 @@ import {
   DEFAULT_DOCUMENT_CATEGORIES
 } from '../services/docClassification.js';
 import { ManageCategoriesModal, renderCategoryIcon } from './ManageCategoriesModal.js';
+import { CleanDriveDuplicatesModal } from './CleanDriveDuplicatesModal.js';
 
 export interface UploadQueueItem {
   id: string;
@@ -210,8 +216,9 @@ export const FilesView: React.FC<FilesViewProps> = ({
   const [saConfig, setSaConfig] = useState<DriveServiceAccountConfig | null>(null);
   const [isSyncingSa, setIsSyncingSa] = useState(false);
 
-  // Google OAuth User State
-  const [googleUser, setGoogleUser] = useState<GoogleOAuthUser | null>(null);
+  // Google OAuth User State (Synchronous read from cache to eliminate flicker/stale state)
+  const [googleUser, setGoogleUser] = useState<GoogleOAuthUser | null>(() => getCachedGoogleUser());
+  const [googleAuthStatus, setGoogleAuthStatus] = useState<GoogleAuthStatus>(() => getGoogleAuthSnapshot().status);
   const [isLoggingInGoogle, setIsLoggingInGoogle] = useState(false);
   const [syncingDriveFileId, setSyncingDriveFileId] = useState<string | null>(null);
 
@@ -363,8 +370,9 @@ export const FilesView: React.FC<FilesViewProps> = ({
     return files.filter(f => !f.driveFileId || !f.isSyncedToDrive || f.syncStatus === 'local_only' || f.syncStatus === 'sync_error');
   }, [files]);
 
-  // Google Drive Authentication State Gate (Determines whether Drive operational buttons are revealed)
-  const isGoogleLoggedIn = Boolean(googleUser?.email || getGoogleAccessToken());
+  // Google Drive Authentication State Gate (Always strictly accurate & verified)
+  const isGoogleLoggedIn = Boolean(googleUser?.email && getGoogleAccessToken() && googleAuthStatus === 'authenticated');
+  const isGoogleSessionExpired = googleAuthStatus === 'expired' || (Boolean(googleUser?.email) && isGoogleTokenExpired());
 
   // Centralized Google Drive Management Dashboard Modal
   const [isDriveManageModalOpen, setIsDriveManageModalOpen] = useState(false);
@@ -393,14 +401,16 @@ export const FilesView: React.FC<FilesViewProps> = ({
   });
   const [copiedOrigin, setCopiedOrigin] = useState(false);
 
-  // Initialize Google Auth state listener
+  // Initialize Google Auth state listener with live status tracking
   useEffect(() => {
     const unsub = initGoogleAuth(
-      (user, token) => {
+      (user, token, status) => {
         setGoogleUser(user);
+        setGoogleAuthStatus(status || (user && token ? 'authenticated' : 'unauthenticated'));
       },
       () => {
         setGoogleUser(null);
+        setGoogleAuthStatus('unauthenticated');
       }
     );
     return () => {
@@ -523,7 +533,11 @@ export const FilesView: React.FC<FilesViewProps> = ({
     }
   };
 
-  // Handle Intelligent Clean-up of Duplicate Files on Google Drive
+  // State for Storage Location Filter (All / Google Drive / Local-Only)
+  const [storageLocationFilter, setStorageLocationFilter] = useState<'all' | 'drive' | 'local'>('all');
+
+  // Handle Interactive Duplicate Files Inspection & Clean-up Modal
+  const [isCleanDuplicatesModalOpen, setIsCleanDuplicatesModalOpen] = useState(false);
   const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
   const handleCleanDriveDuplicates = async () => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -1803,7 +1817,16 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
         return false;
       }
 
-      // 3. Search query / #tag query - Full multi-field match (Name, Notes, Description, Content, Category, Tags)
+      // 3. Storage Location filter ('all' | 'drive' | 'local')
+      if (storageLocationFilter === 'drive') {
+        const isDrive = f.isSyncedToDrive && f.syncStatus === 'synced' && Boolean(f.driveFileId);
+        if (!isDrive) return false;
+      } else if (storageLocationFilter === 'local') {
+        const isDrive = f.isSyncedToDrive && f.syncStatus === 'synced' && Boolean(f.driveFileId);
+        if (isDrive) return false;
+      }
+
+      // 4. Search query / #tag query - Full multi-field match (Name, Notes, Description, Content, Category, Tags)
       if (search.trim()) {
         const q = search.toLowerCase().trim();
         const tagQueries = q.match(/#([\w\p{L}]+)/gu)?.map(t => t.slice(1).toLowerCase()) || [];
@@ -1874,7 +1897,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
 
       return 0;
     });
-  }, [files, selectedClassification, formatFilter, search, categories, tasks, notes, sortKey, sortOrder]);
+  }, [files, selectedClassification, formatFilter, storageLocationFilter, search, categories, tasks, notes, sortKey, sortOrder]);
 
   const totalBytes = files.reduce((acc, f) => acc + f.size, 0);
   const totalMb = (totalBytes / (1024 * 1024)).toFixed(2);
@@ -2095,27 +2118,38 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
       />
 
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#151515] border border-[#2A2A2A] p-5 rounded-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#152033] border border-slate-200/90 dark:border-[#2A2A2A] p-5 rounded-xl shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-sm bg-[#1A1A1A] text-[#D4AF37] border border-[#D4AF37]/30">
-            <FolderLock className="w-5 h-5 text-[#D4AF37]" />
+          <div className="p-2.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 dark:bg-[#1A1A1A] dark:text-[#D4AF37] dark:border-[#D4AF37]/30">
+            <FolderLock className="w-5 h-5 text-blue-600 dark:text-[#D4AF37]" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-editorial-serif font-bold text-white">Quản lý & Phân loại Tài liệu</h1>
+              <h1 className="text-xl font-editorial-serif font-bold text-slate-900 dark:text-white">Quản lý & Phân loại Tài liệu</h1>
               {isGoogleLoggedIn ? (
-                <span className="text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-700/80 px-2.5 py-0.5 rounded font-mono font-bold flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Google Drive: {googleUser?.email || saConfig?.folderName || 'Đã kết nối'}</span>
+                <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-400 dark:border-emerald-700/80 px-2.5 py-0.5 rounded font-mono font-bold flex items-center gap-1.5 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Google Drive: {googleUser?.email || 'Đã kết nối'}</span>
                 </span>
+              ) : isGoogleSessionExpired ? (
+                <button
+                  type="button"
+                  onClick={handleGoogleSignInClick}
+                  disabled={isLoggingInGoogle}
+                  className="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/80 dark:hover:bg-amber-900 dark:text-amber-300 dark:border-amber-600/80 px-2.5 py-0.5 rounded font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                  title="Phiên Google Drive đã hết hạn. Nhấn để đăng nhập lại ngay lập tức"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                  <span>Google Drive: Hết phiên ({googleUser?.email || 'Nhấn để gia hạn'})</span>
+                </button>
               ) : (
-                <span className="text-[10px] bg-amber-950/40 text-amber-300 border border-amber-600/50 px-2.5 py-0.5 rounded font-mono flex items-center gap-1.5">
+                <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-600/50 px-2.5 py-0.5 rounded font-mono flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-500" />
                   <span>Google Drive: Chưa đăng nhập</span>
                 </span>
               )}
             </div>
-            <p className="text-xs text-[#888888] italic">
+            <p className="text-xs text-slate-500 dark:text-[#888888] italic">
               Tổ chức hồ sơ linh hoạt: Công việc, Cá nhân, Mẫu giấy tờ, Hợp đồng, Tài chính & Dự án
             </p>
           </div>
@@ -2133,7 +2167,7 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
           </button>
 
           {/* Conditional Google Drive Master Control Architecture */}
-          {!isGoogleLoggedIn ? (
+          {!isGoogleLoggedIn && !isGoogleSessionExpired ? (
             /* ============================================================== */
             /* 1. NOT LOGGED IN: Single Master Button to Connect Google Drive */
             /* ============================================================== */
@@ -2162,30 +2196,64 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                 Đăng nhập
               </span>
             </button>
+          ) : isGoogleSessionExpired ? (
+            /* ============================================================== */
+            /* 1B. SESSION EXPIRED: Clear Warning & 1-Click Re-Auth Prompt     */
+            /* ============================================================== */
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm border text-[11px] font-mono shadow-xs bg-amber-50 text-amber-950 border-amber-300 dark:bg-[#2A1E07] dark:border-amber-600 dark:text-amber-200">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span className="font-bold text-amber-700 dark:text-amber-400">Drive:</span>
+              <span className="truncate max-w-[160px] sm:max-w-[220px] font-semibold text-amber-900 dark:text-amber-200" title={`Phiên làm việc của tài khoản ${googleUser?.email || ''} đã hết hạn. Vui lòng gia hạn để tiếp tục thao tác.`}>
+                {googleUser?.email || 'Hết phiên'}
+              </span>
+              <button
+                type="button"
+                onClick={handleGoogleSignInClick}
+                disabled={isLoggingInGoogle}
+                className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                title="Gia hạn phiên đăng nhập Google Drive ngay lập tức"
+              >
+                <RefreshCw className={`w-2.5 h-2.5 ${isLoggingInGoogle ? 'animate-spin' : ''}`} />
+                <span>Gia hạn</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleGoogleSignOutClick}
+                className="text-[10px] text-amber-800 dark:text-amber-400 hover:text-rose-500 underline cursor-pointer ml-1"
+                title="Đăng xuất tài khoản này"
+              >
+                Thoát
+              </button>
+            </div>
           ) : (
             /* ============================================================== */
             /* 2. LOGGED IN: Reveal Full Drive Operational Suite & Controls    */
             /* ============================================================== */
             <>
-              {/* Connected Google Account Badge & Opener */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border text-[11px] font-mono shadow-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-[#064E3B] dark:border-[#059669] dark:text-white">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-bold text-emerald-700 dark:text-[#6EE7B7]">Drive:</span>
+              {/* Connected Google Account Badge & Opener (Accurately reflects active Google User) */}
+              <div
+                className="flex items-center gap-2 px-3 py-1.5 rounded-sm border text-[11px] font-mono shadow-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-[#064E3B] dark:border-[#059669] dark:text-white"
+                title={`Tài khoản Google Drive: ${googleUser?.email || 'Đã kết nối'}\nTrạng thái: Phiên làm việc đang hoạt động và đã xác thực`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span className="font-bold text-emerald-700 dark:text-[#6EE7B7] shrink-0">Drive:</span>
                 <button
                   type="button"
                   onClick={() => setIsDriveManageModalOpen(true)}
-                  className="font-semibold truncate max-w-[150px] text-emerald-900 dark:text-white hover:underline cursor-pointer"
+                  className="font-semibold truncate max-w-[200px] sm:max-w-[280px] md:max-w-none text-emerald-950 dark:text-white hover:underline cursor-pointer"
                   title={`Đã kết nối tài khoản ${googleUser?.email || 'Google'}. Nhấn để mở Trung Tâm Quản Lý Drive`}
                 >
-                  {googleUser?.email || saConfig?.folderName || 'Đã kết nối'}
+                  {googleUser?.email || 'Đã kết nối'}
                 </button>
+                <span className="h-3 w-px bg-emerald-300 dark:bg-emerald-600/50 shrink-0 mx-0.5" />
                 <button
                   type="button"
                   onClick={handleGoogleSignOutClick}
-                  className="text-[10px] underline cursor-pointer ml-1 font-bold text-emerald-700 hover:text-emerald-900 dark:text-[#6EE7B7] dark:hover:text-white"
+                  className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-900/10 hover:bg-emerald-900/30 dark:bg-black/30 dark:hover:bg-rose-950/60 text-emerald-800 dark:text-[#A7F3D0] hover:text-rose-600 dark:hover:text-rose-300 border border-emerald-600/30 hover:border-rose-500/50 cursor-pointer transition-all flex items-center gap-1 shadow-2xs"
                   title="Đăng xuất tài khoản Google"
                 >
-                  Thoát
+                  <LogOut className="w-2.5 h-2.5" />
+                  <span>Thoát</span>
                 </button>
               </div>
 
@@ -2242,13 +2310,12 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
               {/* Clean Duplicate & Stub Files on Google Drive Button */}
               <button
                 type="button"
-                onClick={handleCleanDriveDuplicates}
-                disabled={isCleaningDuplicates}
-                className="px-3 py-2 rounded-sm bg-white hover:bg-rose-50 text-rose-700 border border-slate-300 dark:bg-[#1A1212] dark:hover:bg-[#251515] dark:text-rose-300 dark:border-rose-600/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                title="Tự động quét Google Drive và xóa các bản sao trùng lặp, tệp rỗng/stub 260 byte để dọn dẹp thư mục"
+                onClick={() => setIsCleanDuplicatesModalOpen(true)}
+                className="px-3 py-2 rounded-sm bg-white hover:bg-rose-50 text-rose-700 border border-slate-300 dark:bg-[#1A1212] dark:hover:bg-[#251515] dark:text-rose-300 dark:border-rose-600/50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                title="Mở Trung Tâm Quét & Dọn Dẹp Bản Sao Trùng Lặp Trên Google Drive"
               >
-                <ShieldCheck className={`w-3.5 h-3.5 text-rose-600 dark:text-rose-400 ${isCleaningDuplicates ? 'animate-spin' : ''}`} />
-                <span>{isCleaningDuplicates ? 'Đang dọn...' : 'Dọn Trùng Drive'}</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                <span>Dọn Trùng Drive</span>
               </button>
 
               {/* Refresh Drive Button */}
@@ -2332,6 +2399,114 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
           </div>
         </div>
       )}
+
+      {/* ============================================================== */}
+      {/* STORAGE LOCATION COUNTERS & RECONCILIATION DASHBOARD (Bộ Đếm Local vs Google Drive) */}
+      {/* ============================================================== */}
+      <div className="bg-[#151515] border border-[#2A2A2A] p-3.5 rounded-sm flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+        {/* Left: Interactive Storage Location Counters (Tất cả / Trên Drive / Chỉ Local) */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] font-bold text-[#AAAAAA] uppercase tracking-wider flex items-center gap-1.5 mr-1">
+            <HardDrive className="w-3.5 h-3.5 text-[#D4AF37]" />
+            Bộ Đếm Lưu Trữ:
+          </span>
+
+          {/* All Files Counter */}
+          <button
+            type="button"
+            onClick={() => setStorageLocationFilter('all')}
+            className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-2 border ${
+              storageLocationFilter === 'all'
+                ? 'bg-blue-600 text-white border-blue-500 shadow-sm ring-1 ring-blue-400'
+                : 'bg-[#0C0C0C] text-[#AAAAAA] border-[#2A2A2A] hover:text-white hover:border-[#444444]'
+            }`}
+            title="Hiển thị tất cả tài liệu trong hệ thống"
+          >
+            <span>Tất Cả Tài Liệu</span>
+            <span className={`px-1.5 py-0.2 rounded font-mono text-[11px] font-bold ${
+              storageLocationFilter === 'all' ? 'bg-white/20 text-white' : 'bg-[#1C1C1C] text-white'
+            }`}>
+              {files.length}
+            </span>
+            <span className="text-[10px] opacity-70 font-mono">({totalMb} MB)</span>
+          </button>
+
+          {/* Google Drive Files Counter */}
+          <button
+            type="button"
+            onClick={() => setStorageLocationFilter('drive')}
+            className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-2 border ${
+              storageLocationFilter === 'drive'
+                ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm ring-1 ring-emerald-400'
+                : 'bg-[#0C0C0C] text-emerald-400 border-emerald-900/50 hover:bg-emerald-950/40 hover:border-emerald-700'
+            }`}
+            title="Chỉ hiển thị các tệp đã lưu trữ an toàn trên Google Drive"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Trên Google Drive</span>
+            <span className={`px-1.5 py-0.2 rounded font-mono text-[11px] font-bold ${
+              storageLocationFilter === 'drive' ? 'bg-white/20 text-white' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+            }`}>
+              {syncedCount}
+            </span>
+            {files.length > 0 && (
+              <span className="text-[10px] font-mono opacity-80">
+                ({Math.round((syncedCount / files.length) * 100)}%)
+              </span>
+            )}
+          </button>
+
+          {/* Local-Only Files Counter */}
+          <button
+            type="button"
+            onClick={() => setStorageLocationFilter('local')}
+            className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-2 border ${
+              storageLocationFilter === 'local'
+                ? 'bg-amber-600 text-white border-amber-500 shadow-sm ring-1 ring-amber-400'
+                : 'bg-[#0C0C0C] text-amber-300 border-amber-900/50 hover:bg-amber-950/40 hover:border-amber-700'
+            }`}
+            title="Chỉ hiển thị các tệp đang lưu trên máy/Vault chưa đồng bộ lên Google Drive"
+          >
+            <CloudOff className="w-3.5 h-3.5 text-amber-400" />
+            <span>Chỉ Trên Local</span>
+            <span className={`px-1.5 py-0.2 rounded font-mono text-[11px] font-bold ${
+              storageLocationFilter === 'local' ? 'bg-white/20 text-white' : 'bg-amber-950 text-amber-300 border border-amber-800'
+            }`}>
+              {localOnlyCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Right: Quick Deduplication & Sync Triggers (Only visible when successfully logged into Google Drive) */}
+        {isGoogleLoggedIn && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Deduplicate Button */}
+            <button
+              type="button"
+              onClick={() => setIsCleanDuplicatesModalOpen(true)}
+              className="px-3 py-1.5 rounded bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-700/80 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+              title="Mở Trung Tâm Quét & Dọn Dẹp Bản Sao Trùng Lặp Trên Google Drive"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
+              <span>Quét & Dọn Trùng Drive</span>
+            </button>
+
+            {/* Push local files if any */}
+            {localOnlyCount > 0 && (
+              <button
+                type="button"
+                onClick={handleOpenSyncPurgeModal}
+                disabled={isSyncingAndPurging || !!syncingDriveFileId}
+                className="px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                title="Đồng bộ tất cả tệp local chưa có trên Google Drive"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Lưu {localOnlyCount} Tệp Lên Drive</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ============================================================== */}
       {/* 1. PRIMARY DOCUMENT CLASSIFICATION BAR (Công việc, Cá nhân, Mẫu đơn...) */}
@@ -2765,13 +2940,24 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                 • Định dạng {formatFilter.toUpperCase()}
               </span>
             )}
+            {storageLocationFilter === 'drive' && (
+              <span className="ml-1.5 text-emerald-400 font-semibold">
+                • Vị trí: Trên Google Drive ({syncedCount})
+              </span>
+            )}
+            {storageLocationFilter === 'local' && (
+              <span className="ml-1.5 text-amber-400 font-semibold">
+                • Vị trí: Chỉ lưu Cục bộ / Chưa lên Drive ({localOnlyCount})
+              </span>
+            )}
           </span>
 
-          {(selectedClassification !== 'all' || formatFilter !== 'all' || search) && (
+          {(selectedClassification !== 'all' || formatFilter !== 'all' || storageLocationFilter !== 'all' || search) && (
             <button
               onClick={() => {
                 setSelectedClassification('all');
                 setFormatFilter('all');
+                setStorageLocationFilter('all');
                 setSearch('');
               }}
               className="text-[11px] text-[#D4AF37] hover:underline cursor-pointer font-medium ml-1"
@@ -5015,12 +5201,11 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     type="button"
                     onClick={() => {
                       setIsDriveManageModalOpen(false);
-                      handleCleanDriveDuplicates();
+                      setIsCleanDuplicatesModalOpen(true);
                     }}
-                    disabled={isCleaningDuplicates}
                     className="px-3.5 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700/60 font-bold text-xs uppercase tracking-wider rounded-sm shrink-0 cursor-pointer shadow transition-colors"
                   >
-                    {isCleaningDuplicates ? 'Đang dọn...' : 'Dọn trùng'}
+                    Dọn trùng
                   </button>
                 </div>
 
@@ -5063,6 +5248,21 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
           </div>
         </div>
       )}
+
+      {/* ============================================================== */}
+      {/* 4. GOOGLE DRIVE DUPLICATE RESOLUTION MODAL                    */}
+      {/* ============================================================== */}
+      <CleanDriveDuplicatesModal
+        isOpen={isCleanDuplicatesModalOpen}
+        onClose={() => setIsCleanDuplicatesModalOpen(false)}
+        folderId={saConfig?.folderId || localStorage.getItem('app_sa_folder_id') || undefined}
+        folderName={saConfig?.folderName || undefined}
+        onCleanCompleted={(cleanedCount) => {
+          setSyncStatusMsg(`✅ Đã loại bỏ thành công ${cleanedCount} bản sao trùng lặp trên Google Drive!`);
+          setTimeout(() => setSyncStatusMsg(null), 5000);
+          handleUnifiedSyncDriveFiles();
+        }}
+      />
     </div>
   );
 };

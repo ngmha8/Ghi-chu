@@ -87,7 +87,7 @@ export default function App() {
   }, [tasks, notes, categories]);
 
   return (
-    <div className="min-h-screen bg-[#0F0F0F] text-[#E0E0E0] font-sans selection:bg-[#D4AF37] selection:text-black">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#181B20] text-slate-900 dark:text-[#E2E8F0] font-sans selection:bg-[#D4AF37] selection:text-black">
       {/* PIN Security Lock Screen */}
       {!isUnlocked && (
         <PinLockScreen onUnlock={() => setIsUnlocked(true)} />

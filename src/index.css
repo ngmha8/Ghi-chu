@@ -6,10 +6,10 @@
   --font-serif: "Playfair Display", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --color-gold: #D4AF37;
-  --color-editorial-dark: #0F0F0F;
-  --color-editorial-card: #151515;
-  --color-editorial-hover: #1A1A1A;
-  --color-editorial-border: #2A2A2A;
+  --color-editorial-dark: #181B20;
+  --color-editorial-card: #222630;
+  --color-editorial-hover: #292E3B;
+  --color-editorial-border: #323846;
 }
 
 .font-editorial-serif {
@@ -17,8 +17,8 @@
 }
 
 body {
-  background-color: #0F0F0F;
-  color: #E0E0E0;
+  background-color: #181B20;
+  color: #E2E8F0;
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
 }
 
@@ -29,16 +29,241 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0F0F0F;
+  background: #181B20;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2A2A2A;
+  background: #323846;
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #D4AF37;
+}
+
+/* ==========================================================================
+   ARCHITECT.OS — ENHANCED HIGH-COMFORT DARK THEME (TĂNG ĐỘ SÁNG & ĐỘ TƯƠNG PHẢN)
+   Modern Executive Slate-Graphite Dark Theme:
+   - Base Canvas: #181B20 (Softer, brighter than harsh #0F0F0F pitch black, 0 eye strain)
+   - Header & Nav Bars: rgba(24, 27, 32, 0.95) & #1D2128
+   - Primary Cards & Modals: #222630 (Crisp elevated surfaces with soft depth)
+   - Secondary / Insets / Inputs: #1C2028 & #292E3B
+   - Borders & Dividers: #323846 (Hairline slate boundary separation)
+   - Text Readability: Primary #F1F5F9 / Secondary #94A3B8 (WCAG AAA compliant)
+   ========================================================================== */
+
+html:not(.theme-light),
+html.dark {
+  background-color: #181B20 !important;
+  color: #E2E8F0 !important;
+  color-scheme: dark;
+}
+
+html:not(.theme-light) body,
+html.dark body {
+  background-color: #181B20 !important;
+  color: #E2E8F0 !important;
+}
+
+/* Canvas & Global Dark Background Overrides */
+html:not(.theme-light) .bg-\[\#0F0F0F\],
+html.dark .bg-\[\#0F0F0F\],
+html:not(.theme-light) [class*="bg-[#0F0F0F]"],
+html.dark [class*="bg-[#0F0F0F]"],
+html:not(.theme-light) .bg-\[\#090909\],
+html.dark .bg-\[\#090909\],
+html:not(.theme-light) [class*="bg-[#090909]"],
+html.dark [class*="bg-[#090909]"],
+html:not(.theme-light) .bg-\[\#050505\],
+html.dark .bg-\[\#050505\],
+html:not(.theme-light) [class*="bg-[#050505]"],
+html.dark [class*="bg-[#050505]"] {
+  background-color: #181B20 !important;
+}
+
+/* Header Tier 1 & Translucent Overlays */
+html:not(.theme-light) header,
+html.dark header,
+html:not(.theme-light) .bg-\[\#0F0F0F\]\/95,
+html.dark .bg-\[\#0F0F0F\]\/95 {
+  background-color: rgba(24, 27, 32, 0.96) !important;
+  border-bottom-color: #323846 !important;
+}
+
+/* Secondary Navigation, Header Tier 2, Tab Bars, Filters & Recessed Areas */
+html:not(.theme-light) .bg-\[\#0A0A0A\],
+html.dark .bg-\[\#0A0A0A\],
+html:not(.theme-light) [class*="bg-[#0A0A0A]"],
+html.dark [class*="bg-[#0A0A0A]"],
+html:not(.theme-light) .bg-\[\#0B0B0B\],
+html.dark .bg-\[\#0B0B0B\],
+html:not(.theme-light) [class*="bg-[#0B0B0B]"],
+html.dark [class*="bg-[#0B0B0B]"],
+html:not(.theme-light) .bg-\[\#0C0C0C\],
+html.dark .bg-\[\#0C0C0C\],
+html:not(.theme-light) [class*="bg-[#0C0C0C]"],
+html.dark [class*="bg-[#0C0C0C]"],
+html:not(.theme-light) .bg-\[\#0D0D0D\],
+html.dark .bg-\[\#0D0D0D\],
+html:not(.theme-light) [class*="bg-[#0D0D0D]"],
+html.dark [class*="bg-[#0D0D0D]"],
+html:not(.theme-light) .bg-\[\#0E0E0E\],
+html.dark .bg-\[\#0E0E0E\],
+html:not(.theme-light) [class*="bg-[#0E0E0E]"],
+html.dark [class*="bg-[#0E0E0E]"] {
+  background-color: #1D2128 !important;
+}
+
+/* Primary Cards, Panels, Modals, Drawers & Content Containers */
+html:not(.theme-light) .bg-\[\#101010\],
+html.dark .bg-\[\#101010\],
+html:not(.theme-light) [class*="bg-[#101010]"],
+html.dark [class*="bg-[#101010]"],
+html:not(.theme-light) .bg-\[\#111111\],
+html.dark .bg-\[\#111111\],
+html:not(.theme-light) [class*="bg-[#111111]"],
+html.dark [class*="bg-[#111111]"],
+html:not(.theme-light) .bg-\[\#121212\],
+html.dark .bg-\[\#121212\],
+html:not(.theme-light) [class*="bg-[#121212]"],
+html.dark [class*="bg-[#121212]"],
+html:not(.theme-light) .bg-\[\#131313\],
+html.dark .bg-\[\#131313\],
+html:not(.theme-light) [class*="bg-[#131313]"],
+html.dark [class*="bg-[#131313]"],
+html:not(.theme-light) .bg-\[\#141414\],
+html.dark .bg-\[\#141414\],
+html:not(.theme-light) [class*="bg-[#141414]"],
+html.dark [class*="bg-[#141414]"],
+html:not(.theme-light) .bg-\[\#151515\],
+html.dark .bg-\[\#151515\],
+html:not(.theme-light) [class*="bg-[#151515]"],
+html.dark [class*="bg-[#151515]"],
+html:not(.theme-light) .bg-\[\#161616\],
+html.dark .bg-\[\#161616\],
+html:not(.theme-light) [class*="bg-[#161616]"],
+html.dark [class*="bg-[#161616]"],
+html:not(.theme-light) .bg-\[\#171717\],
+html.dark .bg-\[\#171717\],
+html:not(.theme-light) [class*="bg-[#171717]"],
+html.dark [class*="bg-[#171717]"],
+html:not(.theme-light) .bg-\[\#181818\],
+html.dark .bg-\[\#181818\],
+html:not(.theme-light) [class*="bg-[#181818]"],
+html.dark [class*="bg-[#181818]"] {
+  background-color: #222630 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Secondary Surfaces, Control Buttons, Badges & Inputs */
+html:not(.theme-light) .bg-\[\#1A1A1A\],
+html.dark .bg-\[\#1A1A1A\],
+html:not(.theme-light) [class*="bg-[#1A1A1A]"],
+html.dark [class*="bg-[#1A1A1A]"],
+html:not(.theme-light) .bg-\[\#1C1C1C\],
+html.dark .bg-\[\#1C1C1C\],
+html:not(.theme-light) [class*="bg-[#1C1C1C]"],
+html.dark [class*="bg-[#1C1C1C]"],
+html:not(.theme-light) .bg-\[\#1D1D1D\],
+html.dark .bg-\[\#1D1D1D\],
+html:not(.theme-light) [class*="bg-[#1D1D1D]"],
+html.dark [class*="bg-[#1D1D1D]"],
+html:not(.theme-light) .bg-\[\#1E1E1E\],
+html.dark .bg-\[\#1E1E1E\],
+html:not(.theme-light) [class*="bg-[#1E1E1E]"],
+html.dark [class*="bg-[#1E1E1E]"],
+html:not(.theme-light) .bg-\[\#1F1F1F\],
+html.dark .bg-\[\#1F1F1F\],
+html:not(.theme-light) [class*="bg-[#1F1F1F]"],
+html.dark [class*="bg-[#1F1F1F]"],
+html:not(.theme-light) .bg-\[\#202020\],
+html.dark .bg-\[\#202020\],
+html:not(.theme-light) [class*="bg-[#202020]"],
+html.dark [class*="bg-[#202020]"],
+html:not(.theme-light) .bg-\[\#222222\],
+html.dark .bg-\[\#222222\],
+html:not(.theme-light) [class*="bg-[#222222]"],
+html.dark [class*="bg-[#222222]"],
+html:not(.theme-light) .bg-\[\#252525\],
+html.dark .bg-\[\#252525\],
+html:not(.theme-light) [class*="bg-[#252525]"],
+html.dark [class*="bg-[#252525]"] {
+  background-color: #292E3B !important;
+}
+
+/* Hover States for Dark Mode - subtle interactive feedback */
+html:not(.theme-light) .hover\:bg-\[\#1A1A1A\]:hover,
+html.dark .hover\:bg-\[\#1A1A1A\]:hover,
+html:not(.theme-light) [class*="hover:bg-[#1A1A1A]"]:hover,
+html.dark [class*="hover:bg-[#1A1A1A]"]:hover,
+html:not(.theme-light) .hover\:bg-\[\#202020\]:hover,
+html.dark .hover\:bg-\[\#202020\]:hover,
+html:not(.theme-light) [class*="hover:bg-[#202020]"]:hover,
+html.dark [class*="hover:bg-[#202020]"]:hover,
+html:not(.theme-light) .hover\:bg-\[\#222222\]:hover,
+html.dark .hover\:bg-\[\#222222\]:hover,
+html:not(.theme-light) [class*="hover:bg-[#222222]"]:hover,
+html.dark [class*="hover:bg-[#222222]"]:hover,
+html:not(.theme-light) .hover\:bg-\[\#252525\]:hover,
+html.dark .hover\:bg-\[\#252525\]:hover,
+html:not(.theme-light) [class*="hover:bg-[#252525]"]:hover,
+html.dark [class*="hover:bg-[#252525]"]:hover {
+  background-color: #313746 !important;
+}
+
+/* Hairline Borders & Dividers in Dark Mode */
+html:not(.theme-light) .border-\[\#2A2A2A\],
+html.dark .border-\[\#2A2A2A\],
+html:not(.theme-light) [class*="border-[#2A2A2A]"],
+html.dark [class*="border-[#2A2A2A]"],
+html:not(.theme-light) .border-\[\#222222\],
+html.dark .border-\[\#222222\],
+html:not(.theme-light) [class*="border-[#222222]"],
+html.dark [class*="border-[#222222]"],
+html:not(.theme-light) .border-\[\#242424\],
+html.dark .border-\[\#242424\],
+html:not(.theme-light) [class*="border-[#242424]"],
+html.dark [class*="border-[#242424]"],
+html:not(.theme-light) .border-\[\#262626\],
+html.dark .border-\[\#262626\],
+html:not(.theme-light) [class*="border-[#262626]"],
+html.dark [class*="border-[#262626]"],
+html:not(.theme-light) .border-\[\#282828\],
+html.dark .border-\[\#282828\],
+html:not(.theme-light) [class*="border-[#282828]"],
+html.dark [class*="border-[#282828]"],
+html:not(.theme-light) .border-\[\#333333\],
+html.dark .border-\[\#333333\],
+html:not(.theme-light) [class*="border-[#333333]"],
+html.dark [class*="border-[#333333]"],
+html:not(.theme-light) .border-\[\#333\],
+html.dark .border-\[\#333\],
+html:not(.theme-light) [class*="border-[#333]"],
+html.dark [class*="border-[#333]"] {
+  border-color: #323846 !important;
+}
+
+/* Enhanced Contrast for Dark Mode Secondary Text (replaces muddy #777777 / #888888) */
+html:not(.theme-light) .text-\[\#777777\],
+html.dark .text-\[\#777777\],
+html:not(.theme-light) [class*="text-[#777777]"],
+html.dark [class*="text-[#777777]"],
+html:not(.theme-light) .text-\[\#888888\],
+html.dark .text-\[\#888888\],
+html:not(.theme-light) [class*="text-[#888888]"],
+html.dark [class*="text-[#888888]"] {
+  color: #94A3B8 !important; /* Slate 400 */
+}
+
+html:not(.theme-light) .text-\[\#AAAAAA\],
+html.dark .text-\[\#AAAAAA\],
+html:not(.theme-light) [class*="text-[#AAAAAA]"],
+html.dark [class*="text-[#AAAAAA]"],
+html:not(.theme-light) .text-\[\#A0A0A0\],
+html.dark .text-\[\#A0A0A0\],
+html:not(.theme-light) [class*="text-[#A0A0A0]"],
+html.dark [class*="text-[#A0A0A0]"] {
+  color: #CBD5E1 !important; /* Slate 300 */
 }
 
 /* ==========================================================================
@@ -84,65 +309,123 @@ html.theme-light header {
   backdrop-filter: blur(12px) !important;
 }
 
+html.theme-light .bg-\[\#181B20\],
+html.theme-light [class*="bg-[#181B20]"],
 html.theme-light .bg-\[\#0F0F0F\],
+html.theme-light [class*="bg-[#0F0F0F]"],
 html.theme-light .bg-\[\#090909\],
-html.theme-light .bg-\[\#050505\] {
+html.theme-light [class*="bg-[#090909]"],
+html.theme-light .bg-\[\#050505\],
+html.theme-light [class*="bg-[#050505]"],
+html.theme-light .bg-\[\#000000\],
+html.theme-light [class*="bg-[#000000]"] {
   background-color: #F8FAFC !important;
   color: #0F172A !important;
 }
 
-html.theme-light .bg-\[\#0F0F0F\]\/95 {
+html.theme-light .bg-\[\#0F0F0F\]\/95,
+html.theme-light [class*="bg-[#0F0F0F]/95"],
+html.theme-light .bg-\[\#181B20\]\/95,
+html.theme-light [class*="bg-[#181B20]/95"] {
   background-color: rgba(255, 255, 255, 0.95) !important;
 }
 
-html.theme-light .bg-\[\#0A0A0A\] {
+html.theme-light .bg-\[\#0A0A0A\],
+html.theme-light [class*="bg-[#0A0A0A]"],
+html.theme-light .bg-\[\#0B0B0B\],
+html.theme-light [class*="bg-[#0B0B0B]"],
+html.theme-light .bg-\[\#0D0D0D\],
+html.theme-light [class*="bg-[#0D0D0D]"],
+html.theme-light .bg-\[\#1D2128\],
+html.theme-light [class*="bg-[#1D2128]"],
+html.theme-light .bg-\[\#1C2028\],
+html.theme-light [class*="bg-[#1C2028]"] {
   background-color: #F1F5F9 !important;
+  color: #0F172A !important;
 }
 
-/* Surfaces, Cards, Modals & Drawers */
+/* Surfaces, Cards, Modals & Drawers in Light Mode */
 html.theme-light .bg-\[\#0C0C0C\],
+html.theme-light [class*="bg-[#0C0C0C]"],
 html.theme-light .bg-\[\#101010\],
+html.theme-light [class*="bg-[#101010]"],
 html.theme-light .bg-\[\#111111\],
+html.theme-light [class*="bg-[#111111]"],
 html.theme-light .bg-\[\#121212\],
+html.theme-light [class*="bg-[#121212]"],
 html.theme-light .bg-\[\#141414\],
+html.theme-light [class*="bg-[#141414]"],
 html.theme-light .bg-\[\#151515\],
+html.theme-light [class*="bg-[#151515]"],
 html.theme-light .bg-\[\#161616\],
+html.theme-light [class*="bg-[#161616]"],
 html.theme-light .bg-\[\#181818\],
+html.theme-light [class*="bg-[#181818]"],
+html.theme-light .bg-\[\#222630\],
+html.theme-light [class*="bg-[#222630]"],
 html.theme-light .bg-\[\#1A1A1A\] {
   background-color: #FFFFFF !important;
   box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.03) !important;
 }
 
-/* Subtle Secondary Layers & Hover States */
+/* Subtle Secondary Layers & Hover States in Light Mode */
 html.theme-light .bg-\[\#1A1A1A\],
+html.theme-light [class*="bg-[#1A1A1A]"],
 html.theme-light .bg-\[\#1E1E1E\],
+html.theme-light [class*="bg-[#1E1E1E]"],
 html.theme-light .bg-\[\#202020\],
+html.theme-light [class*="bg-[#202020]"],
 html.theme-light .bg-\[\#222222\],
-html.theme-light .bg-\[\#252525\] {
+html.theme-light [class*="bg-[#222222]"],
+html.theme-light .bg-\[\#252525\],
+html.theme-light [class*="bg-[#252525]"],
+html.theme-light .bg-\[\#292E3B\],
+html.theme-light [class*="bg-[#292E3B]"],
+html.theme-light .bg-\[\#313746\],
+html.theme-light [class*="bg-[#313746]"] {
   background-color: #F1F5F9 !important;
+  color: #1E293B !important;
 }
 
-html.theme-light .bg-\[\#2A2A2A\] {
+html.theme-light .bg-\[\#2A2A2A\],
+html.theme-light [class*="bg-[#2A2A2A]"] {
   background-color: #E2E8F0 !important;
 }
 
 html.theme-light .hover\:bg-\[\#1A1A1A\]:hover,
 html.theme-light .hover\:bg-\[\#1C1C1C\]:hover,
 html.theme-light .hover\:bg-\[\#1E1E1E\]:hover,
-html.theme-light .hover\:bg-\[\#202020\]:hover {
+html.theme-light .hover\:bg-\[\#202020\]:hover,
+html.theme-light .hover\:bg-\[\#222222\]:hover,
+html.theme-light .hover\:bg-\[\#252525\]:hover,
+html.theme-light [class*="hover:bg-[#1A1A1A]"]:hover,
+html.theme-light [class*="hover:bg-[#202020]"]:hover,
+html.theme-light [class*="hover:bg-[#222222]"]:hover,
+html.theme-light [class*="hover:bg-[#252525]"]:hover {
   background-color: #F1F5F9 !important;
 }
 
 /* Borders & Dividers */
 html.theme-light .border-\[\#2A2A2A\],
+html.theme-light [class*="border-[#2A2A2A]"],
+html.theme-light .border-\[\#323846\],
+html.theme-light [class*="border-[#323846]"],
 html.theme-light .border-\[\#262626\],
+html.theme-light [class*="border-[#262626]"],
 html.theme-light .border-\[\#252525\],
+html.theme-light [class*="border-[#252525]"],
 html.theme-light .border-\[\#222222\],
+html.theme-light [class*="border-[#222222]"],
 html.theme-light .border-\[\#1F1F1F\],
+html.theme-light [class*="border-[#1F1F1F]"],
 html.theme-light .border-\[\#282828\],
+html.theme-light [class*="border-[#282828]"],
 html.theme-light .border-\[\#2E2E2E\],
+html.theme-light [class*="border-[#2E2E2E]"],
 html.theme-light .border-\[\#333333\],
-html.theme-light .border-\[\#444444\] {
+html.theme-light [class*="border-[#333333]"],
+html.theme-light .border-\[\#444444\],
+html.theme-light [class*="border-[#444444]"] {
   border-color: #E2E8F0 !important;
 }
 
@@ -489,8 +772,82 @@ html.theme-light .font-editorial-serif {
 }
 
 /* Card headings and text remapped from dark cards to light cards */
-html.theme-light .text-white {
+html.theme-light .text-white:not(.pin-lock-container *):not([class*="bg-blue"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-amber"]):not([class*="bg-sky"]):not([class*="bg-purple"]):not([class*="bg-indigo"]) {
   color: #0F172A;
+}
+
+/* Explicit PIN Lock Screen Theme-Safe Container */
+html.theme-light .pin-lock-container {
+  background-color: rgba(241, 245, 249, 0.96) !important;
+  color: #0F172A !important;
+}
+html.dark .pin-lock-container,
+html:not(.theme-light) .pin-lock-container {
+  background-color: rgba(10, 14, 23, 0.96) !important;
+  color: #F8FAFC !important;
+}
+
+/* PIN Keypad Digits: Light Mode (Crisp White Tile + Dark Slate Bold Numbers) */
+html.theme-light .pin-lock-container .pin-digit-btn {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border: 1px solid #CBD5E1 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+}
+html.theme-light .pin-lock-container .pin-digit-btn *,
+html.theme-light .pin-lock-container .pin-digit-btn span {
+  color: #0F172A !important;
+}
+html.theme-light .pin-lock-container .pin-digit-btn:hover {
+  background-color: #F8FAFC !important;
+  border-color: #3B82F6 !important;
+}
+html.theme-light .pin-lock-container .pin-digit-btn:hover *,
+html.theme-light .pin-lock-container .pin-digit-btn:hover span {
+  color: #2563EB !important;
+}
+html.theme-light .pin-lock-container .pin-digit-btn:active {
+  background-color: #2563EB !important;
+  border-color: #1D4ED8 !important;
+}
+html.theme-light .pin-lock-container .pin-digit-btn:active *,
+html.theme-light .pin-lock-container .pin-digit-btn:active span {
+  color: #FFFFFF !important;
+}
+
+/* PIN Keypad Digits: Dark Mode (Deep Navy Slate Tile + Crisp White Numbers) */
+html.dark .pin-lock-container .pin-digit-btn,
+html:not(.theme-light) .pin-lock-container .pin-digit-btn {
+  background-color: #182236 !important;
+  color: #FFFFFF !important;
+  border: 1px solid #334155 !important;
+}
+html.dark .pin-lock-container .pin-digit-btn *,
+html.dark .pin-lock-container .pin-digit-btn span,
+html:not(.theme-light) .pin-lock-container .pin-digit-btn *,
+html:not(.theme-light) .pin-lock-container .pin-digit-btn span {
+  color: #FFFFFF !important;
+}
+html.dark .pin-lock-container .pin-digit-btn:hover,
+html:not(.theme-light) .pin-lock-container .pin-digit-btn:hover {
+  background-color: #202D47 !important;
+  border-color: #3B82F6 !important;
+}
+html.dark .pin-lock-container .pin-digit-btn:hover *,
+html.dark .pin-lock-container .pin-digit-btn:hover span,
+html:not(.theme-light) .pin-lock-container .pin-digit-btn:hover *,
+html:not(.theme-light) .pin-lock-container .pin-digit-btn:hover span {
+  color: #60A5FA !important;
+}
+
+/* Saturated submit button & success indicators inside PIN lock screen */
+html.theme-light .pin-lock-container .bg-blue-600:not(.pin-digit-btn),
+html.theme-light .pin-lock-container .bg-blue-600:not(.pin-digit-btn) *,
+html.theme-light .pin-lock-container .bg-emerald-500:not(.pin-digit-btn),
+html.theme-light .pin-lock-container .bg-emerald-500:not(.pin-digit-btn) *,
+html.theme-light .pin-lock-container button.bg-blue-600:not(.pin-digit-btn),
+html.theme-light .pin-lock-container button.bg-blue-600:not(.pin-digit-btn) * {
+  color: #FFFFFF !important;
 }
 
 /* Exception: text on saturated buttons, dark badges, status pills, tooltips, and dark gradients MUST remain bright white / light */
@@ -901,13 +1258,17 @@ html.theme-light [class*="bg-[#151515]"],
 html.theme-light [class*="bg-[#161616]"],
 html.theme-light [class*="bg-[#171717]"],
 html.theme-light [class*="bg-[#181818]"],
+html.theme-light [class*="bg-[#181B20]"],
 html.theme-light [class*="bg-[#1A1A1A]"]:not(button),
 html.theme-light [class*="bg-[#1C1C1C]"],
+html.theme-light [class*="bg-[#1C2028]"],
 html.theme-light [class*="bg-[#1D1D1D]"],
+html.theme-light [class*="bg-[#1D2128]"],
 html.theme-light [class*="bg-[#1E1E1E]"],
 html.theme-light [class*="bg-[#1F1F1F]"],
 html.theme-light [class*="bg-[#202020]"],
 html.theme-light [class*="bg-[#222222]"],
+html.theme-light [class*="bg-[#222630]"],
 html.theme-light [class*="bg-[#252525]"],
 html.theme-light [class*="bg-[#2A2A2A]"],
 html.theme-light [class*="bg-[#2D2D2D]"] {
@@ -963,33 +1324,33 @@ html.theme-light [class*="from-[#1E190B]"] * {
 }
 
 /* All saturated colored action buttons must have bright pure white text and white icons */
-html.theme-light [class*="bg-blue-600"],
-html.theme-light [class*="bg-blue-700"],
-html.theme-light [class*="bg-emerald-600"],
-html.theme-light [class*="bg-emerald-700"],
-html.theme-light [class*="bg-sky-600"],
-html.theme-light [class*="bg-sky-700"],
-html.theme-light [class*="bg-rose-600"],
-html.theme-light [class*="bg-rose-700"],
-html.theme-light [class*="bg-amber-600"],
-html.theme-light [class*="bg-purple-600"],
-html.theme-light [class*="bg-indigo-600"],
-html.theme-light [class*="bg-teal-600"] {
+html.theme-light [class*="bg-blue-600"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-blue-700"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-emerald-600"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-emerald-700"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-sky-600"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-sky-700"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-rose-600"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-rose-700"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-amber-600"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-purple-600"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-indigo-600"]:not(.pin-digit-btn):not(.pin-lock-container *),
+html.theme-light [class*="bg-teal-600"]:not(.pin-digit-btn):not(.pin-lock-container *) {
   color: #FFFFFF !important;
 }
 
-html.theme-light [class*="bg-blue-600"] *,
-html.theme-light [class*="bg-blue-700"] *,
-html.theme-light [class*="bg-emerald-600"] *,
-html.theme-light [class*="bg-emerald-700"] *,
-html.theme-light [class*="bg-sky-600"] *,
-html.theme-light [class*="bg-sky-700"] *,
-html.theme-light [class*="bg-rose-600"] *,
-html.theme-light [class*="bg-rose-700"] *,
-html.theme-light [class*="bg-amber-600"] *,
-html.theme-light [class*="bg-purple-600"] *,
-html.theme-light [class*="bg-indigo-600"] *,
-html.theme-light [class*="bg-teal-600"] * {
+html.theme-light [class*="bg-blue-600"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-blue-700"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-emerald-600"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-emerald-700"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-sky-600"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-sky-700"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-rose-600"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-rose-700"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-amber-600"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-purple-600"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-indigo-600"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *),
+html.theme-light [class*="bg-teal-600"]:not(.pin-digit-btn):not(.pin-lock-container *) *:not(.pin-digit-btn *) {
   color: #FFFFFF !important;
   stroke: #FFFFFF !important;
 }
@@ -1035,26 +1396,26 @@ html.theme-light .recharts-tooltip-wrapper .bg-\[\#141414\] {
 /* Dark Mode Defaults (When html is .dark or not .theme-light) */
 html.dark .eisenhower-q1,
 html:not(.theme-light) .eisenhower-q1 {
-  background-color: #0C0C0C !important;
-  border-color: rgba(225, 29, 72, 0.4) !important;
+  background-color: #1E232B !important;
+  border-color: rgba(244, 63, 94, 0.45) !important;
 }
 
 html.dark .eisenhower-q2,
 html:not(.theme-light) .eisenhower-q2 {
-  background-color: #0C0C0C !important;
-  border-color: rgba(217, 119, 6, 0.4) !important;
+  background-color: #1E232B !important;
+  border-color: rgba(245, 158, 11, 0.45) !important;
 }
 
 html.dark .eisenhower-q3,
 html:not(.theme-light) .eisenhower-q3 {
-  background-color: #0C0C0C !important;
-  border-color: rgba(14, 165, 233, 0.4) !important;
+  background-color: #1E232B !important;
+  border-color: rgba(14, 165, 233, 0.45) !important;
 }
 
 html.dark .eisenhower-q4,
 html:not(.theme-light) .eisenhower-q4 {
-  background-color: #0C0C0C !important;
-  border-color: #27272A !important;
+  background-color: #1E232B !important;
+  border-color: #323846 !important;
 }
 
 /* Light Mode Overrides for Eisenhower Quadrants */
@@ -1117,8 +1478,8 @@ html.theme-light .eisenhower-q4 p {
 /* Chart Legend Strip */
 html:not(.theme-light) .chart-legend-container,
 html.dark .chart-legend-container {
-  background-color: #0A0A0A !important;
-  border-color: #262626 !important;
+  background-color: #1D2128 !important;
+  border-color: #323846 !important;
 }
 
 html.theme-light .chart-legend-container {
@@ -1155,7 +1516,161 @@ html.theme-light .shadow-md {
 
 /* Inter Typography standard in light theme */
 html.theme-light {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
 }
 
+/* ==========================================================================
+   MULTI-THEME PALETTES (THEME-LIGHT-BLUE, THEME-DARK-GRAY, THEME-DARK-NAVY)
+   ========================================================================== */
+
+/* 1. Theme: Xanh Nhạt (Ice Blue Pastel) */
+html.theme-light-blue,
+html.theme-light-blue body {
+  background-color: #F0F6FF !important;
+}
+html.theme-light-blue header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #BFDBFE !important;
+}
+html.theme-light-blue .border-slate-200,
+html.theme-light-blue [class*="border-slate-200"] {
+  border-color: #DCEAFE !important;
+}
+
+/* 2. Theme: Xám Nhạt Hơn (Charcoal / Slate Gray) */
+html.theme-dark-gray,
+html.theme-dark-gray body {
+  background-color: #252B36 !important;
+  color: #F1F5F9 !important;
+}
+html.theme-dark-gray header {
+  background-color: rgba(37, 43, 54, 0.96) !important;
+  border-bottom-color: #424D5F !important;
+}
+html.theme-dark-gray .dark\:bg-\[\#152033\],
+html.theme-dark-gray [class*="dark:bg-[#152033]"],
+html.theme-dark-gray [class*="bg-[#152033]"],
+html.theme-dark-gray [class*="bg-[#222630]"],
+html.theme-dark-gray [class*="bg-[#151515]"],
+html.theme-dark-gray [class*="bg-[#181818]"] {
+  background-color: #2F3746 !important;
+}
+html.theme-dark-gray .dark\:bg-\[\#0E1522\],
+html.theme-dark-gray [class*="dark:bg-[#0E1522]"],
+html.theme-dark-gray [class*="bg-[#0E1522]"],
+html.theme-dark-gray [class*="bg-[#1C2028]"],
+html.theme-dark-gray [class*="bg-[#1D2128]"],
+html.theme-dark-gray [class*="bg-[#121212]"] {
+  background-color: #212630 !important;
+}
+html.theme-dark-gray .dark\:border-\[\#22334D\],
+html.theme-dark-gray [class*="dark:border-[#22334D]"],
+html.theme-dark-gray [class*="border-[#2A2A2A]"],
+html.theme-dark-gray [class*="border-[#323846]"] {
+  border-color: #424D5F !important;
+}
+
+/* 3. Theme: Xanh Đậm (Deep Ocean Navy) */
+html.theme-dark-navy,
+html.theme-dark-navy body {
+  background-color: #0A192F !important;
+  color: #F0F6FF !important;
+}
+html.theme-dark-navy header {
+  background-color: rgba(10, 25, 47, 0.96) !important;
+  border-bottom-color: #1E3E64 !important;
+}
+html.theme-dark-navy .dark\:bg-\[\#152033\],
+html.theme-dark-navy [class*="dark:bg-[#152033]"],
+html.theme-dark-navy [class*="bg-[#152033]"],
+html.theme-dark-navy [class*="bg-[#222630]"],
+html.theme-dark-navy [class*="bg-[#151515]"],
+html.theme-dark-navy [class*="bg-[#181818]"] {
+  background-color: #10243E !important;
+}
+html.theme-dark-navy .dark\:bg-\[\#0E1522\],
+html.theme-dark-navy [class*="dark:bg-[#0E1522]"],
+html.theme-dark-navy [class*="bg-[#0E1522]"],
+html.theme-dark-navy [class*="bg-[#1C2028]"],
+html.theme-dark-navy [class*="bg-[#1D2128]"],
+html.theme-dark-navy [class*="bg-[#121212]"] {
+  background-color: #071526 !important;
+}
+html.theme-dark-navy .dark\:border-\[\#22334D\],
+html.theme-dark-navy [class*="dark:border-[#22334D]"],
+html.theme-dark-navy [class*="border-[#2A2A2A]"],
+html.theme-dark-navy [class*="border-[#323846]"] {
+  border-color: #1E3E64 !important;
+}
+
+/* Outer app-wrapper canvas background overrides */
+html.theme-light-blue [class*="bg-[#F8FAFC]"],
+html.theme-light-blue [class*="dark:bg-[#181B20]"] {
+  background-color: #F0F6FF !important;
+}
+html.theme-light-pink [class*="bg-[#F8FAFC]"],
+html.theme-light-pink [class*="dark:bg-[#181B20]"] {
+  background-color: #FFF1F2 !important;
+}
+html.theme-light-purple [class*="bg-[#F8FAFC]"],
+html.theme-light-purple [class*="dark:bg-[#181B20]"] {
+  background-color: #F5F3FF !important;
+}
+html.theme-dark-gray [class*="dark:bg-[#181B20]"],
+html.theme-dark-gray [class*="bg-[#181B20]"] {
+  background-color: #252B36 !important;
+}
+html.theme-dark-navy [class*="dark:bg-[#181B20]"],
+html.theme-dark-navy [class*="bg-[#181B20]"] {
+  background-color: #0A192F !important;
+}
+
+/* 4. Theme: Hồng Nhạt (Rose Pastel / Sakura) */
+html.theme-light-pink,
+html.theme-light-pink body {
+  background-color: #FFF1F2 !important;
+}
+html.theme-light-pink header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #FECDD3 !important;
+}
+html.theme-light-pink .border-slate-200,
+html.theme-light-pink [class*="border-slate-200"] {
+  border-color: #FFE4E6 !important;
+}
+
+/* 5. Theme: Tím Nhạt (Lavender / Lilac Pastel) */
+html.theme-light-purple,
+html.theme-light-purple body {
+  background-color: #F5F3FF !important;
+}
+html.theme-light-purple header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #DDD6FE !important;
+}
+html.theme-light-purple .border-slate-200,
+html.theme-light-purple [class*="border-slate-200"] {
+  border-color: #EDE9FE !important;
+}
+
+/* ==========================================================================
+   ARCHITECT.OS — ACCESSIBLE FONT SIZING SYSTEM (TÙY CHỈNH CỠ CHỮ TOÀN DIỆN)
+   Scales root typography seamlessly without breaking UI layouts
+   ========================================================================== */
+
+html.font-size-small {
+  font-size: 14.4px !important;
+}
+
+html.font-size-medium {
+  font-size: 16px !important;
+}
+
+html.font-size-large {
+  font-size: 18px !important;
+}
+
+html.font-size-xlarge {
+  font-size: 20px !important;
+}
 

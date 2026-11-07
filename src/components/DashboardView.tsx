@@ -1449,19 +1449,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-8 pb-12">
       {/* Editorial Header */}
-      <div className="border-b border-[#2A2A2A] pb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="border-b border-slate-200 dark:border-[#2A2A2A] pb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#D4AF37] bg-[#1A1A1A] px-2.5 py-1 rounded-sm border border-[#D4AF37]/30">
+            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-blue-700 bg-blue-50 border border-blue-200 dark:text-[#D4AF37] dark:bg-[#1A1A1A] dark:border-[#D4AF37]/30 px-2.5 py-1 rounded-sm">
               Active Workflow
             </span>
-            <span className="text-xs italic text-[#888888] font-editorial-serif">{formattedDate}</span>
+            <span className="text-xs italic text-slate-500 dark:text-[#888888] font-editorial-serif">{formattedDate}</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-editorial-serif text-white tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-editorial-serif text-slate-900 dark:text-white tracking-tight">
             Tổng quan Hệ thống
           </h1>
-          <p className="text-sm text-[#AAAAAA] max-w-2xl leading-relaxed">
-            Bạn có <span className="text-[#D4AF37] font-semibold">{dueTodayTasks.length} công việc cần làm hôm nay</span> và <span className="text-rose-400 font-semibold">{overdueTasks.length} công việc quá hạn</span>.
+          <p className="text-sm text-slate-600 dark:text-[#AAAAAA] max-w-2xl leading-relaxed">
+            Bạn có <span className="text-blue-600 dark:text-[#D4AF37] font-semibold">{dueTodayTasks.length} công việc cần làm hôm nay</span> và <span className="text-rose-600 dark:text-rose-400 font-semibold">{overdueTasks.length} công việc quá hạn</span>.
           </p>
         </div>
 
@@ -1469,26 +1469,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Voice Mode Button */}
           <button
             onClick={onOpenVoiceFocus}
-            className="px-4 py-2.5 rounded-sm bg-[#151515] hover:bg-[#202020] text-[#D4AF37] border border-[#D4AF37]/50 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+            className="px-4 py-2.5 rounded-sm bg-white hover:bg-slate-50 text-blue-600 border border-slate-300 dark:bg-[#151515] dark:hover:bg-[#202020] dark:text-[#D4AF37] dark:border-[#D4AF37]/50 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-xs"
             title="Kích hoạt chế độ đàm thoại giọng nói 2 chiều Focus Mode"
           >
-            <Mic className="w-4 h-4 text-[#D4AF37] animate-pulse" />
+            <Mic className="w-4 h-4 text-blue-600 dark:text-[#D4AF37] animate-pulse" />
             <span>Thoại 2 Chiều</span>
           </button>
 
           <button
             onClick={() => openAiChatWithPrompt('Tóm tắt tình hình công việc và các deadline quan trọng trong tuần này.')}
-            className="px-4 py-2.5 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] text-black font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-colors cursor-pointer shadow-sm"
+            className="px-4 py-2.5 rounded-sm bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:hover:bg-[#c29f2e] dark:text-black font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-colors cursor-pointer shadow-sm"
           >
-            <Sparkles className="w-4 h-4 text-black stroke-[2.5]" />
+            <Sparkles className="w-4 h-4 text-white dark:text-black stroke-[2.5]" />
             <span>Tóm Tắt AI</span>
           </button>
 
           <button
             onClick={openNewTaskModal}
-            className="px-4 py-2.5 rounded-sm bg-[#151515] hover:bg-[#1A1A1A] text-[#E0E0E0] border border-[#2A2A2A] font-semibold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
+            className="px-4 py-2.5 rounded-sm bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 dark:bg-[#151515] dark:hover:bg-[#1A1A1A] dark:text-[#E0E0E0] dark:border-[#2A2A2A] font-semibold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-xs"
           >
-            <CheckSquare className="w-4 h-4 text-[#D4AF37]" />
+            <CheckSquare className="w-4 h-4 text-blue-600 dark:text-[#D4AF37]" />
             <span>Tạo Task</span>
           </button>
         </div>
@@ -1499,65 +1499,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 1: Today's Tasks */}
         <div
           onClick={() => setActiveTab('tasks')}
-          className="border border-[#2A2A2A] p-5 rounded-sm relative overflow-hidden bg-[#151515] hover:border-[#D4AF37]/50 transition-all cursor-pointer group"
+          className="border border-slate-200/90 dark:border-[#2A2A2A] p-5 rounded-xl relative overflow-hidden bg-white dark:bg-[#152033] hover:border-blue-400 dark:hover:border-[#D4AF37]/50 shadow-xs hover:shadow-md transition-all cursor-pointer group"
         >
-          <span className="absolute top-2 right-4 text-[42px] font-editorial-serif text-[#D4AF37]/10 italic pointer-events-none select-none">01</span>
-          <p className="text-[10px] uppercase text-[#D4AF37] tracking-widest font-bold mb-1">Cần Làm Hôm Nay</p>
+          <span className="absolute top-2 right-4 text-[42px] font-editorial-serif text-slate-100 dark:text-[#D4AF37]/10 italic pointer-events-none select-none">01</span>
+          <p className="text-[10px] uppercase text-blue-600 dark:text-[#D4AF37] tracking-widest font-bold mb-1">Cần Làm Hôm Nay</p>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-3xl font-editorial-serif font-bold text-white">{dueTodayTasks.length}</span>
-            <span className="text-xs text-[#D4AF37]">Công việc</span>
+            <span className="text-3xl font-editorial-serif font-bold text-slate-900 dark:text-white">{dueTodayTasks.length}</span>
+            <span className="text-xs text-blue-600 dark:text-[#D4AF37] font-medium">Công việc</span>
           </div>
-          <p className="text-[11px] text-[#777777] mt-3 border-t border-[#2A2A2A] pt-2">Deadline trong ngày</p>
+          <p className="text-[11px] text-slate-500 dark:text-[#888888] mt-3 border-t border-slate-100 dark:border-[#2A2A2A] pt-2">Deadline trong ngày</p>
         </div>
 
         {/* Card 2: Overdue Tasks */}
         <div
           onClick={() => setActiveTab('tasks')}
-          className="border border-[#2A2A2A] p-5 rounded-sm relative overflow-hidden bg-[#151515] hover:border-rose-500/50 transition-all cursor-pointer group"
+          className="border border-slate-200/90 dark:border-[#2A2A2A] p-5 rounded-xl relative overflow-hidden bg-white dark:bg-[#152033] hover:border-rose-400 dark:hover:border-rose-500/50 shadow-xs hover:shadow-md transition-all cursor-pointer group"
         >
-          <span className="absolute top-2 right-4 text-[42px] font-editorial-serif text-rose-500/10 italic pointer-events-none select-none">02</span>
-          <p className="text-[10px] uppercase text-rose-400 tracking-widest font-bold mb-1">Cảnh Báo Quá Hạn</p>
+          <span className="absolute top-2 right-4 text-[42px] font-editorial-serif text-rose-100 dark:text-rose-500/10 italic pointer-events-none select-none">02</span>
+          <p className="text-[10px] uppercase text-rose-600 dark:text-rose-400 tracking-widest font-bold mb-1">Cảnh Báo Quá Hạn</p>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-3xl font-editorial-serif font-bold text-white">{overdueTasks.length}</span>
-            <span className="text-xs text-rose-400">Cần xử lý ngay</span>
+            <span className="text-3xl font-editorial-serif font-bold text-rose-600 dark:text-rose-400">{overdueTasks.length}</span>
+            <span className="text-xs text-rose-600/80 dark:text-rose-400 font-medium">Cần xử lý ngay</span>
           </div>
-          <p className="text-[11px] text-[#777777] mt-3 border-t border-[#2A2A2A] pt-2">Task vượt hạn định</p>
+          <p className="text-[11px] text-slate-500 dark:text-[#888888] mt-3 border-t border-slate-100 dark:border-[#2A2A2A] pt-2">Task vượt hạn định</p>
         </div>
 
         {/* Card 3: Notes & Drive Files */}
         <div
           onClick={() => setActiveTab('files')}
-          className="border border-[#2A2A2A] p-5 rounded-sm relative overflow-hidden bg-[#151515] hover:border-[#D4AF37]/50 transition-all cursor-pointer group"
+          className="border border-slate-200/90 dark:border-[#2A2A2A] p-5 rounded-xl relative overflow-hidden bg-white dark:bg-[#152033] hover:border-emerald-400 dark:hover:border-[#D4AF37]/50 shadow-xs hover:shadow-md transition-all cursor-pointer group"
         >
-          <span className="absolute top-2 right-4 text-[42px] font-editorial-serif text-[#D4AF37]/10 italic pointer-events-none select-none">03</span>
+          <span className="absolute top-2 right-4 text-[42px] font-editorial-serif text-emerald-100 dark:text-[#D4AF37]/10 italic pointer-events-none select-none">03</span>
           <div className="flex items-center justify-between">
-            <p className="text-[10px] uppercase text-[#D4AF37] tracking-widest font-bold mb-1">Ghi Chú & Drive</p>
-            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 font-semibold">
+            <p className="text-[10px] uppercase text-emerald-700 dark:text-[#D4AF37] tracking-widest font-bold mb-1">Ghi Chú & Drive</p>
+            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-400 dark:border-emerald-800/60 font-semibold">
               Drive {driveStats.syncRatio}%
             </span>
           </div>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-3xl font-editorial-serif font-bold text-white">{notes.length}</span>
-            <span className="text-xs text-[#A0A0A0]">{files.length} tệp ({driveStats.totalMb} MB)</span>
+            <span className="text-3xl font-editorial-serif font-bold text-slate-900 dark:text-white">{notes.length}</span>
+            <span className="text-xs text-slate-500 dark:text-[#A0A0A0] font-medium">{files.length} tệp ({driveStats.totalMb} MB)</span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-[#777777] mt-3 border-t border-[#2A2A2A] pt-2">
-            <span>Tiết kiệm local: <strong className="text-emerald-400 font-mono">{driveStats.savedMb} MB</strong></span>
-            <span className="text-[#D4AF37] group-hover:underline">Kho tệp →</span>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-[#888888] mt-3 border-t border-slate-100 dark:border-[#2A2A2A] pt-2">
+            <span>Tiết kiệm local: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{driveStats.savedMb} MB</strong></span>
+            <span className="text-blue-600 dark:text-[#D4AF37] group-hover:underline">Kho tệp →</span>
           </div>
         </div>
 
         {/* Card 4: Telegram Alerts */}
         <div
           onClick={() => setActiveTab('telegram')}
-          className="border border-[#2A2A2A] p-5 rounded-sm relative overflow-hidden bg-[#151515] hover:border-sky-500/50 transition-all cursor-pointer group"
+          className="border border-slate-200/90 dark:border-[#2A2A2A] p-5 rounded-xl relative overflow-hidden bg-white dark:bg-[#152033] hover:border-sky-400 dark:hover:border-sky-500/50 shadow-xs hover:shadow-md transition-all cursor-pointer group"
         >
-          <span className="absolute top-2 right-4 text-[42px] font-editorial-serif text-sky-500/10 italic pointer-events-none select-none">04</span>
-          <p className="text-[10px] uppercase text-sky-400 tracking-widest font-bold mb-1">Telegram Bot</p>
+          <span className="absolute top-2 right-4 text-[42px] font-editorial-serif text-sky-100 dark:text-sky-500/10 italic pointer-events-none select-none">04</span>
+          <p className="text-[10px] uppercase text-sky-600 dark:text-sky-400 tracking-widest font-bold mb-1">Telegram Bot</p>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-3xl font-editorial-serif font-bold text-white">{notificationLogs.length}</span>
-            <span className="text-xs text-sky-400">Nhắc nhở đã gửi</span>
+            <span className="text-3xl font-editorial-serif font-bold text-slate-900 dark:text-white">{notificationLogs.length}</span>
+            <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">Nhắc nhở đã gửi</span>
           </div>
-          <p className="text-[11px] text-[#777777] mt-3 border-t border-[#2A2A2A] pt-2">Webhook 2-Way Active</p>
+          <p className="text-[11px] text-slate-500 dark:text-[#888888] mt-3 border-t border-slate-100 dark:border-[#2A2A2A] pt-2">Webhook 2-Way Active</p>
         </div>
       </div>
 
@@ -1572,17 +1572,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="lg:col-span-8 w-full min-w-0 space-y-6 transition-all duration-300 ease-in-out">
 
           {/* 1. Task Status Distribution & Lifecycle Overview Donut Card */}
-          <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-5 sm:p-6 space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#2A2A2A] pb-3">
+          <div className="border border-slate-200/90 dark:border-[#2A2A2A] bg-white dark:bg-[#152033] rounded-xl p-5 sm:p-6 space-y-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-[#2A2A2A] pb-3">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <PieChartIcon className="w-5 h-5 text-[#D4AF37]" />
-                  <h3 className="text-lg font-editorial-serif font-bold text-white tracking-tight">Tỷ lệ trạng thái công việc</h3>
+                  <PieChartIcon className="w-5 h-5 text-blue-600 dark:text-[#D4AF37]" />
+                  <h3 className="text-lg font-editorial-serif font-bold text-slate-900 dark:text-white tracking-tight">Tỷ lệ trạng thái công việc</h3>
                 </div>
-                <p className="text-xs text-[#888888]">Phân bổ tiến độ thực thi các nhiệm vụ trong toàn hệ thống</p>
+                <p className="text-xs text-slate-500 dark:text-[#888888]">Phân bổ tiến độ thực thi các nhiệm vụ trong toàn hệ thống</p>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
-                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
                   <TrendingUp className="w-3.5 h-3.5" />
                   <span>{completionRate}% hoàn thành</span>
                 </div>
@@ -1591,13 +1591,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {totalTasksCount === 0 ? (
               <div className="py-10 text-center space-y-2">
-                <div className="w-12 h-12 mx-auto rounded-full bg-[#1A1A1A] flex items-center justify-center text-[#666666]">
+                <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-[#1A1A1A] flex items-center justify-center text-slate-400 dark:text-[#666666]">
                   <PieChartIcon className="w-6 h-6" />
                 </div>
-                <p className="text-xs text-[#888888]">Chưa có dữ liệu công việc trong hệ thống</p>
+                <p className="text-xs text-slate-500 dark:text-[#888888]">Chưa có dữ liệu công việc trong hệ thống</p>
                 <button
                   onClick={openNewTaskModal}
-                  className="text-xs text-[#D4AF37] font-semibold hover:underline cursor-pointer"
+                  className="text-xs text-blue-600 dark:text-[#D4AF37] font-semibold hover:underline cursor-pointer"
                 >
                   + Tạo task đầu tiên
                 </button>
@@ -1628,10 +1628,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                   {/* Donut Center Label */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-3xl font-bold font-editorial-serif text-white leading-tight">
+                    <span className="text-3xl font-bold font-editorial-serif text-slate-900 dark:text-white leading-tight">
                       {totalTasksCount}
                     </span>
-                    <span className="text-[10px] uppercase tracking-wider text-[#888888] font-bold">
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-[#888888] font-bold">
                       Tổng task
                     </span>
                   </div>
@@ -1642,22 +1642,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {/* Status 1: Cần làm */}
                   <div
                     onClick={() => setActiveTab('tasks')}
-                    className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#222222] hover:border-[#F59E0B]/50 transition-all cursor-pointer space-y-1.5"
+                    className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#222222] hover:border-[#F59E0B]/50 transition-all cursor-pointer space-y-1.5 shadow-2xs"
                     title="Xem các công việc Cần làm"
                   >
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
-                        <span className="text-[#E0E0E0] font-medium">Cần làm (Todo)</span>
+                        <span className="text-slate-800 dark:text-[#E0E0E0] font-medium">Cần làm (Todo)</span>
                       </div>
                       <div className="flex items-baseline gap-1.5 font-mono">
-                        <span className="font-bold text-white">{todoCount}</span>
-                        <span className="text-[10px] text-[#777777]">
+                        <span className="font-bold text-slate-900 dark:text-white">{todoCount}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-[#777777]">
                           ({totalTasksCount > 0 ? Math.round((todoCount / totalTasksCount) * 100) : 0}%)
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-[#1A1A1A] h-1.5 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-200/80 dark:bg-[#1A1A1A] h-1.5 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-[#F59E0B] rounded-full transition-all duration-500"
                         style={{ width: `${totalTasksCount > 0 ? (todoCount / totalTasksCount) * 100 : 0}%` }}
@@ -1668,22 +1668,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {/* Status 2: Đang xử lý */}
                   <div
                     onClick={() => setActiveTab('tasks')}
-                    className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#222222] hover:border-[#3B82F6]/50 transition-all cursor-pointer space-y-1.5"
+                    className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#222222] hover:border-[#3B82F6]/50 transition-all cursor-pointer space-y-1.5 shadow-2xs"
                     title="Xem các công việc Đang xử lý"
                   >
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] shrink-0" />
-                        <span className="text-[#E0E0E0] font-medium">Đang xử lý (In Progress)</span>
+                        <span className="text-slate-800 dark:text-[#E0E0E0] font-medium">Đang xử lý (In Progress)</span>
                       </div>
                       <div className="flex items-baseline gap-1.5 font-mono">
-                        <span className="font-bold text-white">{inProgressCount}</span>
-                        <span className="text-[10px] text-[#777777]">
+                        <span className="font-bold text-slate-900 dark:text-white">{inProgressCount}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-[#777777]">
                           ({totalTasksCount > 0 ? Math.round((inProgressCount / totalTasksCount) * 100) : 0}%)
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-[#1A1A1A] h-1.5 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-200/80 dark:bg-[#1A1A1A] h-1.5 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-[#3B82F6] rounded-full transition-all duration-500"
                         style={{ width: `${totalTasksCount > 0 ? (inProgressCount / totalTasksCount) * 100 : 0}%` }}
@@ -1694,22 +1694,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {/* Status 3: Hoàn thành */}
                   <div
                     onClick={() => setActiveTab('tasks')}
-                    className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#222222] hover:border-[#10B981]/50 transition-all cursor-pointer space-y-1.5"
+                    className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#222222] hover:border-[#10B981]/50 transition-all cursor-pointer space-y-1.5 shadow-2xs"
                     title="Xem các công việc Đã hoàn thành"
                   >
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0" />
-                        <span className="text-[#E0E0E0] font-medium">Đã hoàn thành</span>
+                        <span className="text-slate-800 dark:text-[#E0E0E0] font-medium">Đã hoàn thành</span>
                       </div>
                       <div className="flex items-baseline gap-1.5 font-mono">
-                        <span className="font-bold text-emerald-400">{completedCount}</span>
-                        <span className="text-[10px] text-emerald-400/80">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">{completedCount}</span>
+                        <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">
                           ({completionRate}%)
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-[#1A1A1A] h-1.5 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-200/80 dark:bg-[#1A1A1A] h-1.5 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-[#10B981] rounded-full transition-all duration-500"
                         style={{ width: `${completionRate}%` }}
@@ -1721,22 +1721,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {canceledCount > 0 && (
                     <div
                       onClick={() => setActiveTab('tasks')}
-                      className="p-2.5 rounded-sm bg-[#0C0C0C] border border-[#222222] hover:border-[#EF4444]/50 transition-all cursor-pointer space-y-1.5"
+                      className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#222222] hover:border-[#EF4444]/50 transition-all cursor-pointer space-y-1.5 shadow-2xs"
                       title="Xem các công việc Đã hủy"
                     >
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] shrink-0" />
-                          <span className="text-[#E0E0E0] font-medium">Đã hủy</span>
+                          <span className="text-slate-800 dark:text-[#E0E0E0] font-medium">Đã hủy</span>
                         </div>
                         <div className="flex items-baseline gap-1.5 font-mono">
-                          <span className="font-bold text-rose-400">{canceledCount}</span>
-                          <span className="text-[10px] text-[#777777]">
+                          <span className="font-bold text-rose-600 dark:text-rose-400">{canceledCount}</span>
+                          <span className="text-[10px] text-slate-500 dark:text-[#777777]">
                             ({totalTasksCount > 0 ? Math.round((canceledCount / totalTasksCount) * 100) : 0}%)
                           </span>
                         </div>
                       </div>
-                      <div className="w-full bg-[#1A1A1A] h-1.5 rounded-full overflow-hidden">
+                      <div className="w-full bg-slate-200/80 dark:bg-[#1A1A1A] h-1.5 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-[#EF4444] rounded-full transition-all duration-500"
                           style={{ width: `${totalTasksCount > 0 ? (canceledCount / totalTasksCount) * 100 : 0}%` }}
@@ -1752,158 +1752,158 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* ------------------------------------------------------------- */}
           {/* NEW: Productivity Insights Section (30-Day Task & Note Trends) */}
           {/* ------------------------------------------------------------- */}
-      <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-5 sm:p-6 space-y-6">
-        {/* Section Header with Mode and Filter Controls */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#2A2A2A] pb-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Sparkles className="w-5 h-5 text-[#D4AF37]" />
-              <h2 className="text-lg sm:text-xl font-editorial-serif font-bold text-white tracking-tight">
-                Productivity Insights
-              </h2>
-              <span className="text-[10px] uppercase tracking-wider font-bold text-[#D4AF37] bg-[#1A1A1A] px-2.5 py-0.5 rounded-sm border border-[#D4AF37]/30">
-                30-Day Synthesis
-              </span>
-            </div>
-            <p className="text-xs text-[#888888] leading-relaxed">
-              Đối chiếu trực quan giữa xu hướng hoàn thành công việc và hoạt động tạo ghi chú đúc kết tri thức trong 30 ngày gần nhất qua Recharts.
-            </p>
-          </div>
+          <div className="border border-slate-200/90 dark:border-[#2A2A2A] bg-white dark:bg-[#152033] rounded-xl p-5 sm:p-6 space-y-6 shadow-xs">
+            {/* Section Header with Mode and Filter Controls */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-[#2A2A2A] pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Sparkles className="w-5 h-5 text-blue-600 dark:text-[#D4AF37]" />
+                  <h2 className="text-lg sm:text-xl font-editorial-serif font-bold text-slate-900 dark:text-white tracking-tight">
+                    Productivity Insights
+                  </h2>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-blue-700 bg-blue-50 border border-blue-200 dark:text-[#D4AF37] dark:bg-[#1A1A1A] px-2.5 py-0.5 rounded-sm dark:border-[#D4AF37]/30">
+                    30-Day Synthesis
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-[#888888] leading-relaxed">
+                  Đối chiếu trực quan giữa xu hướng hoàn thành công việc và hoạt động tạo ghi chú đúc kết tri thức trong 30 ngày gần nhất qua Recharts.
+                </p>
+              </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* View Mode Switcher */}
-            <div className="flex items-center bg-[#0C0C0C] p-0.5 rounded-sm border border-[#2A2A2A] text-[11px] font-bold">
-              <button
-                onClick={() => setProductivityInsightsChartType('composed')}
-                className={`px-3 py-1.5 rounded-sm cursor-pointer transition-all flex items-center gap-1.5 ${
-                  productivityInsightsChartType === 'composed'
-                    ? 'bg-[#D4AF37] text-black shadow-xs font-bold'
-                    : 'text-[#888888] hover:text-white'
-                }`}
-                title="Biểu đồ kết hợp: Cột ghi chú & Đường diện tích task"
-              >
-                <Activity className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Kết hợp</span>
-              </button>
-              <button
-                onClick={() => setProductivityInsightsChartType('dual_bar')}
-                className={`px-3 py-1.5 rounded-sm cursor-pointer transition-all flex items-center gap-1.5 ${
-                  productivityInsightsChartType === 'dual_bar'
-                    ? 'bg-[#D4AF37] text-black shadow-xs font-bold'
-                    : 'text-[#888888] hover:text-white'
-                }`}
-                title="Biểu đồ cột song song: Task hoàn thành vs Ghi chú mới"
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Cột song song</span>
-              </button>
-              <button
-                onClick={() => setProductivityInsightsChartType('area_stacked')}
-                className={`px-3 py-1.5 rounded-sm cursor-pointer transition-all flex items-center gap-1.5 ${
-                  productivityInsightsChartType === 'area_stacked'
-                    ? 'bg-[#D4AF37] text-black shadow-xs font-bold'
-                    : 'text-[#888888] hover:text-white'
-                }`}
-                title="Biểu đồ diện tích xếp tầng: Dòng chảy tri thức"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Diện tích</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* View Mode Switcher */}
+                <div className="flex items-center bg-slate-100 dark:bg-[#0C0C0C] p-0.5 rounded-lg border border-slate-200 dark:border-[#2A2A2A] text-[11px] font-bold">
+                  <button
+                    onClick={() => setProductivityInsightsChartType('composed')}
+                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${
+                      productivityInsightsChartType === 'composed'
+                        ? 'bg-white text-blue-700 shadow-xs font-bold border border-slate-200/80 dark:bg-[#D4AF37] dark:text-black dark:border-transparent'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-[#888888] dark:hover:text-white'
+                    }`}
+                    title="Biểu đồ kết hợp: Cột ghi chú & Đường diện tích task"
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Kết hợp</span>
+                  </button>
+                  <button
+                    onClick={() => setProductivityInsightsChartType('dual_bar')}
+                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${
+                      productivityInsightsChartType === 'dual_bar'
+                        ? 'bg-white text-blue-700 shadow-xs font-bold border border-slate-200/80 dark:bg-[#D4AF37] dark:text-black dark:border-transparent'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-[#888888] dark:hover:text-white'
+                    }`}
+                    title="Biểu đồ cột song song: Task hoàn thành vs Ghi chú mới"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Cột song song</span>
+                  </button>
+                  <button
+                    onClick={() => setProductivityInsightsChartType('area_stacked')}
+                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${
+                      productivityInsightsChartType === 'area_stacked'
+                        ? 'bg-white text-blue-700 shadow-xs font-bold border border-slate-200/80 dark:bg-[#D4AF37] dark:text-black dark:border-transparent'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-[#888888] dark:hover:text-white'
+                    }`}
+                    title="Biểu đồ diện tích xếp tầng: Dòng chảy tri thức"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Diện tích</span>
+                  </button>
+                </div>
+
+                {/* Series Filter Selector */}
+                <div className="flex items-center bg-slate-100 dark:bg-[#0C0C0C] p-0.5 rounded-lg border border-slate-200 dark:border-[#2A2A2A] text-[11px] font-bold font-mono">
+                  {[
+                    { key: 'all' as const, label: 'Tất cả' },
+                    { key: 'tasks' as const, label: 'Chỉ Tasks' },
+                    { key: 'notes' as const, label: 'Chỉ Ghi chú' },
+                  ].map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setProductivityInsightsFilter(f.key)}
+                      className={`px-2.5 py-1.5 rounded-md cursor-pointer transition-all ${
+                        productivityInsightsFilter === f.key
+                          ? 'bg-white text-slate-900 border border-slate-200/90 font-bold shadow-xs dark:bg-[#2A2A2A] dark:text-white dark:border-[#3A3A3A]'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-[#777777] dark:hover:text-[#CCCCCC]'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            {/* Series Filter Selector */}
-            <div className="flex items-center bg-[#0C0C0C] p-0.5 rounded-sm border border-[#2A2A2A] text-[11px] font-bold font-mono">
-              {[
-                { key: 'all' as const, label: 'Tất cả' },
-                { key: 'tasks' as const, label: 'Chỉ Tasks' },
-                { key: 'notes' as const, label: 'Chỉ Ghi chú' },
-              ].map(f => (
-                <button
-                  key={f.key}
-                  onClick={() => setProductivityInsightsFilter(f.key)}
-                  className={`px-2.5 py-1.5 rounded-sm cursor-pointer transition-all ${
-                    productivityInsightsFilter === f.key
-                      ? 'bg-[#2A2A2A] text-white border border-[#3A3A3A] font-bold shadow-xs'
-                      : 'text-[#777777] hover:text-[#CCCCCC]'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+            {/* 4 30-Day Productivity KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* KPI 1: Tasks Completed */}
+              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#222222] space-y-1 shadow-2xs">
+                <div className="flex items-center justify-between text-slate-500 dark:text-[#888888] text-[10px] uppercase font-bold tracking-wider">
+                  <span>Task hoàn thành (30d)</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-bold font-editorial-serif text-blue-600 dark:text-[#D4AF37]">
+                    {productivityInsights30d.totalTasksCompleted}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-[#888888]">công việc</span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-[#777777] truncate">
+                  Trung bình {productivityInsights30d.avgTasksPerDay} việc / ngày
+                </p>
+              </div>
 
-        {/* 4 30-Day Productivity KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* KPI 1: Tasks Completed */}
-          <div className="p-3.5 rounded-sm bg-[#0C0C0C] border border-[#222222] space-y-1">
-            <div className="flex items-center justify-between text-[#888888] text-[10px] uppercase font-bold tracking-wider">
-              <span>Task hoàn thành (30d)</span>
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#D4AF37]" />
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-editorial-serif text-[#D4AF37]">
-                {productivityInsights30d.totalTasksCompleted}
-              </span>
-              <span className="text-[11px] font-mono text-[#888888]">công việc</span>
-            </div>
-            <p className="text-[10px] text-[#777777] truncate">
-              Trung bình {productivityInsights30d.avgTasksPerDay} việc / ngày
-            </p>
-          </div>
+              {/* KPI 2: Notes Created */}
+              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#222222] space-y-1 shadow-2xs">
+                <div className="flex items-center justify-between text-slate-500 dark:text-[#888888] text-[10px] uppercase font-bold tracking-wider">
+                  <span>Ghi chú đúc kết (30d)</span>
+                  <FileText className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-bold font-editorial-serif text-sky-600 dark:text-sky-400">
+                    {productivityInsights30d.totalNotesCreated}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-[#888888]">bài học</span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-[#777777] truncate">
+                  Trung bình {productivityInsights30d.avgNotesPerDay} note / ngày
+                </p>
+              </div>
 
-          {/* KPI 2: Notes Created */}
-          <div className="p-3.5 rounded-sm bg-[#0C0C0C] border border-[#222222] space-y-1">
-            <div className="flex items-center justify-between text-[#888888] text-[10px] uppercase font-bold tracking-wider">
-              <span>Ghi chú đúc kết (30d)</span>
-              <FileText className="w-3.5 h-3.5 text-sky-400" />
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-editorial-serif text-sky-400">
-                {productivityInsights30d.totalNotesCreated}
-              </span>
-              <span className="text-[11px] font-mono text-[#888888]">bài học</span>
-            </div>
-            <p className="text-[10px] text-[#777777] truncate">
-              Trung bình {productivityInsights30d.avgNotesPerDay} note / ngày
-            </p>
-          </div>
+              {/* KPI 3: Knowledge Synthesis Ratio */}
+              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#222222] space-y-1 shadow-2xs">
+                <div className="flex items-center justify-between text-slate-500 dark:text-[#888888] text-[10px] uppercase font-bold tracking-wider">
+                  <span>Tỷ lệ đúc kết tri thức</span>
+                  <Brain className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-bold font-editorial-serif text-emerald-600 dark:text-emerald-400">
+                    {productivityInsights30d.synthesisRatio}%
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-[#888888]">ghi chú / task</span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-[#777777] truncate">
+                  {productivityInsights30d.synthesisRatio >= 35 ? '● Đạt chuẩn phản tư cao' : 'Khuyến nghị đúc kết thêm'}
+                </p>
+              </div>
 
-          {/* KPI 3: Knowledge Synthesis Ratio */}
-          <div className="p-3.5 rounded-sm bg-[#0C0C0C] border border-[#222222] space-y-1">
-            <div className="flex items-center justify-between text-[#888888] text-[10px] uppercase font-bold tracking-wider">
-              <span>Tỷ lệ đúc kết tri thức</span>
-              <Brain className="w-3.5 h-3.5 text-emerald-400" />
+              {/* KPI 4: Peak Activity Day */}
+              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#222222] space-y-1 shadow-2xs">
+                <div className="flex items-center justify-between text-slate-500 dark:text-[#888888] text-[10px] uppercase font-bold tracking-wider">
+                  <span>Ngày năng suất đỉnh</span>
+                  <Flame className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-bold font-editorial-serif text-amber-600 dark:text-amber-400">
+                    {productivityInsights30d.peak.dayLabel}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-[#888888]">{productivityInsights30d.peak.totalActivity} mục</span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-[#777777] truncate">
+                  {productivityInsights30d.peak.tasksCompleted} việc • {productivityInsights30d.peak.notesCreated} note
+                </p>
+              </div>
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-editorial-serif text-emerald-400">
-                {productivityInsights30d.synthesisRatio}%
-              </span>
-              <span className="text-[11px] font-mono text-[#888888]">ghi chú / task</span>
-            </div>
-            <p className="text-[10px] text-[#777777] truncate">
-              {productivityInsights30d.synthesisRatio >= 35 ? '● Đạt chuẩn phản tư cao' : 'Khuyến nghị đúc kết thêm'}
-            </p>
-          </div>
-
-          {/* KPI 4: Peak Activity Day */}
-          <div className="p-3.5 rounded-sm bg-[#0C0C0C] border border-[#222222] space-y-1">
-            <div className="flex items-center justify-between text-[#888888] text-[10px] uppercase font-bold tracking-wider">
-              <span>Ngày năng suất đỉnh</span>
-              <Flame className="w-3.5 h-3.5 text-amber-400" />
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-editorial-serif text-amber-400">
-                {productivityInsights30d.peak.dayLabel}
-              </span>
-              <span className="text-[11px] font-mono text-[#888888]">{productivityInsights30d.peak.totalActivity} mục</span>
-            </div>
-            <p className="text-[10px] text-[#777777] truncate">
-              {productivityInsights30d.peak.tasksCompleted} việc • {productivityInsights30d.peak.notesCreated} note
-            </p>
-          </div>
-        </div>
 
         {/* Recharts Visualization Chart Canvas */}
         <div className="w-full h-72 sm:h-80 pt-2">
@@ -3942,55 +3942,55 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     <div className="lg:col-span-4 w-full min-w-0 space-y-6 lg:sticky lg:top-6 transition-all duration-300 ease-in-out">
       
       {/* Widget 1: Công việc ưu tiên & Deadline */}
-      <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-4 sm:p-5 space-y-4">
+      <div className="border border-slate-200/90 dark:border-[#2A2A2A] bg-white dark:bg-[#152033] rounded-xl p-4 sm:p-5 space-y-4 shadow-xs">
         
         {/* Header and Quick Filter Tabs */}
-        <div className="flex flex-col gap-2.5 border-b border-[#2A2A2A] pb-3">
+        <div className="flex flex-col gap-2.5 border-b border-slate-200 dark:border-[#2A2A2A] pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-[#D4AF37]" />
-              <h2 className="text-base sm:text-lg font-editorial-serif font-bold text-white tracking-tight">
+              <Calendar className="w-4 h-4 text-blue-600 dark:text-[#D4AF37]" />
+              <h2 className="text-base sm:text-lg font-editorial-serif font-bold text-slate-900 dark:text-white tracking-tight">
                 Công việc ưu tiên & Deadline
               </h2>
             </div>
-            <span className="text-[11px] font-mono text-[#D4AF37] font-semibold bg-[#D4AF37]/10 px-2 py-0.5 rounded-sm border border-[#D4AF37]/20">
+            <span className="text-[11px] font-mono text-blue-700 bg-blue-50 border border-blue-200 dark:text-[#D4AF37] font-semibold dark:bg-[#D4AF37]/10 px-2 py-0.5 rounded-sm dark:border-[#D4AF37]/20">
               {filteredPriorityTasks.length} việc
             </span>
           </div>
           
           {/* Quick Filter Selector */}
-          <div className="grid grid-cols-4 gap-1 bg-[#0C0C0C] p-1 rounded-sm border border-[#2A2A2A] text-center">
+          <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-[#0C0C0C] p-1 rounded-lg border border-slate-200 dark:border-[#2A2A2A] text-center">
             <button
               onClick={() => setTaskQuickFilter('all')}
-              className={`py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm cursor-pointer transition-all ${
-                taskQuickFilter === 'all' ? 'bg-[#D4AF37] text-black shadow-xs font-bold' : 'text-[#888888] hover:text-white'
+              className={`py-1 text-[10px] font-bold uppercase tracking-wider rounded-md cursor-pointer transition-all ${
+                taskQuickFilter === 'all' ? 'bg-white text-blue-700 shadow-xs font-bold border border-slate-200/80 dark:bg-[#D4AF37] dark:text-black dark:border-transparent' : 'text-slate-600 hover:text-slate-900 dark:text-[#888888] dark:hover:text-white'
               }`}
             >
               Tất cả
             </button>
             <button
               onClick={() => setTaskQuickFilter('today')}
-              className={`py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm cursor-pointer transition-all ${
-                taskQuickFilter === 'today' ? 'bg-[#D4AF37] text-black shadow-xs font-bold' : 'text-[#888888] hover:text-white'
+              className={`py-1 text-[10px] font-bold uppercase tracking-wider rounded-md cursor-pointer transition-all ${
+                taskQuickFilter === 'today' ? 'bg-white text-blue-700 shadow-xs font-bold border border-slate-200/80 dark:bg-[#D4AF37] dark:text-black dark:border-transparent' : 'text-slate-600 hover:text-slate-900 dark:text-[#888888] dark:hover:text-white'
               }`}
             >
               Hôm nay
             </button>
             <button
               onClick={() => setTaskQuickFilter('overdue')}
-              className={`py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm cursor-pointer transition-all ${
-                taskQuickFilter === 'overdue' ? 'bg-rose-600 text-white shadow-xs font-bold' : 'text-[#888888] hover:text-white'
+              className={`py-1 text-[10px] font-bold uppercase tracking-wider rounded-md cursor-pointer transition-all ${
+                taskQuickFilter === 'overdue' ? 'bg-rose-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900 dark:text-[#888888] dark:hover:text-white'
               }`}
             >
               Quá hạn
             </button>
             <button
               onClick={() => setTaskQuickFilter('high')}
-              className={`py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm cursor-pointer transition-all ${
-                taskQuickFilter === 'high' ? 'bg-[#D4AF37] text-black shadow-xs font-bold' : 'text-[#888888] hover:text-white'
+              className={`py-1 text-[10px] font-bold uppercase tracking-wider rounded-md cursor-pointer transition-all ${
+                taskQuickFilter === 'high' ? 'bg-white text-blue-700 shadow-xs font-bold border border-slate-200/80 dark:bg-[#D4AF37] dark:text-black dark:border-transparent' : 'text-slate-600 hover:text-slate-900 dark:text-[#888888] dark:hover:text-white'
               }`}
             >
-              Ưu tiên cao
+              Ưu tiên
             </button>
           </div>
         </div>
@@ -4372,15 +4372,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Widget 2: Ghi chú gần đây */}
-      <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-4 sm:p-5 space-y-3">
-        <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2">
+      <div className="border border-slate-200/90 dark:border-[#2A2A2A] bg-white dark:bg-[#152033] rounded-xl p-4 sm:p-5 space-y-3 shadow-xs">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2A2A2A] pb-2">
           <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-[#D4AF37]" />
-            <h3 className="text-sm font-editorial-serif font-bold text-white">Ghi chú gần đây</h3>
+            <FileText className="w-4 h-4 text-blue-600 dark:text-[#D4AF37]" />
+            <h3 className="text-sm font-editorial-serif font-bold text-slate-900 dark:text-white">Ghi chú gần đây</h3>
           </div>
           <button
             onClick={openNewNoteModal}
-            className="text-xs font-bold text-[#D4AF37] uppercase tracking-wider hover:underline cursor-pointer"
+            className="text-xs font-bold text-blue-600 dark:text-[#D4AF37] uppercase tracking-wider hover:underline cursor-pointer"
           >
             + Thêm
           </button>
@@ -4388,24 +4388,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="space-y-2.5">
           {recentSortedNotes.length === 0 ? (
-            <p className="text-xs text-[#666666] italic py-2">Chưa có ghi chú nào. Bấm "+ Thêm" để tạo.</p>
+            <p className="text-xs text-slate-400 dark:text-[#666666] italic py-2">Chưa có ghi chú nào. Bấm "+ Thêm" để tạo.</p>
           ) : (
             recentSortedNotes.slice(0, 3).map(note => (
             <div
               key={note.id}
               onClick={() => setActiveTab('notes')}
-              className="p-3 rounded-sm bg-[#0C0C0C] border border-[#2A2A2A] hover:border-[#D4AF37]/50 transition-all cursor-pointer"
+              className="p-3 rounded-lg bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#2A2A2A] hover:border-blue-400 dark:hover:border-[#D4AF37]/50 transition-all cursor-pointer shadow-2xs"
             >
               <div className="flex items-center justify-between gap-2">
-                <h4 className="text-xs font-editorial-serif font-bold text-white truncate">{note.title}</h4>
-                <span className="text-[10px] font-mono text-[#888888] shrink-0">
+                <h4 className="text-xs font-editorial-serif font-bold text-slate-900 dark:text-white truncate">{note.title}</h4>
+                <span className="text-[10px] font-mono text-slate-500 dark:text-[#888888] shrink-0">
                   {new Date(note.noteDate || note.createdAt || note.updatedAt).toLocaleDateString('vi-VN')}
                 </span>
               </div>
-              <p className="text-[11px] font-editorial-serif italic text-[#AAAAAA] line-clamp-2 mt-1 leading-relaxed">"{note.content}"</p>
+              <p className="text-[11px] font-editorial-serif italic text-slate-600 dark:text-[#AAAAAA] line-clamp-2 mt-1 leading-relaxed">"{note.content}"</p>
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                 {note.tags.map((tag, i) => (
-                  <span key={i} className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-[#1A1A1A] text-[#888888] border border-[#2A2A2A]">
+                  <span key={i} className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-slate-200/70 text-slate-700 border border-slate-300 dark:bg-[#1A1A1A] dark:text-[#888888] dark:border-[#2A2A2A]">
                     #{tag}
                   </span>
                 ))}
@@ -4416,13 +4416,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Widget 3: Tóm Tắt Tình Trạng Đồng Bộ Google Drive & Tiết Kiệm Local */}
-      <div className="border border-[#2A2A2A] bg-[#151515] rounded-sm p-4 sm:p-5 space-y-3.5">
-        <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-2.5">
+      <div className="border border-slate-200/90 dark:border-[#2A2A2A] bg-white dark:bg-[#152033] rounded-xl p-4 sm:p-5 space-y-3.5 shadow-xs">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2A2A2A] pb-2.5">
           <div className="flex items-center gap-2">
-            <HardDrive className="w-4 h-4 text-[#D4AF37]" />
-            <h3 className="text-sm font-editorial-serif font-bold text-white">Đồng Bộ Drive & Bộ Nhớ</h3>
+            <HardDrive className="w-4 h-4 text-blue-600 dark:text-[#D4AF37]" />
+            <h3 className="text-sm font-editorial-serif font-bold text-slate-900 dark:text-white">Đồng Bộ Drive & Bộ Nhớ</h3>
           </div>
-          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-sm bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-sm bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800/60">
             {driveStats.syncRatio}% Đã lên Drive
           </span>
         </div>
@@ -4430,12 +4430,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Progress Bar */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-[#888888]">Tiến độ lưu trữ đám mây</span>
-            <span className="font-mono text-[#E0E0E0] font-semibold">{driveStats.syncedCount} / {driveStats.totalFiles} tệp</span>
+            <span className="text-slate-500 dark:text-[#888888]">Tiến độ lưu trữ đám mây</span>
+            <span className="font-mono text-slate-800 dark:text-[#E0E0E0] font-semibold">{driveStats.syncedCount} / {driveStats.totalFiles} tệp</span>
           </div>
-          <div className="w-full h-2 bg-[#0C0C0C] rounded-full border border-[#2A2A2A] overflow-hidden">
+          <div className="w-full h-2 bg-slate-100 dark:bg-[#0C0C0C] rounded-full border border-slate-200 dark:border-[#2A2A2A] overflow-hidden">
             <div
-              className="h-full bg-linear-to-r from-[#D4AF37] to-emerald-400 transition-all duration-500 rounded-full"
+              className="h-full bg-linear-to-r from-blue-600 to-emerald-400 dark:from-[#D4AF37] dark:to-emerald-400 transition-all duration-500 rounded-full"
               style={{ width: `${Math.max(driveStats.syncRatio, 5)}%` }}
             />
           </div>
@@ -4443,33 +4443,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Highlight Stats: Saved Local vs Total */}
         <div className="grid grid-cols-2 gap-2 pt-1">
-          <div className="p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm">
-            <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold block">Đã Tiết Kiệm</span>
-            <span className="text-base font-bold font-mono text-emerald-300">{driveStats.savedMb} MB</span>
-            <span className="text-[10px] text-[#777777] block mt-0.5">Dọn dẹp tệp local</span>
+          <div className="p-2.5 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#2A2A2A] rounded-lg">
+            <span className="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold block">Đã Tiết Kiệm</span>
+            <span className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-300">{driveStats.savedMb} MB</span>
+            <span className="text-[10px] text-slate-500 dark:text-[#777777] block mt-0.5">Dọn dẹp tệp local</span>
           </div>
-          <div className="p-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm">
-            <span className="text-[10px] uppercase tracking-wider text-[#D4AF37] font-bold block">Tổng Kho Tệp</span>
-            <span className="text-base font-bold font-mono text-white">{driveStats.totalMb} MB</span>
-            <span className="text-[10px] text-[#777777] block mt-0.5">{driveStats.totalFiles} tài liệu lưu trữ</span>
+          <div className="p-2.5 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200/80 dark:border-[#2A2A2A] rounded-lg">
+            <span className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-[#D4AF37] font-bold block">Tổng Kho Tệp</span>
+            <span className="text-base font-bold font-mono text-slate-900 dark:text-white">{driveStats.totalMb} MB</span>
+            <span className="text-[10px] text-slate-500 dark:text-[#777777] block mt-0.5">{driveStats.totalFiles} tài liệu lưu trữ</span>
           </div>
         </div>
 
         {/* Breakdown Badges */}
         <div className="flex items-center gap-1.5 flex-wrap text-[10px] pt-0.5">
-          <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] text-emerald-400 border border-emerald-800/40 font-mono">
+          <span className="px-2 py-0.5 rounded-xs bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-[#1A1A1A] dark:text-emerald-400 dark:border-emerald-800/40 font-mono">
             ✓ Đã sync: {driveStats.syncedCount}
           </span>
           {driveStats.localOnlyCount > 0 ? (
-            <span className="px-2 py-0.5 rounded-xs bg-amber-950/40 text-amber-300 border border-amber-800/40 font-mono">
+            <span className="px-2 py-0.5 rounded-xs bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40 font-mono">
               ⚠ Chỉ local: {driveStats.localOnlyCount}
             </span>
           ) : (
-            <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] text-[#888888] border border-[#2A2A2A] font-mono">
+            <span className="px-2 py-0.5 rounded-xs bg-slate-100 text-slate-600 border border-slate-200 dark:bg-[#1A1A1A] dark:text-[#888888] dark:border-[#2A2A2A] font-mono">
               100% Đã an toàn
             </span>
           )}
-          <span className="px-2 py-0.5 rounded-xs bg-[#1A1A1A] text-[#AAAAAA] border border-[#2A2A2A] font-mono">
+          <span className="px-2 py-0.5 rounded-xs bg-slate-100 text-slate-600 border border-slate-200 dark:bg-[#1A1A1A] dark:text-[#AAAAAA] dark:border-[#2A2A2A] font-mono">
             🗑 Đã dọn: {driveStats.purgedCount}
           </span>
         </div>

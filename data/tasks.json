@@ -1,183 +1,183 @@
 [
   {
-    "order": 1,
-    "updatedAt": "2026-09-22T12:41:01.170Z",
-    "status": "completed",
-    "id": "task-1787656552066",
-    "reminderOffsetMinutes": 120,
+    "description": "Hoàn thành nộp hồ sơ xin cấp chứng chỉ nhân viên bức xạ gửi vè sở khoa học công nghệ",
+    "createdAt": "2026-08-25T11:15:52.066Z",
     "recurring": {
       "type": "none"
     },
-    "description": "Hoàn thành nộp hồ sơ xin cấp chứng chỉ nhân viên bức xạ gửi vè sở khoa học công nghệ",
-    "deadline": "2026-09-10T09:15:00.000Z",
-    "createdAt": "2026-08-25T11:15:52.066Z",
-    "priority": "high",
+    "reminderOffsetMinutes": 120,
+    "order": 1,
+    "updatedAt": "2026-09-22T12:41:01.170Z",
     "isNotified": false,
-    "title": "Xin cấp chứng chỉ nhân viên bức xạ",
-    "tags": [
-      "Công việc"
-    ],
+    "id": "task-1787656552066",
     "attachedFileIds": [
       "file-1787822331364",
       "file-1787822331363",
       "file-1787821406563",
       "file-1787820146806",
       "file-1787820146805"
-    ]
+    ],
+    "deadline": "2026-09-10T09:15:00.000Z",
+    "tags": [
+      "Công việc"
+    ],
+    "status": "completed",
+    "priority": "high",
+    "title": "Xin cấp chứng chỉ nhân viên bức xạ"
   },
   {
-    "title": "Tham dự lễ kết nạp Đảng",
-    "lastNotifiedAt": "2026-08-26T08:00:20.743Z",
-    "id": "task-1787656644725",
-    "description": "Tham dự lễ và kết nạp Đảng viên dự bị",
-    "attachedFileIds": [],
-    "isNotified": true,
-    "order": 2,
-    "deadline": "2026-08-26T08:30:00.000Z",
-    "priority": "medium",
     "reminderOffsetMinutes": 30,
+    "order": 2,
+    "priority": "medium",
+    "recurring": {
+      "type": "none"
+    },
+    "createdAt": "2026-08-25T11:17:24.725Z",
     "updatedAt": "2026-09-22T12:41:01.171Z",
+    "id": "task-1787656644725",
+    "deadline": "2026-08-26T08:30:00.000Z",
+    "status": "completed",
     "tags": [
       "Cá nhân"
     ],
-    "createdAt": "2026-08-25T11:17:24.725Z",
-    "status": "completed",
-    "recurring": {
-      "type": "none"
-    }
+    "title": "Tham dự lễ kết nạp Đảng",
+    "description": "Tham dự lễ và kết nạp Đảng viên dự bị",
+    "attachedFileIds": [],
+    "isNotified": true,
+    "lastNotifiedAt": "2026-08-26T08:00:20.743Z"
   },
   {
-    "tags": [
-      "Công việc"
-    ],
-    "lastNotifiedAt": "2026-08-29T02:12:19.606Z",
-    "updatedAt": "2026-09-22T12:41:01.173Z",
     "id": "task-1787713081768",
+    "title": "Kiểm định máy",
+    "description": "Kiểm định toàn bộ máy chụp X Quang, máy chụp CLVT, chú ý kiểm định cả 3 máy điện tim (phòng Nội Soi, Điện tim, Khoa Mắt)",
+    "isNotified": true,
+    "reminderOffsetMinutes": 15,
+    "updatedAt": "2026-09-22T12:41:01.173Z",
+    "deadline": "2026-08-29T02:27:00.000Z",
     "attachedFileIds": [],
+    "order": 3,
+    "priority": "medium",
     "recurring": {
       "type": "none"
     },
-    "title": "Kiểm định máy",
+    "lastNotifiedAt": "2026-08-29T02:12:19.606Z",
+    "tags": [
+      "Công việc"
+    ],
     "createdAt": "2026-08-26T02:58:01.768Z",
-    "reminderOffsetMinutes": 15,
-    "description": "Kiểm định toàn bộ máy chụp X Quang, máy chụp CLVT, chú ý kiểm định cả 3 máy điện tim (phòng Nội Soi, Điện tim, Khoa Mắt)",
-    "priority": "medium",
-    "deadline": "2026-08-29T02:27:00.000Z",
-    "isNotified": true,
-    "order": 3,
     "status": "completed"
   },
   {
-    "overdueReminderCount": 5,
-    "lastNotifiedAt": "2026-09-24T14:55:45.631Z",
-    "reminderOffsetMinutes": 1440,
-    "isNotified": false,
-    "lastOverdueNotifiedAt": "2026-09-25T15:42:26.494Z",
-    "priority": "medium",
-    "order": 0,
     "deadline": "2026-12-25T12:17:00.000Z",
-    "attachedFileIds": [],
-    "updatedAt": "2026-09-25T15:43:30.784Z",
+    "lastNotifiedAt": "2026-09-24T14:55:45.631Z",
+    "isNotified": false,
+    "createdAt": "2026-09-22T12:40:53.521Z",
+    "order": 0,
+    "id": "task-1790080853521",
+    "status": "in_progress",
+    "recurring": {
+      "completedCycles": 1,
+      "originalDeadline": "2026-09-25T12:17:00.000Z",
+      "interval": 3,
+      "type": "interval",
+      "repeatOnComplete": true,
+      "unit": "month",
+      "lastCompletedAt": "2026-09-25T15:43:30.448Z"
+    },
     "tags": [
       "Công việc"
     ],
-    "recurring": {
-      "type": "interval",
-      "interval": 3,
-      "completedCycles": 1,
-      "originalDeadline": "2026-09-25T12:17:00.000Z",
-      "lastCompletedAt": "2026-09-25T15:43:30.448Z",
-      "repeatOnComplete": true,
-      "unit": "month"
-    },
-    "id": "task-1790080853521",
+    "priority": "medium",
     "description": "Gửi liều kế cá nhân của nhân viên x quang đi đọc kết quả theo địa chỉ:\nVũ Xuân Thành SĐT: 0834705874 - 0969227961\nTrung tâm đánh giá không phá hủy , 140 đường Nguyễn Tuân, phường Thanh Xuân Trung, quận Thanh Xuân, Hà Nội",
-    "status": "in_progress",
-    "createdAt": "2026-09-22T12:40:53.521Z",
-    "title": "Gửi liều kế cá nhân"
+    "lastOverdueNotifiedAt": "2026-09-25T15:42:26.494Z",
+    "updatedAt": "2026-09-25T15:43:30.784Z",
+    "reminderOffsetMinutes": 1440,
+    "title": "Gửi liều kế cá nhân",
+    "overdueReminderCount": 5,
+    "attachedFileIds": []
   },
   {
     "recurring": {
       "type": "none"
     },
     "createdAt": "2026-11-02T04:13:24.263Z",
+    "updatedAt": "2026-11-02T04:13:24.263Z",
+    "attachedFileIds": [],
+    "reminderOffsetMinutes": 30,
+    "description": "Thực hiện bảo dưỡng định kỳ máy X-quang diễn ra trong 2 ngày (08/11/2026 - 09/11/2026).",
+    "priority": "high",
+    "status": "todo",
+    "isNotified": false,
+    "id": "task-1793592804263",
+    "deadline": "2026-11-09T10:00:00.000Z",
+    "title": "Bảo dưỡng máy X-quang",
     "tags": [
       "Công việc",
       "Bảo dưỡng",
       "X-quang"
-    ],
-    "status": "todo",
-    "updatedAt": "2026-11-02T04:13:24.263Z",
-    "attachedFileIds": [],
-    "id": "task-1793592804263",
-    "isNotified": false,
-    "description": "Thực hiện bảo dưỡng định kỳ máy X-quang diễn ra trong 2 ngày (08/11/2026 - 09/11/2026).",
-    "reminderOffsetMinutes": 30,
-    "title": "Bảo dưỡng máy X-quang",
-    "deadline": "2026-11-09T10:00:00.000Z",
-    "priority": "high"
+    ]
   },
   {
-    "isNotified": false,
+    "deadline": "2026-11-10T10:00:00.000Z",
     "status": "todo",
-    "description": "Thực hiện bảo dưỡng định kỳ máy siêu âm vào ngày 10/11/2026.",
+    "updatedAt": "2026-11-02T04:13:24.266Z",
+    "attachedFileIds": [],
+    "title": "Bảo dưỡng máy siêu âm",
+    "isNotified": false,
     "reminderOffsetMinutes": 15,
+    "priority": "medium",
+    "createdAt": "2026-11-02T04:13:24.266Z",
+    "id": "task-1793592804266",
     "recurring": {
       "type": "none"
     },
-    "title": "Bảo dưỡng máy siêu âm",
-    "attachedFileIds": [],
-    "createdAt": "2026-11-02T04:13:24.266Z",
+    "description": "Thực hiện bảo dưỡng định kỳ máy siêu âm vào ngày 10/11/2026.",
     "tags": [
       "Công việc",
       "Bảo dưỡng",
       "Siêu âm"
-    ],
-    "updatedAt": "2026-11-02T04:13:24.266Z",
-    "id": "task-1793592804266",
-    "deadline": "2026-11-10T10:00:00.000Z",
-    "priority": "medium"
+    ]
   },
   {
+    "isNotified": false,
+    "deadline": "2026-11-13T05:00:00.000Z",
+    "description": "Thực hiện bảo dưỡng máy điện tim và lưu huyết não (LHN) vào buổi sáng ngày 13/11/2026.",
+    "priority": "medium",
+    "id": "task-1793592804269",
+    "attachedFileIds": [],
+    "createdAt": "2026-11-02T04:13:24.269Z",
+    "title": "Bảo dưỡng máy điện tim + LHN",
     "recurring": {
       "type": "none"
     },
+    "reminderOffsetMinutes": 15,
     "tags": [
       "Công việc",
       "Bảo dưỡng",
       "Điện tim"
     ],
-    "createdAt": "2026-11-02T04:13:24.269Z",
-    "description": "Thực hiện bảo dưỡng máy điện tim và lưu huyết não (LHN) vào buổi sáng ngày 13/11/2026.",
-    "updatedAt": "2026-11-02T04:13:24.270Z",
     "status": "todo",
-    "isNotified": false,
-    "id": "task-1793592804269",
-    "deadline": "2026-11-13T05:00:00.000Z",
-    "priority": "medium",
-    "reminderOffsetMinutes": 15,
-    "title": "Bảo dưỡng máy điện tim + LHN",
-    "attachedFileIds": []
+    "updatedAt": "2026-11-02T04:13:24.270Z"
   },
   {
-    "id": "task-1793592804272",
-    "isNotified": false,
-    "attachedFileIds": [],
-    "recurring": {
-      "type": "none"
-    },
-    "priority": "medium",
-    "status": "todo",
-    "deadline": "2026-11-13T10:00:00.000Z",
+    "description": "Thực hiện bảo dưỡng máy nội soi vào buổi chiều ngày 13/11/2026.",
     "tags": [
       "Công việc",
       "Bảo dưỡng",
       "Nội soi"
     ],
+    "id": "task-1793592804272",
+    "status": "todo",
     "reminderOffsetMinutes": 15,
     "createdAt": "2026-11-02T04:13:24.272Z",
-    "updatedAt": "2026-11-02T04:13:24.272Z",
-    "description": "Thực hiện bảo dưỡng máy nội soi vào buổi chiều ngày 13/11/2026.",
-    "title": "Bảo dưỡng máy nội soi"
+    "priority": "medium",
+    "isNotified": false,
+    "recurring": {
+      "type": "none"
+    },
+    "deadline": "2026-11-13T10:00:00.000Z",
+    "title": "Bảo dưỡng máy nội soi",
+    "attachedFileIds": [],
+    "updatedAt": "2026-11-02T04:13:24.272Z"
   }
 ]

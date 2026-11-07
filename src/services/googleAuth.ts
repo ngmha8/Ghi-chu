@@ -7,22 +7,35 @@ export interface GoogleOAuthUser {
   photoURL: string | null;
 }
 
+export type GoogleAuthStatus = 'authenticated' | 'expired' | 'unauthenticated';
+
 // In-memory & storage token cache
 const OAUTH_TOKEN_KEY = 'google_oauth_access_token';
 const OAUTH_USER_KEY = 'google_oauth_user_profile';
+const OAUTH_EXPIRES_AT_KEY = 'google_oauth_expires_at';
 const CUSTOM_CLIENT_ID_KEY = 'app_custom_google_client_id';
 
-let cachedAccessToken: string | null = typeof window !== 'undefined' ? (sessionStorage.getItem(OAUTH_TOKEN_KEY) || localStorage.getItem(OAUTH_TOKEN_KEY)) : null;
+let cachedAccessToken: string | null = typeof window !== 'undefined'
+  ? (sessionStorage.getItem(OAUTH_TOKEN_KEY) || localStorage.getItem(OAUTH_TOKEN_KEY))
+  : null;
+
 let cachedUser: GoogleOAuthUser | null = null;
+let cachedExpiresAt: number | null = null;
 
 if (typeof window !== 'undefined') {
   try {
     const rawUser = sessionStorage.getItem(OAUTH_USER_KEY) || localStorage.getItem(OAUTH_USER_KEY);
     if (rawUser) cachedUser = JSON.parse(rawUser);
-  } catch (e) {}
+
+    const rawExp = sessionStorage.getItem(OAUTH_EXPIRES_AT_KEY) || localStorage.getItem(OAUTH_EXPIRES_AT_KEY);
+    if (rawExp) cachedExpiresAt = parseInt(rawExp, 10) || null;
+  } catch (e) {
+    console.warn('Error reading cached Google Auth:', e);
+  }
 }
 
-const authListeners = new Set<(user: GoogleOAuthUser | null, token: string | null) => void>();
+type AuthListener = (user: GoogleOAuthUser | null, token: string | null, status?: GoogleAuthStatus) => void;
+const authListeners = new Set<AuthListener>();
 
 declare global {
   interface Window {
@@ -50,6 +63,63 @@ export function setCustomGoogleClientId(clientId: string): void {
     localStorage.setItem(CUSTOM_CLIENT_ID_KEY, clientId.trim());
   }
 }
+
+/**
+ * Synchronous getter for cached user profile
+ */
+export const getCachedGoogleUser = (): GoogleOAuthUser | null => {
+  if (!cachedUser && typeof window !== 'undefined') {
+    try {
+      const rawUser = sessionStorage.getItem(OAUTH_USER_KEY) || localStorage.getItem(OAUTH_USER_KEY);
+      if (rawUser) cachedUser = JSON.parse(rawUser);
+    } catch (e) {}
+  }
+  return cachedUser;
+};
+
+/**
+ * Check if the stored Google access token is expired based on timestamp
+ */
+export const isGoogleTokenExpired = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const token = getGoogleAccessToken();
+  if (!token) return true;
+
+  if (cachedExpiresAt) {
+    return Date.now() >= cachedExpiresAt;
+  }
+  const rawExp = sessionStorage.getItem(OAUTH_EXPIRES_AT_KEY) || localStorage.getItem(OAUTH_EXPIRES_AT_KEY);
+  if (rawExp) {
+    const exp = parseInt(rawExp, 10);
+    if (!isNaN(exp)) {
+      cachedExpiresAt = exp;
+      return Date.now() >= exp;
+    }
+  }
+  return false;
+};
+
+/**
+ * Get the current comprehensive Google Auth snapshot
+ */
+export const getGoogleAuthSnapshot = (): {
+  status: GoogleAuthStatus;
+  user: GoogleOAuthUser | null;
+  token: string | null;
+  expiresAt: number | null;
+} => {
+  const token = getGoogleAccessToken();
+  const user = getCachedGoogleUser();
+  const expired = isGoogleTokenExpired();
+
+  if (token && user && !expired) {
+    return { status: 'authenticated', user, token, expiresAt: cachedExpiresAt };
+  } else if (token && user && expired) {
+    return { status: 'expired', user, token, expiresAt: cachedExpiresAt };
+  } else {
+    return { status: 'unauthenticated', user: null, token: null, expiresAt: null };
+  }
+};
 
 /**
  * Load Google Identity Services script dynamically
@@ -84,15 +154,110 @@ export function loadGoogleGisScript(): Promise<void> {
 }
 
 /**
+ * Proactively validate token with Google APIs
+ */
+export const validateGoogleAccessToken = async (
+  tokenToCheck?: string
+): Promise<{ valid: boolean; user?: GoogleOAuthUser | null; reason?: string }> => {
+  const token = tokenToCheck || getGoogleAccessToken();
+  if (!token) {
+    return { valid: false, reason: 'Chưa có token' };
+  }
+
+  // Check client-side expiry first
+  if (isGoogleTokenExpired()) {
+    // Session expired
+    const snapshot = getGoogleAuthSnapshot();
+    authListeners.forEach(fn => fn(snapshot.user, token, 'expired'));
+    return { valid: false, user: snapshot.user, reason: 'Token đã hết hạn' };
+  }
+
+  try {
+    const res = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(token)}`);
+    if (res.ok) {
+      const info = await res.json();
+      // Token is active and recognized by Google
+      const curUser = getCachedGoogleUser();
+      const updatedUser: GoogleOAuthUser = {
+        uid: curUser?.uid || info.sub || 'google_user',
+        displayName: curUser?.displayName || info.email || 'Tài khoản Google',
+        email: info.email || curUser?.email || null,
+        photoURL: curUser?.photoURL || null,
+      };
+
+      cachedUser = updatedUser;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(OAUTH_USER_KEY, JSON.stringify(updatedUser));
+        localStorage.setItem(OAUTH_USER_KEY, JSON.stringify(updatedUser));
+      }
+
+      authListeners.forEach(fn => fn(updatedUser, token, 'authenticated'));
+      return { valid: true, user: updatedUser };
+    } else {
+      // Google rejected token (400 or 401)
+      console.warn('Google token validation failed:', res.status);
+      const curUser = getCachedGoogleUser();
+      // Mark as expired / invalid
+      authListeners.forEach(fn => fn(curUser, token, 'expired'));
+      return { valid: false, user: curUser, reason: 'Phiên Google đã hết hạn trên máy chủ Google' };
+    }
+  } catch (err) {
+    // If offline / network error, don't invalidate aggressively
+    console.warn('Unable to reach Google token validation service:', err);
+    return { valid: true, user: getCachedGoogleUser() };
+  }
+};
+
+/**
+ * Sync state across tabs or after external storage changes
+ */
+export const syncAuthStateFromStorage = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const token = sessionStorage.getItem(OAUTH_TOKEN_KEY) || localStorage.getItem(OAUTH_TOKEN_KEY);
+    const rawUser = sessionStorage.getItem(OAUTH_USER_KEY) || localStorage.getItem(OAUTH_USER_KEY);
+    const rawExp = sessionStorage.getItem(OAUTH_EXPIRES_AT_KEY) || localStorage.getItem(OAUTH_EXPIRES_AT_KEY);
+
+    cachedAccessToken = token;
+    cachedUser = rawUser ? JSON.parse(rawUser) : null;
+    cachedExpiresAt = rawExp ? parseInt(rawExp, 10) : null;
+
+    const snapshot = getGoogleAuthSnapshot();
+    authListeners.forEach(fn => fn(snapshot.user, snapshot.token, snapshot.status));
+  } catch (e) {
+    console.warn('Error syncing auth state from storage:', e);
+  }
+};
+
+// Cross-tab and window focus listeners
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === OAUTH_TOKEN_KEY || e.key === OAUTH_USER_KEY || e.key === OAUTH_EXPIRES_AT_KEY) {
+      syncAuthStateFromStorage();
+    }
+  });
+
+  // Re-check validity when user returns to the tab
+  window.addEventListener('focus', () => {
+    const token = getGoogleAccessToken();
+    if (token) {
+      validateGoogleAccessToken(token).catch(() => {});
+    }
+  });
+}
+
+/**
  * Listen to Google Auth state
  */
 export const initGoogleAuth = (
-  onSuccess?: (user: any, token: string | null) => void,
+  onSuccess?: (user: GoogleOAuthUser | null, token: string | null, status?: GoogleAuthStatus) => void,
   onFailure?: () => void
 ) => {
-  const listener = (user: GoogleOAuthUser | null, token: string | null) => {
-    if (user && token) {
-      if (onSuccess) onSuccess(user, token);
+  const listener: AuthListener = (user, token, status) => {
+    if (user && token && status !== 'expired') {
+      if (onSuccess) onSuccess(user, token, status || 'authenticated');
+    } else if (status === 'expired') {
+      if (onSuccess) onSuccess(user, token, 'expired');
     } else {
       if (onFailure) onFailure();
     }
@@ -100,9 +265,18 @@ export const initGoogleAuth = (
 
   authListeners.add(listener);
 
-  // Initial trigger if already logged in
-  if (cachedUser && cachedAccessToken) {
-    listener(cachedUser, cachedAccessToken);
+  // Initial trigger with snapshot
+  const snapshot = getGoogleAuthSnapshot();
+  if (snapshot.status === 'authenticated') {
+    listener(snapshot.user, snapshot.token, 'authenticated');
+    // Also perform silent async verification in background
+    if (snapshot.token) {
+      validateGoogleAccessToken(snapshot.token).catch(() => {});
+    }
+  } else if (snapshot.status === 'expired') {
+    listener(snapshot.user, snapshot.token, 'expired');
+  } else {
+    listener(null, null, 'unauthenticated');
   }
 
   return () => {
@@ -148,9 +322,17 @@ export const signInWithGoogleWorkspace = async (): Promise<{
           const accessToken = response.access_token;
           cachedAccessToken = accessToken;
 
+          const expiresInSec = typeof response.expires_in === 'number'
+            ? response.expires_in
+            : parseInt(response.expires_in, 10) || 3600;
+          const expiresAt = Date.now() + (expiresInSec * 1000);
+          cachedExpiresAt = expiresAt;
+
           if (typeof window !== 'undefined') {
             sessionStorage.setItem(OAUTH_TOKEN_KEY, accessToken);
             localStorage.setItem(OAUTH_TOKEN_KEY, accessToken);
+            sessionStorage.setItem(OAUTH_EXPIRES_AT_KEY, String(expiresAt));
+            localStorage.setItem(OAUTH_EXPIRES_AT_KEY, String(expiresAt));
           }
 
           // Fetch user profile info
@@ -185,12 +367,11 @@ export const signInWithGoogleWorkspace = async (): Promise<{
           }
 
           // Notify listeners
-          authListeners.forEach(fn => fn(userProfile, accessToken));
+          authListeners.forEach(fn => fn(userProfile, accessToken, 'authenticated'));
 
           resolve({ user: userProfile, accessToken });
         },
         error_callback: (err: any) => {
-          // If the user closed the popup window manually, treat as cancellation rather than hard error
           const msg = err?.message || err?.type || '';
           if (err?.type === 'popup_closed' || msg.toLowerCase().includes('popup window closed') || msg.toLowerCase().includes('popup_closed')) {
             reject(new Error('Đã đóng cửa sổ đăng nhập Google. Nếu gặp thông báo origin_mismatch, hãy sao chép link trang web hiện tại và thêm vào mục Authorized JavaScript origins trong Google Cloud Console.'));
@@ -229,6 +410,8 @@ export const setGoogleAccessToken = (token: string | null) => {
     } else {
       sessionStorage.removeItem(OAUTH_TOKEN_KEY);
       localStorage.removeItem(OAUTH_TOKEN_KEY);
+      sessionStorage.removeItem(OAUTH_EXPIRES_AT_KEY);
+      localStorage.removeItem(OAUTH_EXPIRES_AT_KEY);
     }
   }
 };
@@ -242,12 +425,16 @@ export const googleSignOut = async () => {
   }
   cachedAccessToken = null;
   cachedUser = null;
+  cachedExpiresAt = null;
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem(OAUTH_TOKEN_KEY);
     localStorage.removeItem(OAUTH_TOKEN_KEY);
     sessionStorage.removeItem(OAUTH_USER_KEY);
     localStorage.removeItem(OAUTH_USER_KEY);
+    sessionStorage.removeItem(OAUTH_EXPIRES_AT_KEY);
+    localStorage.removeItem(OAUTH_EXPIRES_AT_KEY);
   }
-  authListeners.forEach(fn => fn(null, null));
+  authListeners.forEach(fn => fn(null, null, 'unauthenticated'));
 };
+
 

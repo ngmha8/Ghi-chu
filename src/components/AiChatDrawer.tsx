@@ -177,22 +177,22 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[540px] bg-[#0F0F0F] border-l border-[#2A2A2A] shadow-2xl flex flex-col transition-all duration-300">
+    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[540px] bg-[#0B1220] border-l border-[#22334D] shadow-2xl flex flex-col transition-all duration-300">
       
       {/* Drawer Header */}
-      <div className="p-4 bg-[#151515] border-b border-[#2A2A2A] flex items-center justify-between">
+      <div className="p-4 bg-[#131E31] border-b border-[#22334D] flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-sm bg-[#1A1A1A] border border-[#D4AF37]/50 flex items-center justify-center shadow-inner">
-            <Sparkles className="w-4.5 h-4.5 text-[#D4AF37]" />
+          <div className="w-9 h-9 rounded-lg bg-blue-600/15 border border-blue-500/30 flex items-center justify-center shadow-inner">
+            <Sparkles className="w-4.5 h-4.5 text-blue-400" />
           </div>
           <div>
-            <h2 className="text-sm font-editorial-serif font-bold text-white flex items-center gap-2">
+            <h2 className="text-sm font-sans font-bold text-white flex items-center gap-2">
               <span>Senior AI Executive Companion</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0C0C0C] text-[#D4AF37] border border-[#D4AF37]/40 font-mono tracking-wider">
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0D1524] text-blue-300 border border-blue-700/50 font-mono tracking-wider">
                 Gemini 3.8 Flash • Stream
               </span>
             </h2>
-            <p className="text-[10px] text-[#888888] italic">
+            <p className="text-[10px] text-slate-400">
               {personaConfig?.userHonorific ? `Gọi bạn: ${personaConfig.userHonorific}` : 'Đồng hành nhân văn'} • {personaConfig?.aiHonorific ? `AI: ${personaConfig.aiHonorific}` : 'Phân tích sắc sảo'} • Trực tiếp Firestore
             </p>
           </div>
@@ -527,7 +527,7 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
       </div>
 
       {/* Input Box */}
-      <form onSubmit={handleSend} className="p-3 bg-[#151515] border-t border-[#2A2A2A] space-y-2">
+      <form onSubmit={handleSend} className="p-3 bg-[#131E31] border-t border-[#22334D] space-y-2">
         <div className="relative flex items-center gap-1.5">
           <input
             type="text"
@@ -541,7 +541,7 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={isLoading}
-            className="flex-1 pl-3.5 pr-2 py-2.5 bg-[#0C0C0C] border border-[#2A2A2A] rounded-sm text-xs text-[#E0E0E0] placeholder-[#666666] focus:outline-none focus:border-[#D4AF37] transition-colors"
+            className="flex-1 pl-3.5 pr-2 py-2.5 bg-[#0D1524] border border-[#22334D] rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
           />
 
           <VoiceInputButton
@@ -555,7 +555,7 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
           <button
             type="submit"
             disabled={!inputText.trim() || isLoading}
-            className="p-2 rounded-sm bg-[#D4AF37] hover:bg-[#c29f2e] disabled:opacity-50 text-black transition-colors cursor-pointer shadow-sm flex items-center justify-center shrink-0"
+            className="p-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition-colors cursor-pointer shadow-sm flex items-center justify-center shrink-0"
           >
             <Send className="w-4 h-4" />
           </button>

@@ -532,7 +532,58 @@ export const api = {
     return data;
   },
 
-  cleanDriveDuplicates: async (folderId?: string): Promise<{
+  scanDriveDuplicates: async (folderId?: string, scope: 'folder' | 'all' = 'folder'): Promise<{
+    success: boolean;
+    scope: 'folder' | 'all';
+    totalScanned: number;
+    totalGroups: number;
+    totalDuplicateFiles: number;
+    totalSpaceReclaimable: number;
+    groups: Array<{
+      name: string;
+      keeper: {
+        id: string;
+        name: string;
+        size?: string;
+        sizeNumber: number;
+        modifiedTime?: string;
+        webViewLink?: string;
+      };
+      duplicates: Array<{
+        id: string;
+        name: string;
+        size?: string;
+        sizeNumber: number;
+        modifiedTime?: string;
+        webViewLink?: string;
+        isStub: boolean;
+      }>;
+      totalCopies: number;
+      reclaimableBytes: number;
+    }>;
+  }> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('google_access_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch('/api/drive-service-account/scan-duplicates', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ folderId, scope }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data?.error || 'Lỗi khi quét tệp trùng lặp trên Google Drive');
+    }
+    return data;
+  },
+
+  cleanDriveDuplicates: async (
+    folderId?: string,
+    scope: 'folder' | 'all' = 'folder',
+    specificFileIds?: string[]
+  ): Promise<{
     success: boolean;
     cleanedCount: number;
     details: string[];
@@ -547,7 +598,7 @@ export const api = {
     const res = await fetch('/api/drive-service-account/clean-duplicates', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ folderId }),
+      body: JSON.stringify({ folderId, scope, specificFileIds }),
     });
     const data = await res.json();
     if (!res.ok || !data.success) {

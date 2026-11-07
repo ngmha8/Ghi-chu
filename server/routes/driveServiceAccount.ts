@@ -194,43 +194,56 @@ router.get('/download/:driveFileId', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/drive-service-account/clean-duplicates - Intelligent Deduplication on Google Drive
-router.post('/clean-duplicates', async (req: Request, res: Response) => {
+// Helper: Fetch Google Drive files with pagination
+async function fetchDriveFilesPaginated(token: string, query: string, maxPages = 4): Promise<any[]> {
+  let allFiles: any[] = [];
+  let pageToken: string | undefined = undefined;
+  const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType,size,modifiedTime,createdTime,webViewLink)');
+
+  for (let page = 0; page < maxPages; page++) {
+    const pageTokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&pageSize=250&supportsAllDrives=true&includeItemsFromAllDrives=true${pageTokenParam}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      break;
+    }
+    const data: any = await res.json().catch(() => ({}));
+    if (data.files && Array.isArray(data.files)) {
+      allFiles = allFiles.concat(data.files);
+    }
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
+  }
+
+  return allFiles;
+}
+
+// POST /api/drive-service-account/scan-duplicates - Inspect & Detect Duplicate Files on Google Drive
+router.post('/scan-duplicates', async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers.authorization;
     const userToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
     const config = await getDbDriveServiceAccountConfig();
-    const folderId = req.body?.folderId || config.folderId;
-
-    if (!folderId) {
-      return res.status(400).json({ error: 'Chưa cấu hình Folder ID Google Drive' });
-    }
+    const scope = req.body?.scope === 'all' ? 'all' : 'folder';
+    const folderId = req.body?.folderId || config?.folderId;
 
     let token = userToken;
-    if (!token && config.clientEmail && config.privateKey) {
+    if (!token && config?.clientEmail && config?.privateKey) {
       token = await getServiceAccountAccessToken(config.clientEmail, config.privateKey);
     }
 
     if (!token) {
-      return res.status(401).json({ error: 'Yêu cầu đăng nhập Google hoặc cấu hình Service Account' });
+      return res.status(401).json({ error: 'Yêu cầu đăng nhập Google Drive để quét tệp trùng lặp' });
     }
 
-    // List all non-trashed files in this folder
-    const cleanFolderId = folderId.trim();
-    const q = encodeURIComponent(`'${cleanFolderId}' in parents and trashed = false`);
-    const fields = encodeURIComponent('files(id,name,mimeType,size,modifiedTime,createdTime,webViewLink)');
-    const listRes = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&pageSize=300&supportsAllDrives=true&includeItemsFromAllDrives=true`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-    const listData = await listRes.json();
-    if (!listRes.ok) {
-      throw new Error(listData?.error?.message || 'Không thể liệt kê tệp từ Google Drive');
+    // Determine query by scope
+    let q = "trashed = false and mimeType != 'application/vnd.google-apps.folder'";
+    if (scope === 'folder' && folderId && folderId.trim().length > 0) {
+      q = `'${folderId.trim()}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
     }
 
-    const driveFiles: any[] = listData.files || [];
+    const driveFiles = await fetchDriveFilesPaginated(token, q, 4);
+
     // Group files by normalized filename
     const groups: Record<string, any[]> = {};
     for (const f of driveFiles) {
@@ -239,63 +252,201 @@ router.post('/clean-duplicates', async (req: Request, res: Response) => {
       groups[key].push(f);
     }
 
-    let cleanedCount = 0;
-    const details: string[] = [];
-    const keepersToUpdate: any[] = [];
+    const duplicateGroups: Array<{
+      name: string;
+      keeper: any;
+      duplicates: any[];
+      totalCopies: number;
+      reclaimableBytes: number;
+    }> = [];
 
-    for (const [nameKey, fileList] of Object.entries(groups)) {
+    let totalDuplicateFiles = 0;
+    let totalSpaceReclaimable = 0;
+
+    for (const [, fileList] of Object.entries(groups)) {
       if (fileList.length > 1) {
-        // Sort: Genuine files (size >= 1000B) first; then larger files; then newer modifiedTime
+        // Sort: Non-stubs (size >= 1000) first, then largest size, then newest modifiedTime
         fileList.sort((a, b) => {
           const sizeA = parseInt(a.size || '0', 10);
           const sizeB = parseInt(b.size || '0', 10);
           const isAStub = sizeA < 1000;
           const isBStub = sizeB < 1000;
-          if (isAStub !== isBStub) {
-            return isAStub ? 1 : -1; // non-stubs first
-          }
-          if (sizeA !== sizeB) {
-            return sizeB - sizeA; // larger file first
-          }
+          if (isAStub !== isBStub) return isAStub ? 1 : -1;
+          if (sizeA !== sizeB) return sizeB - sizeA;
           const timeA = new Date(a.modifiedTime || a.createdTime || 0).getTime();
           const timeB = new Date(b.modifiedTime || b.createdTime || 0).getTime();
           return timeB - timeA;
         });
 
         const keeper = fileList[0];
-        keepersToUpdate.push(keeper);
-        const duplicates = fileList.slice(1);
+        const duplicates = fileList.slice(1).map(dup => {
+          const size = parseInt(dup.size || '0', 10);
+          return {
+            ...dup,
+            sizeNumber: size,
+            isStub: size < 1000,
+          };
+        });
 
-        for (const dup of duplicates) {
-          try {
-            // Delete duplicate from Drive
-            const delRes = await fetch(
-              `https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`,
+        const reclaimableBytes = duplicates.reduce((acc, d) => acc + (d.sizeNumber || 0), 0);
+        totalDuplicateFiles += duplicates.length;
+        totalSpaceReclaimable += reclaimableBytes;
+
+        duplicateGroups.push({
+          name: keeper.name,
+          keeper: {
+            ...keeper,
+            sizeNumber: parseInt(keeper.size || '0', 10),
+          },
+          duplicates,
+          totalCopies: fileList.length,
+          reclaimableBytes,
+        });
+      }
+    }
+
+    // Sort groups with most duplicates or largest reclaimable bytes first
+    duplicateGroups.sort((a, b) => b.reclaimableBytes - a.reclaimableBytes || b.totalCopies - a.totalCopies);
+
+    res.json({
+      success: true,
+      scope,
+      totalScanned: driveFiles.length,
+      totalGroups: duplicateGroups.length,
+      totalDuplicateFiles,
+      totalSpaceReclaimable,
+      groups: duplicateGroups,
+    });
+  } catch (err: any) {
+    console.error('Scan duplicates error:', err);
+    res.status(500).json({ error: err?.message || 'Lỗi khi quét tệp trùng trên Google Drive' });
+  }
+});
+
+// POST /api/drive-service-account/clean-duplicates - Intelligent Deduplication on Google Drive
+router.post('/clean-duplicates', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const userToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const config = await getDbDriveServiceAccountConfig();
+    const scope = req.body?.scope === 'all' ? 'all' : 'folder';
+    const folderId = req.body?.folderId || config?.folderId;
+    const specificFileIds: string[] | undefined = Array.isArray(req.body?.specificFileIds) ? req.body.specificFileIds : undefined;
+
+    let token = userToken;
+    if (!token && config?.clientEmail && config?.privateKey) {
+      token = await getServiceAccountAccessToken(config.clientEmail, config.privateKey);
+    }
+
+    if (!token) {
+      return res.status(401).json({ error: 'Yêu cầu đăng nhập Google hoặc cấu hình Service Account' });
+    }
+
+    let cleanedCount = 0;
+    const details: string[] = [];
+    const keepersToUpdate: any[] = [];
+
+    // Case 1: Delete specific file IDs chosen by user
+    if (specificFileIds && specificFileIds.length > 0) {
+      for (const fileId of specificFileIds) {
+        try {
+          const delRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
+            {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+          if (!delRes.ok && (delRes.status === 403 || delRes.status === 401)) {
+            await fetch(
+              `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
               {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` },
+                method: 'PATCH',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ trashed: true }),
               }
             );
-            if (!delRes.ok && (delRes.status === 403 || delRes.status === 401)) {
-              // Try move to trash via PATCH if hard delete is restricted
-              await fetch(
+          }
+          cleanedCount++;
+          details.push(`Đã xóa bản trùng (ID: ${fileId})`);
+        } catch (delErr) {
+          console.warn(`Could not delete file ${fileId}:`, delErr);
+        }
+      }
+    } else {
+      // Case 2: Auto-scan and eliminate all duplicates, keeping the single best keeper
+      let q = "trashed = false and mimeType != 'application/vnd.google-apps.folder'";
+      if (scope === 'folder' && folderId && folderId.trim().length > 0) {
+        q = `'${folderId.trim()}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
+      }
+
+      const driveFiles = await fetchDriveFilesPaginated(token, q, 4);
+
+      // Group files by normalized filename
+      const groups: Record<string, any[]> = {};
+      for (const f of driveFiles) {
+        const key = (f.name || '').trim().toLowerCase();
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(f);
+      }
+
+      for (const [, fileList] of Object.entries(groups)) {
+        if (fileList.length > 1) {
+          // Sort: Genuine files (size >= 1000B) first; then larger files; then newer modifiedTime
+          fileList.sort((a, b) => {
+            const sizeA = parseInt(a.size || '0', 10);
+            const sizeB = parseInt(b.size || '0', 10);
+            const isAStub = sizeA < 1000;
+            const isBStub = sizeB < 1000;
+            if (isAStub !== isBStub) {
+              return isAStub ? 1 : -1; // non-stubs first
+            }
+            if (sizeA !== sizeB) {
+              return sizeB - sizeA; // larger file first
+            }
+            const timeA = new Date(a.modifiedTime || a.createdTime || 0).getTime();
+            const timeB = new Date(b.modifiedTime || b.createdTime || 0).getTime();
+            return timeB - timeA;
+          });
+
+          const keeper = fileList[0];
+          keepersToUpdate.push(keeper);
+          const duplicates = fileList.slice(1);
+
+          for (const dup of duplicates) {
+            try {
+              // Delete duplicate from Drive
+              const delRes = await fetch(
                 `https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`,
                 {
-                  method: 'PATCH',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({ trashed: true }),
+                  method: 'DELETE',
+                  headers: { Authorization: `Bearer ${token}` },
                 }
               );
+              if (!delRes.ok && (delRes.status === 403 || delRes.status === 401)) {
+                // Move to trash via PATCH if hard delete is restricted
+                await fetch(
+                  `https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`,
+                  {
+                    method: 'PATCH',
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ trashed: true }),
+                  }
+                );
+              }
+              cleanedCount++;
+              const dupSizeStr = dup.size ? `${(parseInt(dup.size, 10) / 1024).toFixed(1)} KB` : '0 KB';
+              const keeperSizeStr = keeper.size ? `${(parseInt(keeper.size, 10) / 1024).toFixed(1)} KB` : '0 KB';
+              details.push(`Đã xóa bản sao "${dup.name}" (${dupSizeStr}), bảo toàn bản chính (${keeperSizeStr})`);
+            } catch (delErr) {
+              console.warn(`Could not delete duplicate ${dup.id}:`, delErr);
             }
-            cleanedCount++;
-            const dupSizeStr = dup.size ? `${(parseInt(dup.size, 10) / 1024).toFixed(1)} KB` : '0 KB';
-            const keeperSizeStr = keeper.size ? `${(parseInt(keeper.size, 10) / 1024).toFixed(1)} KB` : '0 KB';
-            details.push(`Đã xóa bản trùng "${dup.name}" (${dupSizeStr}), bảo toàn bản chính (${keeperSizeStr})`);
-          } catch (delErr) {
-            console.warn(`Could not delete duplicate ${dup.id}:`, delErr);
           }
         }
       }
@@ -327,8 +478,8 @@ router.post('/clean-duplicates', async (req: Request, res: Response) => {
       details,
       dbUpdatedCount,
       message: cleanedCount > 0
-        ? `Đã dọn dẹp thành công ${cleanedCount} tệp trùng lặp và bản sao rỗng trên Google Drive!`
-        : 'Không phát hiện tệp trùng lặp nào trong thư mục Google Drive.',
+        ? `Đã dọn dẹp thành công ${cleanedCount} tệp trùng lặp và bản sao trên Google Drive!`
+        : 'Không phát hiện tệp trùng lặp nào trên Google Drive.',
     });
   } catch (err: any) {
     console.error('Clean duplicates error:', err);

@@ -669,20 +669,59 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
       });
     }
 
-    // 4. Deduplication Check for OAuth Upload: Check if this file already exists in target folder or by driveFileId
+    // 4. Robust 2-Stage Deduplication Check for OAuth Upload: Check target folder AND globally in Drive
     let existingDriveFileId = file.driveFileId;
-    if (!existingDriveFileId && targetFolderId) {
+    if (!existingDriveFileId) {
       try {
         const safeName = file.name.replace(/'/g, "\\'");
-        const searchQ = encodeURIComponent(`'${targetFolderId.trim()}' in parents and name = '${safeName}' and trashed = false`);
-        const searchRes = await fetch(
-          `https://www.googleapis.com/drive/v3/files?q=${searchQ}&fields=files(id,name,size,webViewLink)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
-          { headers: { Authorization: `Bearer ${userToken}` } }
-        );
-        const searchData = await searchRes.json().catch(() => ({}));
-        if (searchData.files && searchData.files.length > 0) {
-          searchData.files.sort((a: any, b: any) => (parseInt(b.size || '0', 10) - parseInt(a.size || '0', 10)));
+        let searchData: any = null;
+
+        // Stage 1: Check in targetFolderId if specified
+        if (targetFolderId && targetFolderId.trim().length > 0) {
+          const searchQ = encodeURIComponent(`'${targetFolderId.trim()}' in parents and name = '${safeName}' and trashed = false`);
+          const searchRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=${searchQ}&fields=files(id,name,size,webViewLink,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+            { headers: { Authorization: `Bearer ${userToken}` } }
+          );
+          searchData = await searchRes.json().catch(() => ({}));
+        }
+
+        // Stage 2: If not found in target folder or no target folder, search globally across Drive
+        if (!searchData?.files || searchData.files.length === 0) {
+          const globalQ = encodeURIComponent(`name = '${safeName}' and trashed = false`);
+          const globalRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=${globalQ}&fields=files(id,name,size,webViewLink,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+            { headers: { Authorization: `Bearer ${userToken}` } }
+          );
+          searchData = await globalRes.json().catch(() => ({}));
+        }
+
+        if (searchData?.files && searchData.files.length > 0) {
+          // Sort: Non-stubs (size >= 1000) first, then largest size, then newest modifiedTime
+          searchData.files.sort((a: any, b: any) => {
+            const sizeA = parseInt(a.size || '0', 10);
+            const sizeB = parseInt(b.size || '0', 10);
+            const isAStub = sizeA < 1000;
+            const isBStub = sizeB < 1000;
+            if (isAStub !== isBStub) return isAStub ? 1 : -1;
+            if (sizeA !== sizeB) return sizeB - sizeA;
+            const timeA = new Date(a.modifiedTime || 0).getTime();
+            const timeB = new Date(b.modifiedTime || 0).getTime();
+            return timeB - timeA;
+          });
+
           existingDriveFileId = searchData.files[0].id;
+
+          // If multiple duplicate copies or stubs exist on Drive, delete/trash the duplicate stubs in background
+          if (searchData.files.length > 1) {
+            const duplicates = searchData.files.slice(1);
+            for (const dup of duplicates) {
+              fetch(`https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${userToken}` },
+              }).catch(() => {});
+            }
+          }
         }
       } catch (searchErr) {
         console.warn('OAuth deduplication search warning:', searchErr);
@@ -713,7 +752,7 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
 
     let driveRes: any;
     if (existingDriveFileId) {
-      // UPDATE EXISTING FILE IN PLACE WITH PATCH - NO DUPLICATE FILE CREATED
+      // UPDATE EXISTING FILE IN PLACE WITH PATCH - ABSOLUTELY ZERO DUPLICATE CREATED
       driveRes = await fetch(
         `https://www.googleapis.com/upload/drive/v3/files/${existingDriveFileId}?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true`,
         {
@@ -727,7 +766,7 @@ router.post('/upload-to-user-drive/:id', async (req: Request, res: Response) => 
         }
       );
     } else {
-      // Create new file with POST
+      // Create new file with POST only when guaranteed no file with this name exists on Drive
       driveRes = await fetch(
         'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true',
         {
@@ -964,22 +1003,80 @@ router.post('/sync-and-purge-local', async (req: Request, res: Response) => {
           fileBuffer = Buffer.from(file.textContent, 'utf-8');
         }
 
-        if (!fileBuffer) {
-          const textFallback = `--- TÀI LIỆU HỆ THỐNG: ${file.name} ---\nPhân loại: ${file.classification || 'Tài liệu'}\nKích thước: ${file.size} bytes\nThời gian: ${file.uploadedAt}\n\nTài liệu được lưu trữ và đồng bộ hóa tự động bởi AI Personal Assistant Vault.`;
-          fileBuffer = Buffer.from(textFallback, 'utf-8');
-        }
-
         let driveResultId: string | undefined;
         let driveWebViewLink: string | undefined;
 
+        if (!fileBuffer) {
+          // Never upload a fake 260-byte text string for binary documents (Word, Excel, PDF)
+          // If already has driveFileId or matches an existing file on Drive, link directly!
+          if (file.driveFileId) {
+            driveResultId = file.driveFileId;
+            driveWebViewLink = file.webViewLink;
+          } else {
+            errors.push({ id: file.id, name: file.name, error: 'Chưa có dữ liệu nhị phân gốc để tải lên Drive' });
+            continue;
+          }
+        }
+
         // Try user OAuth if token provided
-        if (userToken) {
+        if (userToken && fileBuffer) {
           try {
+            // Deduplication Check: Check target folder AND globally across user's Drive
+            let existingDriveFileId: string | undefined = file.driveFileId;
+            if (!existingDriveFileId) {
+              const safeName = file.name.replace(/'/g, "\\'");
+              let searchData: any = null;
+
+              if (targetFolderId && targetFolderId.trim().length > 0) {
+                const searchQ = encodeURIComponent(`'${targetFolderId.trim()}' in parents and name = '${safeName}' and trashed = false`);
+                const sRes = await fetch(
+                  `https://www.googleapis.com/drive/v3/files?q=${searchQ}&fields=files(id,name,size,webViewLink,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+                  { headers: { Authorization: `Bearer ${userToken}` } }
+                );
+                searchData = await sRes.json().catch(() => ({}));
+              }
+
+              if (!searchData?.files || searchData.files.length === 0) {
+                const globalQ = encodeURIComponent(`name = '${safeName}' and trashed = false`);
+                const sRes = await fetch(
+                  `https://www.googleapis.com/drive/v3/files?q=${globalQ}&fields=files(id,name,size,webViewLink,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+                  { headers: { Authorization: `Bearer ${userToken}` } }
+                );
+                searchData = await sRes.json().catch(() => ({}));
+              }
+
+              if (searchData?.files && searchData.files.length > 0) {
+                searchData.files.sort((a: any, b: any) => {
+                  const sizeA = parseInt(a.size || '0', 10);
+                  const sizeB = parseInt(b.size || '0', 10);
+                  const isAStub = sizeA < 1000;
+                  const isBStub = sizeB < 1000;
+                  if (isAStub !== isBStub) return isAStub ? 1 : -1;
+                  if (sizeA !== sizeB) return sizeB - sizeA;
+                  const timeA = new Date(a.modifiedTime || 0).getTime();
+                  const timeB = new Date(b.modifiedTime || 0).getTime();
+                  return timeB - timeA;
+                });
+                existingDriveFileId = searchData.files[0].id;
+
+                // Clean duplicate stubs in background
+                if (searchData.files.length > 1) {
+                  const extraDups = searchData.files.slice(1);
+                  for (const dup of extraDups) {
+                    fetch(`https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`, {
+                      method: 'DELETE',
+                      headers: { Authorization: `Bearer ${userToken}` },
+                    }).catch(() => {});
+                  }
+                }
+              }
+            }
+
             const metadata: { name: string; mimeType: string; parents?: string[] } = {
               name: file.name,
               mimeType: file.mimeType || 'application/octet-stream',
             };
-            if (targetFolderId && targetFolderId.trim().length > 0) {
+            if (!existingDriveFileId && targetFolderId && targetFolderId.trim().length > 0) {
               metadata.parents = [targetFolderId.trim()];
             }
             const boundary = '-------NodeDriveOAuthUpload' + Date.now().toString(36);
@@ -990,18 +1087,36 @@ router.post('/sync-and-purge-local', async (req: Request, res: Response) => {
             const endPart = Buffer.from(`${closeDelimiter}`);
             const multipartBody = Buffer.concat([metadataPart, mediaHeaderPart, fileBuffer, endPart]);
 
-            const driveRes = await fetch(
-              'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true',
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${userToken}`,
-                  'Content-Type': `multipart/related; boundary=${boundary}`,
-                  'Content-Length': multipartBody.length.toString(),
-                },
-                body: multipartBody,
-              }
-            );
+            let driveRes: any;
+            if (existingDriveFileId) {
+              // UPDATE EXISTING FILE IN PLACE WITH PATCH - ABSOLUTELY ZERO DUPLICATE CREATED
+              driveRes = await fetch(
+                `https://www.googleapis.com/upload/drive/v3/files/${existingDriveFileId}?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true`,
+                {
+                  method: 'PATCH',
+                  headers: {
+                    Authorization: `Bearer ${userToken}`,
+                    'Content-Type': `multipart/related; boundary=${boundary}`,
+                    'Content-Length': multipartBody.length.toString(),
+                  },
+                  body: multipartBody,
+                }
+              );
+            } else {
+              driveRes = await fetch(
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true',
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${userToken}`,
+                    'Content-Type': `multipart/related; boundary=${boundary}`,
+                    'Content-Length': multipartBody.length.toString(),
+                  },
+                  body: multipartBody,
+                }
+              );
+            }
+
             if (driveRes.ok) {
               const resData: any = await driveRes.json();
               driveResultId = resData.id;

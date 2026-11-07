@@ -250,5 +250,27 @@ export interface AiPersonaConfig {
   updatedAt?: string;
 }
 
-export type AppTheme = 'dark' | 'light';
+export type AppTheme = 'light' | 'light-blue' | 'light-pink' | 'light-purple' | 'dark' | 'dark-gray' | 'dark-navy';
 
+export interface ThemeOption {
+  id: AppTheme;
+  name: string;
+  category: 'light' | 'dark';
+  description: string;
+  tag: string;
+  bgHex: string;
+  cardHex: string;
+  borderHex: string;
+  accentHex: string;
+}
+
+export type AppFontSize = 'small' | 'medium' | 'large' | 'xlarge';
+
+export interface FontSizeOption {
+  id: AppFontSize;
+  label: string;
+  name: string;
+  scalePercent: number;
+  pixelSize: number;
+  description: string;
+}

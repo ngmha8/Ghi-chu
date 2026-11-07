@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { TelegramConfig, DriveFile, DriveServiceAccountConfig, AppTheme } from '../types/index.js';
+import { TelegramConfig, DriveFile, DriveServiceAccountConfig, AppTheme, AppFontSize } from '../types/index.js';
+import { THEME_OPTIONS } from '../services/theme.js';
+import { FONT_SIZE_OPTIONS } from '../services/fontSize.js';
 import { api } from '../services/api.js';
 import { useSystemStore } from '../stores/useSystemStore.js';
 import { useFileStore } from '../stores/useFileStore.js';
@@ -10,6 +12,9 @@ import {
   GoogleOAuthUser,
   getActiveGoogleClientId,
   setCustomGoogleClientId,
+  getCachedGoogleUser,
+  getGoogleAuthSnapshot,
+  GoogleAuthStatus,
 } from '../services/googleAuth.js';
 import {
   Settings,
@@ -52,7 +57,8 @@ import {
   Timer,
   RotateCcw,
   Bell,
-  Calendar
+  Calendar,
+  Type
 } from 'lucide-react';
 import {
   getPinSettings,
@@ -94,6 +100,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const storeLockApp = useSystemStore(s => s.lockApp);
   const storeTheme = useSystemStore(s => s.theme);
   const storeSetTheme = useSystemStore(s => s.setTheme);
+  const storeFontSize = useSystemStore(s => s.fontSize);
+  const storeSetFontSize = useSystemStore(s => s.setFontSize);
 
   const storeFiles = useFileStore(s => s.files);
   const storeUpdateFile = useFileStore(s => s.updateFile);
@@ -264,7 +272,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showSaGuide, setShowSaGuide] = useState(false);
 
   // Google OAuth User State
-  const [googleUser, setGoogleUser] = useState<GoogleOAuthUser | null>(null);
+  const [googleUser, setGoogleUser] = useState<GoogleOAuthUser | null>(() => getCachedGoogleUser());
+  const [googleAuthStatus, setGoogleAuthStatus] = useState<GoogleAuthStatus>(() => getGoogleAuthSnapshot().status);
   const [isLoggingInGoogle, setIsLoggingInGoogle] = useState(false);
   const [oauthStatusMsg, setOauthStatusMsg] = useState<string | null>(null);
   const [customClientIdInput, setCustomClientIdInput] = useState(() => getActiveGoogleClientId());
@@ -274,11 +283,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   // Listen to Google Auth
   useEffect(() => {
     const unsub = initGoogleAuth(
-      (user, token) => {
+      (user, token, status) => {
         setGoogleUser(user);
+        setGoogleAuthStatus(status || (user && token ? 'authenticated' : 'unauthenticated'));
       },
       () => {
         setGoogleUser(null);
+        setGoogleAuthStatus('unauthenticated');
       }
     );
     return () => {
@@ -745,132 +756,316 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <span>Tùy Chọn Không Gian Màu (Color Palette Selection)</span>
                   <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-[#222222] text-[#D4AF37] border border-[#D4AF37]/30">
-                    Đang hoạt động: {theme === 'light' ? 'Chủ Đề Sáng (Xanh & Trắng)' : 'Chủ Đề Tối (Gold & Obsidian)'}
+                    Đang hoạt động: {THEME_OPTIONS.find(o => o.id === theme)?.name || theme}
                   </span>
                 </h3>
                 <p className="text-xs text-[#888888] mt-1">
-                  Chuyển đổi linh hoạt giữa giao diện Tối sang trọng và giao diện Sáng công sở hiện đại với hai tông màu chủ đạo Xanh & Trắng
+                  Hỗ trợ 7 phong cách thị giác chuyên sâu: Nền trắng tinh khôi, Xanh nhạt mát dịu, Hồng nhạt hoa anh đào, Tím nhạt oải hương, Nền đen sâu Obsidian (như hiện tại), Nền xám khói than nhạt hơn và Nền xanh đậm hải quân doanh nghiệp.
                 </p>
               </div>
             </div>
 
-            {/* Visual Theme Selection Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Dark Theme Card */}
-              <div
-                onClick={() => onSetTheme('dark')}
-                className={`relative p-5 rounded-md border-2 cursor-pointer transition-all duration-200 flex flex-col justify-between ${
-                  theme === 'dark'
-                    ? 'border-[#D4AF37] bg-[#1A1A1A] shadow-lg shadow-[#D4AF37]/10'
-                    : 'border-[#2A2A2A] bg-[#121212] hover:border-[#444444]'
-                }`}
-              >
-                {theme === 'dark' && (
-                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-[#D4AF37] text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    <Check className="w-3 h-3" />
-                    <span>Đang sử dụng</span>
-                  </div>
-                )}
-                <div>
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="p-2 rounded bg-black/60 border border-[#333333] text-[#D4AF37]">
-                      <Moon className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white">Chủ Đề Tối (Obsidian & Luxury Gold)</h4>
-                      <span className="text-[11px] text-[#A0A0A0]">Nghệ thuật, đẳng cấp & giảm mỏi mắt ban đêm</span>
-                    </div>
-                  </div>
+            {/* 1. Nhóm Chủ Đề Sáng */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-sky-400 uppercase tracking-wider">
+                <Sun className="w-4 h-4 text-sky-400" />
+                <span>Nhóm Chủ Đề Sáng (Light Modes - Trắng, Xanh Nhạt, Hồng Nhạt, Tím Nhạt)</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {THEME_OPTIONS.filter(o => o.category === 'light').map(opt => {
+                  const isSelected = theme === opt.id;
+                  return (
+                    <div
+                      key={opt.id}
+                      onClick={() => onSetTheme(opt.id)}
+                      style={{ borderColor: isSelected ? opt.accentHex : undefined }}
+                      className={`relative p-5 rounded-md border-2 cursor-pointer transition-all duration-200 flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-[#1E293B]/30 shadow-lg shadow-blue-500/10'
+                          : 'border-[#2A2A2A] bg-[#121212] hover:border-[#444444]'
+                      }`}
+                    >
+                      {isSelected && (
+                        <div
+                          className="absolute top-3 right-3 flex items-center gap-1 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow"
+                          style={{ backgroundColor: opt.accentHex }}
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Đang sử dụng</span>
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <div
+                            className="p-2 rounded border"
+                            style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex, color: opt.accentHex }}
+                          >
+                            <Sun className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                              <span>{opt.name}</span>
+                              <span
+                                className="text-[9px] font-mono px-1.5 py-0.2 rounded border"
+                                style={{ backgroundColor: `${opt.accentHex}20`, color: opt.accentHex, borderColor: `${opt.accentHex}40` }}
+                              >
+                                {opt.tag}
+                              </span>
+                            </h4>
+                            <span className="text-[11px] text-[#A0A0A0]">Phong cách sáng trang nhã, công sở hiện đại</span>
+                          </div>
+                        </div>
 
-                  <p className="text-xs text-[#999999] leading-relaxed mb-4">
-                    Tông nền đen Obsidian sâu lắng kết hợp điểm nhấn ánh vàng hoàng gia (Royal Gold #D4AF37). Giúp tập trung cao độ, bảo vệ thị lực trong môi trường làm việc ban đêm.
-                  </p>
+                        <p className="text-xs text-[#999999] leading-relaxed mb-4">
+                          {opt.description}
+                        </p>
 
-                  {/* Swatch Preview */}
-                  <div className="flex items-center gap-2 p-2.5 rounded bg-[#0A0A0A] border border-[#222222] mb-4">
-                    <div className="w-6 h-6 rounded bg-[#0F0F0F] border border-[#333333]" title="#0F0F0F Obsidian" />
-                    <div className="w-6 h-6 rounded bg-[#151515] border border-[#333333]" title="#151515 Card Surface" />
-                    <div className="w-6 h-6 rounded bg-[#D4AF37]" title="#D4AF37 Royal Gold" />
-                    <div className="w-6 h-6 rounded bg-[#10B981]" title="#10B981 Emerald" />
-                    <span className="text-[11px] text-[#777777] font-mono ml-auto">#0F0F0F / #D4AF37</span>
-                  </div>
+                        {/* Swatch Preview */}
+                        <div className="flex items-center gap-2 p-2.5 rounded bg-[#0A0A0A] border border-[#222222] mb-4">
+                          <div className="w-6 h-6 rounded border" style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex }} title={`Nền chính: ${opt.bgHex}`} />
+                          <div className="w-6 h-6 rounded border" style={{ backgroundColor: opt.cardHex, borderColor: opt.borderHex }} title={`Bề mặt thẻ: ${opt.cardHex}`} />
+                          <div className="w-6 h-6 rounded" style={{ backgroundColor: opt.accentHex }} title={`Điểm nhấn: ${opt.accentHex}`} />
+                          <span className="text-[11px] text-[#777777] font-mono ml-auto">{opt.bgHex} / {opt.accentHex}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSetTheme(opt.id);
+                        }}
+                        style={{ backgroundColor: isSelected ? opt.accentHex : undefined }}
+                        className={`w-full py-2 px-3 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          isSelected
+                            ? 'text-white shadow'
+                            : 'bg-[#222222] text-[#CCCCCC] hover:bg-[#333333]'
+                        }`}
+                      >
+                        <Sun className="w-3.5 h-3.5" />
+                        <span>{isSelected ? '✓ Đang kích hoạt' : 'Chọn Chủ Đề Này'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. Nhóm Chủ Đề Tối */}
+            <div className="space-y-3 pt-3 border-t border-[#222222]">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#D4AF37] uppercase tracking-wider">
+                <Moon className="w-4 h-4 text-[#D4AF37]" />
+                <span>Nhóm Chủ Đề Tối (Dark Modes - Đen, Xám Nhạt & Xanh Đậm)</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {THEME_OPTIONS.filter(o => o.category === 'dark').map(opt => {
+                  const isSelected = theme === opt.id;
+                  const isGoldAccent = opt.id === 'dark';
+                  return (
+                    <div
+                      key={opt.id}
+                      onClick={() => onSetTheme(opt.id)}
+                      className={`relative p-5 rounded-md border-2 cursor-pointer transition-all duration-200 flex flex-col justify-between ${
+                        isSelected
+                          ? isGoldAccent
+                            ? 'border-[#D4AF37] bg-[#1A1A1A] shadow-lg shadow-[#D4AF37]/10'
+                            : 'border-blue-500 bg-[#152033] shadow-lg shadow-blue-500/10'
+                          : 'border-[#2A2A2A] bg-[#121212] hover:border-[#444444]'
+                      }`}
+                    >
+                      {isSelected && (
+                        <div
+                          className={`absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow ${
+                            isGoldAccent ? 'bg-[#D4AF37] text-black' : 'bg-blue-600 text-white'
+                          }`}
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Đang sử dụng</span>
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <div
+                            className="p-2 rounded border"
+                            style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex, color: opt.accentHex }}
+                          >
+                            {opt.id === 'dark-navy' ? <Palette className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                              <span>{opt.name}</span>
+                            </h4>
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#222222] text-[#A0A0A0] border border-[#333]">
+                              {opt.tag}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-[#999999] leading-relaxed mb-4">
+                          {opt.description}
+                        </p>
+
+                        {/* Swatch Preview */}
+                        <div className="flex items-center gap-2 p-2.5 rounded bg-[#0A0A0A] border border-[#222222] mb-4">
+                          <div className="w-6 h-6 rounded border" style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex }} title={`Nền chính: ${opt.bgHex}`} />
+                          <div className="w-6 h-6 rounded border" style={{ backgroundColor: opt.cardHex, borderColor: opt.borderHex }} title={`Bề mặt thẻ: ${opt.cardHex}`} />
+                          <div className="w-6 h-6 rounded" style={{ backgroundColor: opt.accentHex }} title={`Điểm nhấn: ${opt.accentHex}`} />
+                          <span className="text-[11px] text-[#777777] font-mono ml-auto">{opt.bgHex}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSetTheme(opt.id);
+                        }}
+                        className={`w-full py-2 px-3 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          isSelected
+                            ? isGoldAccent
+                              ? 'bg-[#D4AF37] text-black shadow'
+                              : 'bg-blue-600 text-white shadow'
+                            : 'bg-[#222222] text-[#CCCCCC] hover:bg-[#333333]'
+                        }`}
+                      >
+                        {opt.id === 'dark-navy' ? <Palette className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                        <span>{isSelected ? '✓ Đang kích hoạt' : 'Chọn Chủ Đề Này'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. Tùy Chỉnh Cỡ Chữ Hệ Thống (Accessible Font Scaling) */}
+            <div className="space-y-4 pt-4 border-t border-[#222222]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-600 dark:text-[#D4AF37] uppercase tracking-wider">
+                  <Type className="w-4 h-4" />
+                  <span>Tùy Chỉnh Cỡ Chữ Toàn Hệ Thống (Font Size & Accessibility Scaling)</span>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSetTheme('dark');
-                  }}
-                  className={`w-full py-2 px-3 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    theme === 'dark'
-                      ? 'bg-[#D4AF37] text-black shadow'
-                      : 'bg-[#222222] text-[#CCCCCC] hover:bg-[#333333]'
-                  }`}
-                >
-                  <Moon className="w-3.5 h-3.5" />
-                  <span>{theme === 'dark' ? '✓ Đang kích hoạt' : 'Chọn Chủ Đề Tối'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#222222] text-blue-600 dark:text-[#D4AF37] border border-blue-500/30 dark:border-[#D4AF37]/30 font-bold">
+                    Cỡ hiện tại: {FONT_SIZE_OPTIONS.find(f => f.id === storeFontSize)?.scalePercent}% ({FONT_SIZE_OPTIONS.find(f => f.id === storeFontSize)?.pixelSize}px)
+                  </span>
+                  {storeFontSize !== 'medium' && (
+                    <button
+                      type="button"
+                      onClick={() => storeSetFontSize('medium')}
+                      className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1 font-medium"
+                      title="Khôi phục cỡ chữ chuẩn 100%"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Đặt lại 100%</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Light Theme Card */}
-              <div
-                onClick={() => onSetTheme('light')}
-                className={`relative p-5 rounded-md border-2 cursor-pointer transition-all duration-200 flex flex-col justify-between ${
-                  theme === 'light'
-                    ? 'border-[#0F52BA] bg-[#1E293B]/20 shadow-lg shadow-[#0F52BA]/20'
-                    : 'border-[#2A2A2A] bg-[#121212] hover:border-[#444444]'
-                }`}
-              >
-                {theme === 'light' && (
-                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-[#0F52BA] text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    <Check className="w-3 h-3" />
-                    <span>Đang sử dụng</span>
-                  </div>
-                )}
-                <div>
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="p-2 rounded bg-[#0F52BA]/20 border border-[#0F52BA]/40 text-[#3B82F6]">
-                      <Sun className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                        <span>Chủ Đề Sáng (Sapphire Blue & White)</span>
-                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">Mới</span>
-                      </h4>
-                      <span className="text-[11px] text-[#A0A0A0]">Chuyên nghiệp, sang trọng & hiện đại</span>
-                    </div>
-                  </div>
+              <p className="text-xs text-[#888888] leading-relaxed">
+                Hệ thống co giãn kích thước tỷ lệ toàn diện (dynamic rem scaling). Toàn bộ tiêu đề, thẻ công việc, khung ghi chú và danh sách tệp Google Drive sẽ tự động điều chỉnh sắc nét mà không làm vỡ giao diện hay lệch hàng cột.
+              </p>
 
-                  <p className="text-xs text-[#999999] leading-relaxed mb-4">
-                    Hai tông màu chủ đạo: Xanh Sapphire (#0F52BA) và Trắng sương Alabaster (#F4F7FC / #FFFFFF). Chuẩn mực điều hành doanh nghiệp, thanh lịch và tràn đầy năng lượng.
-                  </p>
+              {/* 4 Interactive Font Size Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {FONT_SIZE_OPTIONS.map((opt) => {
+                  const isSelected = storeFontSize === opt.id;
+                  return (
+                    <div
+                      key={opt.id}
+                      onClick={() => storeSetFontSize(opt.id)}
+                      className={`relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-500/10 dark:bg-blue-950/30 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/30'
+                          : 'border-slate-200 dark:border-[#2A2A2A] bg-white dark:bg-[#121212] hover:border-blue-400 dark:hover:border-[#444444]'
+                      }`}
+                    >
+                      {isSelected && (
+                        <div className="absolute top-3 right-3 flex items-center gap-1 text-white bg-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
+                          <Check className="w-3 h-3" />
+                          <span>Đang chọn</span>
+                        </div>
+                      )}
 
-                  {/* Swatch Preview */}
-                  <div className="flex items-center gap-2 p-2.5 rounded bg-[#0A0A0A] border border-[#222222] mb-4">
-                    <div className="w-6 h-6 rounded bg-[#F4F7FC] border border-[#CBD5E1]" title="#F4F7FC Alabaster Ice" />
-                    <div className="w-6 h-6 rounded bg-[#FFFFFF] border border-[#CBD5E1]" title="#FFFFFF Pure White" />
-                    <div className="w-6 h-6 rounded bg-[#0F52BA]" title="#0F52BA Sapphire Blue" />
-                    <div className="w-6 h-6 rounded bg-[#1E293B]" title="#1E293B Deep Navy Slate" />
-                    <span className="text-[11px] text-[#777777] font-mono ml-auto">#F4F7FC / #0F52BA</span>
-                  </div>
+                      <div>
+                        {/* Header Badge */}
+                        <div className="flex items-center gap-3 mb-2.5">
+                          <div
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base border transition-all ${
+                              isSelected
+                                ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                                : 'bg-slate-100 dark:bg-[#1E1E1E] text-slate-800 dark:text-slate-200 border-slate-200 dark:border-[#333]'
+                            }`}
+                          >
+                            {opt.label}
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                              {opt.name}
+                            </h4>
+                            <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-semibold">
+                              Tỷ lệ {opt.scalePercent}% • {opt.pixelSize}px
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slate-600 dark:text-[#999999] leading-relaxed mb-4 min-h-[44px]">
+                          {opt.description}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          storeSetFontSize(opt.id);
+                        }}
+                        className={`w-full py-1.5 px-3 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-600 text-white shadow'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#222222] dark:text-[#CCCCCC] dark:hover:bg-[#333333]'
+                        }`}
+                      >
+                        <Type className="w-3.5 h-3.5" />
+                        <span>{isSelected ? '✓ Đang kích hoạt' : 'Chọn Cỡ Chữ Này'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Live Preview Container */}
+              <div className="p-4 rounded-lg bg-slate-50 dark:bg-[#0E1522] border border-slate-200 dark:border-[#22334D] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    Trực Quan Hóa Xem Trước (Live Preview Theo Cỡ Đang Chọn)
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                    Gốc: html &#123; font-size: {storeFontSize === 'small' ? '14.4px' : storeFontSize === 'large' ? '18px' : storeFontSize === 'xlarge' ? '20px' : '16px'} &#125;
+                  </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSetTheme('light');
-                  }}
-                  className={`w-full py-2 px-3 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    theme === 'light'
-                      ? 'bg-[#0F52BA] text-white shadow'
-                      : 'bg-[#222222] text-[#CCCCCC] hover:bg-[#333333]'
-                  }`}
-                >
-                  <Sun className="w-3.5 h-3.5" />
-                  <span>{theme === 'light' ? '✓ Đang kích hoạt' : 'Chọn Chủ Đề Sáng (Xanh & Trắng)'}</span>
-                </button>
+                <div className="p-3.5 rounded bg-white dark:bg-[#161F2E] border border-slate-200 dark:border-[#283B59] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">
+                      Báo cáo kiểm định thiết bị y tế Quý IV / 2026
+                    </span>
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60">
+                      Đã đồng bộ Drive
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Hệ thống tự động đồng bộ thời gian thực lên Google Drive và bảo mật dữ liệu hai lớp. Khi bạn tăng cỡ chữ lên 112.5% hoặc 125%, mọi dòng dữ liệu sẽ mở rộng trực quan, giảm thiểu tối đa mỏi mắt khi làm việc ban đêm.
+                  </p>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 font-mono pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span>Deadline: Hôm nay 17:30</span>
+                    <span>•</span>
+                    <span>38 tệp Drive</span>
+                    <span>•</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-bold">#KIEM_XA_Y_TE</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1588,10 +1783,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               {/* Status Badge */}
               <div className="flex items-center gap-2">
-                {googleUser ? (
+                {googleUser && googleAuthStatus === 'authenticated' ? (
                   <div className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-700 px-3 py-1.5 rounded text-xs font-mono text-emerald-400">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     <span>Đã kết nối: <strong>{googleUser.email}</strong></span>
+                  </div>
+                ) : googleUser && googleAuthStatus === 'expired' ? (
+                  <div className="flex items-center gap-2 bg-amber-950/70 border border-amber-600 px-3 py-1.5 rounded text-xs font-mono text-amber-300">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    <span>Phiên hết hạn: <strong>{googleUser.email}</strong></span>
                   </div>
                 ) : saConfig?.isConnected ? (
                   <span className="text-xs bg-emerald-950/80 text-emerald-400 border border-emerald-700/80 px-3 py-1.5 rounded font-mono flex items-center gap-1.5">

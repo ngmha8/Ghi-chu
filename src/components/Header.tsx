@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { GlobalSearchInput } from './GlobalSearchInput.js';
-import { Task, Note, DriveFile, AppTheme } from '../types/index.js';
+import { Task, Note, DriveFile, AppTheme, AppFontSize } from '../types/index.js';
 import {
   CheckSquare,
   FileText,
@@ -20,8 +20,13 @@ import {
   Moon,
   TrendingUp,
   Flame,
-  User
+  User,
+  Palette,
+  Check,
+  Type
 } from 'lucide-react';
+import { THEME_OPTIONS } from '../services/theme.js';
+import { FONT_SIZE_OPTIONS } from '../services/fontSize.js';
 import { useSystemStore, AppTab } from '../stores/useSystemStore.js';
 import { useTaskStore } from '../stores/useTaskStore.js';
 import { useNoteStore } from '../stores/useNoteStore.js';
@@ -119,6 +124,32 @@ export const Header: React.FC<HeaderProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const storeSetTheme = useSystemStore(s => s.setTheme);
+  const storeFontSize = useSystemStore(s => s.fontSize);
+  const storeSetFontSize = useSystemStore(s => s.setFontSize);
+
+  const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
+  const themePickerRef = useRef<HTMLDivElement>(null);
+
+  const handleCycleFontSize = () => {
+    const sizes: AppFontSize[] = ['small', 'medium', 'large', 'xlarge'];
+    const currentIdx = sizes.indexOf(storeFontSize);
+    const nextIdx = (currentIdx + 1) % sizes.length;
+    storeSetFontSize(sizes[nextIdx]);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (themePickerRef.current && !themePickerRef.current.contains(e.target as Node)) {
+        setIsThemePickerOpen(false);
+      }
+    };
+    if (isThemePickerOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isThemePickerOpen]);
+
   const isSettingsActive = ['telegram', 'ai-learning', 'settings', 'architecture'].includes(activeTab);
 
   const handleMouseEnter = () => {
@@ -148,7 +179,7 @@ export const Header: React.FC<HeaderProps> = ({
   const activeTasksCount = tasks.filter(t => t.status !== 'completed' && t.status !== 'canceled').length;
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0F0F0F]/95 backdrop-blur border-b border-[#2A2A2A] text-[#E0E0E0] transition-colors">
+    <header className="sticky top-0 z-40 bg-white/95 dark:bg-[#111827]/95 border-b border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 backdrop-blur-md transition-colors shadow-2xs">
       {/* Tier 1: Main Brand, Search & Executive Actions */}
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
         
@@ -157,17 +188,17 @@ export const Header: React.FC<HeaderProps> = ({
           className="flex items-center gap-2.5 sm:gap-3 shrink-0 cursor-pointer select-none"
           onClick={() => setActiveTab('dashboard')}
         >
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-600 dark:bg-[#151515] border border-blue-500/20 dark:border-[#2A2A2A] flex items-center justify-center text-white dark:text-[#D4AF37] font-bold text-base shadow-sm shrink-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-600 border border-blue-500/30 flex items-center justify-center text-white font-bold text-base shadow-sm shrink-0">
             A
           </div>
           <div className="shrink-0 flex items-center gap-2">
-            <span className="font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-[#D4AF37] whitespace-nowrap">
+            <span className="font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
               Architect.OS
             </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 dark:bg-[#1A1A1A] dark:text-[#D4AF37] dark:border-[#D4AF37]/30 whitespace-nowrap hidden sm:inline-block">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-700/50 whitespace-nowrap hidden sm:inline-block">
               PRO
             </span>
-            <span className="text-[10px] text-slate-400 dark:text-[#777777] hidden xl:inline">
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 hidden xl:inline">
               V2.4.0
             </span>
           </div>
@@ -194,7 +225,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Firestore & Drive Active Status Indicators */}
           <div className="hidden xl:flex items-center gap-2 mr-1">
             <div
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-[11px] text-slate-700 dark:text-[#A0A0A0]"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-[#131E31] border border-slate-200 dark:border-[#22334D] text-[11px] text-slate-700 dark:text-slate-300"
               title="Cloud Firestore đồng bộ thời gian thực"
             >
               <Flame className="w-3.5 h-3.5 text-amber-500" />
@@ -202,7 +233,7 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="font-medium">Firestore</span>
             </div>
             <div
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-[11px] text-slate-700 dark:text-[#A0A0A0]"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-[#131E31] border border-slate-200 dark:border-[#22334D] text-[11px] text-slate-700 dark:text-slate-300"
               title="Google Drive kết nối sẵn sàng"
             >
               <HardDrive className="w-3.5 h-3.5 text-blue-600 dark:text-emerald-400" />
@@ -215,7 +246,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={openNewTaskModal}
-              className="px-3 sm:px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:text-black dark:hover:bg-[#c29f2e] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 whitespace-nowrap"
+              className="px-3 sm:px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0 whitespace-nowrap"
               title="Tạo công việc mới"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -224,34 +255,206 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
             <button
               onClick={openNewNoteModal}
-              className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 dark:bg-[#161616] dark:border-[#2E2E2E] dark:text-[#E0E0E0] dark:hover:border-[#D4AF37]/50 dark:hover:text-[#D4AF37] dark:hover:bg-[#1C1C1C] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+              className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 dark:bg-[#152033] dark:border-[#283B59] dark:text-slate-200 dark:hover:border-blue-500/50 dark:hover:text-white dark:hover:bg-[#1E2E48] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
               title="Tạo ghi chú mới"
             >
-              <Plus className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
+              <Plus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               <span className="hidden sm:inline">Ghi Chú</span>
               <span className="sm:hidden">Note</span>
             </button>
           </div>
 
-          {/* Theme & Lock Controls */}
-          <div className="flex items-center gap-1 border-l border-slate-200 dark:border-[#2A2A2A] pl-1.5 sm:pl-2">
+          {/* Theme & Font Size Quick Switcher & Lock Controls */}
+          <div className="flex items-center gap-1 border-l border-slate-200 dark:border-[#22334D] pl-1.5 sm:pl-2">
+            <div className="relative" ref={themePickerRef}>
+              <button
+                type="button"
+                onClick={() => setIsThemePickerOpen(!isThemePickerOpen)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                  isThemePickerOpen
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 ring-2 ring-blue-500/30'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-blue-400 dark:hover:bg-[#1E2B42]'
+                }`}
+                title="Tùy chọn giao diện & cỡ chữ: Nền sáng/tối, đổi cỡ chữ hệ thống"
+              >
+                {theme === 'light' && <Sun className="w-4 h-4 text-amber-500" />}
+                {theme === 'light-blue' && <Sun className="w-4 h-4 text-sky-500" />}
+                {theme === 'light-pink' && <Sun className="w-4 h-4 text-rose-500" />}
+                {theme === 'light-purple' && <Sun className="w-4 h-4 text-purple-500" />}
+                {theme === 'dark' && <Moon className="w-4 h-4 text-amber-400" />}
+                {theme === 'dark-gray' && <Moon className="w-4 h-4 text-slate-300" />}
+                {theme === 'dark-navy' && <Palette className="w-4 h-4 text-blue-400" />}
+              </button>
+
+              {/* Theme & Font Size Selection Dropdown Popover */}
+              {isThemePickerOpen && (
+                <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-[#152033] border border-slate-200 dark:border-[#22334D] rounded-xl shadow-2xl p-2.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-100 dark:border-[#22334D]/60 mb-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                      <Palette className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      Giao Diện & Cỡ Chữ
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleTheme();
+                      }}
+                      className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
+                      title="Chuyển sang chủ đề tiếp theo"
+                    >
+                      Đổi màu nhanh
+                    </button>
+                  </div>
+
+                  {/* 1. Nhóm Chủ Đề Sáng */}
+                  <div className="mb-2">
+                    <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Chủ Đề Sáng
+                    </div>
+                    <div className="space-y-1 mt-1">
+                      {THEME_OPTIONS.filter(o => o.category === 'light').map(opt => {
+                        const isSelected = theme === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              storeSetTheme(opt.id);
+                              setIsThemePickerOpen(false);
+                            }}
+                            className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-50 dark:bg-[#1A263D] text-blue-700 dark:text-blue-300 font-semibold ring-1 ring-blue-500/30'
+                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1E2C44]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                className="w-4 h-4 rounded-full border shrink-0 shadow-2xs"
+                                style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex }}
+                              />
+                              <div className="min-w-0">
+                                <div className="truncate font-medium">{opt.name}</div>
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{opt.description}</div>
+                              </div>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 ml-1.5" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 2. Nhóm Chủ Đề Tối */}
+                  <div className="pt-1 border-t border-slate-100 dark:border-[#22334D]/60 mb-2">
+                    <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Chủ Đề Tối
+                    </div>
+                    <div className="space-y-1 mt-1">
+                      {THEME_OPTIONS.filter(o => o.category === 'dark').map(opt => {
+                        const isSelected = theme === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              storeSetTheme(opt.id);
+                              setIsThemePickerOpen(false);
+                            }}
+                            className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-50 dark:bg-[#1A263D] text-blue-700 dark:text-blue-300 font-semibold ring-1 ring-blue-500/30'
+                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1E2C44]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                className="w-4 h-4 rounded-full border shrink-0 shadow-2xs"
+                                style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex }}
+                              />
+                              <div className="min-w-0">
+                                <div className="truncate font-medium">{opt.name}</div>
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{opt.description}</div>
+                              </div>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 ml-1.5" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 3. Tùy Chọn Cỡ Chữ Hệ Thống (Accessible Font Sizing) */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-[#22334D]/60">
+                    <div className="flex items-center justify-between px-2 py-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                        <Type className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        Cỡ Chữ Hệ Thống
+                      </span>
+                      <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.2 rounded border border-blue-200/50 dark:border-blue-800/50">
+                        {FONT_SIZE_OPTIONS.find(f => f.id === storeFontSize)?.scalePercent}% ({FONT_SIZE_OPTIONS.find(f => f.id === storeFontSize)?.pixelSize}px)
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 dark:bg-[#0E1522] rounded-lg mt-1 border border-slate-200/80 dark:border-[#22334D]">
+                      {FONT_SIZE_OPTIONS.map((opt) => {
+                        const isSelected = storeFontSize === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => storeSetFontSize(opt.id)}
+                            className={`py-1.5 px-1 rounded-md text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                              isSelected
+                                ? 'bg-white dark:bg-[#1E2E48] text-blue-700 dark:text-blue-300 font-bold shadow-xs border border-blue-500/30'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-[#1A263D]'
+                            }`}
+                            title={`${opt.name}: ${opt.description}`}
+                          >
+                            <span className="text-xs font-bold leading-tight">{opt.label}</span>
+                            <span className="text-[9px] opacity-80 font-mono">{opt.scalePercent}%</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 px-2 mt-1 truncate">
+                      {FONT_SIZE_OPTIONS.find(f => f.id === storeFontSize)?.description}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 pt-2 border-t border-slate-100 dark:border-[#22334D]/60 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsThemePickerOpen(false);
+                        setActiveTab('settings');
+                      }}
+                      className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                    >
+                      Tùy chỉnh chi tiết trong Cài Đặt →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Font Size Switch Button */}
             <button
               type="button"
-              onClick={onToggleTheme}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-[#D4AF37] dark:hover:bg-[#202020] transition-colors cursor-pointer"
-              title={theme === 'light' ? 'Chuyển sang Chủ đề Tối (Gold & Obsidian)' : 'Chuyển sang Chủ đề Sáng (Executive Precision)'}
+              onClick={handleCycleFontSize}
+              className="h-8 px-1.5 sm:px-2 rounded-lg flex items-center gap-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#1E2B42] transition-colors cursor-pointer text-xs font-semibold"
+              title={`Cỡ chữ: ${FONT_SIZE_OPTIONS.find(f => f.id === storeFontSize)?.name}. Nhấp để đổi nhanh`}
             >
-              {theme === 'light' ? (
-                <Moon className="w-4 h-4 text-blue-600" />
-              ) : (
-                <Sun className="w-4 h-4 text-[#D4AF37]" />
-              )}
+              <Type className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span className="font-mono text-[11px] font-bold hidden sm:inline">
+                {FONT_SIZE_OPTIONS.find(f => f.id === storeFontSize)?.label}
+              </span>
             </button>
 
             <button
               type="button"
               onClick={onLockApp}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-[#D4AF37] dark:hover:bg-[#202020] transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#1E2B42] transition-colors cursor-pointer"
               title="Khóa ứng dụng (Yêu cầu mã PIN)"
             >
               <Lock className="w-4 h-4" />
@@ -260,7 +463,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* User Profile Avatar */}
           <div
-            className="w-8 h-8 rounded-full bg-blue-600 dark:bg-[#1A1A1A] border border-blue-500/20 dark:border-[#333] flex items-center justify-center text-white dark:text-[#D4AF37] shrink-0 shadow-xs cursor-pointer"
+            className="w-8 h-8 rounded-full bg-blue-600 border border-blue-500/30 flex items-center justify-center text-white shrink-0 shadow-sm cursor-pointer"
             title="Tài khoản Quản trị viên"
             onClick={() => setActiveTab('settings')}
           >
@@ -270,7 +473,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Tier 2: Seamless Tab Navigation Bar */}
-      <div className="border-t border-slate-200 dark:border-[#2A2A2A] bg-white dark:bg-[#0A0A0A] px-3 sm:px-6 lg:px-8">
+      <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] px-3 sm:px-6 lg:px-8 transition-colors">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 h-12">
           
           {/* Main Navigation Tabs */}
@@ -280,8 +483,8 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setActiveTab('dashboard')}
               className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
                 activeTab === 'dashboard'
-                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
-                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-blue-400 dark:border-blue-500'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               <Layers className="w-4 h-4" />
@@ -293,8 +496,8 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setActiveTab('tasks')}
               className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
                 activeTab === 'tasks'
-                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
-                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-blue-400 dark:border-blue-500'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               <CheckSquare className="w-4 h-4" />
@@ -302,8 +505,8 @@ export const Header: React.FC<HeaderProps> = ({
               {activeTasksCount > 0 && (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
                   activeTab === 'tasks'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-[#D4AF37] dark:text-black'
-                    : 'bg-slate-100 text-slate-600 dark:bg-[#222222] dark:text-[#AAAAAA]'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-200 dark:border dark:border-blue-700/50'
+                    : 'bg-slate-100 text-slate-600 dark:bg-[#1E2B42] dark:text-slate-400'
                 }`}>
                   {activeTasksCount}
                 </span>
@@ -315,8 +518,8 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setActiveTab('notes')}
               className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
                 activeTab === 'notes'
-                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
-                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-blue-400 dark:border-blue-500'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               <FileText className="w-4 h-4" />
@@ -324,8 +527,8 @@ export const Header: React.FC<HeaderProps> = ({
               {notes.length > 0 && (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
                   activeTab === 'notes'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-[#D4AF37] dark:text-black'
-                    : 'bg-slate-100 text-slate-600 dark:bg-[#222222] dark:text-[#AAAAAA]'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-200 dark:border dark:border-blue-700/50'
+                    : 'bg-slate-100 text-slate-600 dark:bg-[#1E2B42] dark:text-slate-400'
                 }`}>
                   {notes.length}
                 </span>
@@ -337,8 +540,8 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setActiveTab('files')}
               className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
                 activeTab === 'files'
-                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
-                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-blue-400 dark:border-blue-500'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               <FolderSync className="w-4 h-4" />
@@ -346,8 +549,8 @@ export const Header: React.FC<HeaderProps> = ({
               {files.length > 0 && (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
                   activeTab === 'files'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-[#D4AF37] dark:text-black'
-                    : 'bg-slate-100 text-slate-600 dark:bg-[#222222] dark:text-[#AAAAAA]'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-200 dark:border dark:border-blue-700/50'
+                    : 'bg-slate-100 text-slate-600 dark:bg-[#1E2B42] dark:text-slate-400'
                 }`}>
                   {files.length}
                 </span>
@@ -359,8 +562,8 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setActiveTab('analytics')}
               className={`h-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-all border-b-2 cursor-pointer ${
                 activeTab === 'analytics'
-                  ? 'text-blue-600 font-bold border-blue-600 dark:text-[#D4AF37] dark:border-[#D4AF37]'
-                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-[#AAAAAA] dark:hover:text-white'
+                  ? 'text-blue-600 font-bold border-blue-600 dark:text-blue-400 dark:border-blue-500'
+                  : 'text-slate-600 hover:text-slate-900 border-transparent hover:border-slate-300 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               <TrendingUp className="w-4 h-4" />
