@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useTaskStore } from '../stores/useTaskStore.js';
 import { useNoteStore } from '../stores/useNoteStore.js';
 import { useFileStore } from '../stores/useFileStore.js';
@@ -19,8 +19,50 @@ import {
   ShieldCheck,
   Zap,
   Clock,
-  ChevronRight
+  ChevronRight,
+  Check,
+  X,
+  RotateCcw
 } from 'lucide-react';
+
+export type AnalyticsRange = '7d' | '14d' | '30d' | '80d' | '8w' | 'custom';
+
+// Returns Date for yesterday (23:59:59.999 local time)
+const getYesterdayDate = (): Date => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+};
+
+// Formats a Date to DD/MM/YYYY
+const formatDateVN = (d: Date): string => {
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+// Formats a Date to YYYY-MM-DD for input[type="date"]
+const toInputDateFormat = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Parses YYYY-MM-DD string to Date (local 00:00:00)
+const parseInputDate = (str: string): Date => {
+  if (!str) return new Date();
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+};
+
+const RANGE_PRESETS: { id: AnalyticsRange; label: string; days: number; description: string }[] = [
+  { id: '7d', label: '7 Ngày', days: 7, description: '7 ngày kết thúc hôm qua' },
+  { id: '14d', label: '14 Ngày', days: 14, description: '14 ngày kết thúc hôm qua' },
+  { id: '30d', label: '30 Ngày', days: 30, description: '30 ngày kết thúc hôm qua' },
+  { id: '80d', label: '80 Ngày', days: 80, description: '80 ngày kết thúc hôm qua' },
+  { id: '8w', label: '8 Tuần', days: 56, description: '8 tuần (56 ngày) kết thúc hôm qua' },
+];
 
 export const AnalyticsView: React.FC = () => {
   const tasks = useTaskStore(s => s.tasks);
@@ -29,10 +71,49 @@ export const AnalyticsView: React.FC = () => {
   const openAiDrawer = useSystemStore(s => s.openAiDrawer);
   const setActiveTab = useSystemStore(s => s.setActiveTab);
 
-  const [dateRange, setDateRange] = useState<'7d' | '14d' | '30d' | '8w'>('30d');
+  const [dateRange, setDateRange] = useState<AnalyticsRange>('30d');
   const [chartMode, setChartMode] = useState<'area' | 'bar'>('area');
   const [showMovingAvg, setShowMovingAvg] = useState(true);
-  const [activeTooltip, setActiveTooltip] = useState<number | null>(6); // Default highlight on peak
+  const [activeTooltip, setActiveTooltip] = useState<number | null>(6);
+
+  // Custom range dates (default initialized to 30 days ending yesterday)
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const y = getYesterdayDate();
+    const start = new Date(y.getFullYear(), y.getMonth(), y.getDate() - 29);
+    return toInputDateFormat(start);
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => {
+    return toInputDateFormat(getYesterdayDate());
+  });
+
+  // Calendar popover state
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [tempStart, setTempStart] = useState<string>(customStartDate);
+  const [tempEnd, setTempEnd] = useState<string>(customEndDate);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const calendarDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close calendar popover on outside click
+  useEffect(() => {
+    const handleDocClick = (e: MouseEvent) => {
+      if (calendarDropdownRef.current && !calendarDropdownRef.current.contains(e.target as Node)) {
+        setIsCalendarOpen(false);
+      }
+    };
+    if (isCalendarOpen) {
+      document.addEventListener('mousedown', handleDocClick);
+    }
+    return () => document.removeEventListener('mousedown', handleDocClick);
+  }, [isCalendarOpen]);
+
+  // Synchronize temp dates when popover opens
+  useEffect(() => {
+    if (isCalendarOpen) {
+      setTempStart(customStartDate);
+      setTempEnd(customEndDate);
+      setCalendarError(null);
+    }
+  }, [isCalendarOpen, customStartDate, customEndDate]);
 
   // Dynamic real calculations
   const totalTasks = tasks.length;
@@ -67,31 +148,221 @@ export const AnalyticsView: React.FC = () => {
 
   const q2Percent = totalTasks > 0 ? Math.round((q2Count / totalTasks) * 100) : 60;
 
-  // Monthly 30-day Trend simulated realistic data points
-  const trendPoints = [
-    { day: '1/10', score: 68, focus: 3.2 },
-    { day: '4/10', score: 72, focus: 3.5 },
-    { day: '7/10', score: 65, focus: 2.8 },
-    { day: '10/10', score: 70, focus: 3.4 },
-    { day: '13/10', score: 74, focus: 3.8 },
-    { day: '16/10', score: 71, focus: 3.2 },
-    { day: '19/10', score: 76, focus: 4.0 },
-    { day: '22/10', score: 78, focus: 3.9 },
-    { day: '25/10', score: 82, focus: 4.2, isPeak: true, task: 'Hoàn thành báo cáo & liều kế' },
-    { day: '28/10', score: 75, focus: 3.6 },
-    { day: '30/10', score: 77, focus: 3.7 },
-  ];
+  // Active Range calculation (endDate is ALWAYS yesterday for presets)
+  const { startDate, endDate, totalDays, rangeLabel, rangeBadgeText, isCustom } = useMemo(() => {
+    const y = getYesterdayDate();
+    let start: Date;
+    let end: Date = y;
+    let days = 30;
+    let custom = false;
 
-  // Weekly dual axis performance
-  const weekDays = [
-    { label: 'T7 24/10', completion: 100, focus: 2.0 },
-    { label: 'CN 25/10', completion: 100, focus: 4.2, highlight: true },
-    { label: 'T2 26/10', completion: 75, focus: 4.0 },
-    { label: 'T3 27/10', completion: 75, focus: 3.8 },
-    { label: 'T4 28/10', completion: 75, focus: 4.1 },
-    { label: 'T5 29/10', completion: 75, focus: 3.5 },
-    { label: 'T6 30/10', completion: 75, focus: 3.6 },
-  ];
+    if (dateRange === 'custom') {
+      custom = true;
+      start = parseInputDate(customStartDate);
+      end = parseInputDate(customEndDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+        end = y;
+        start = new Date(y.getFullYear(), y.getMonth(), y.getDate() - 29);
+      }
+      const diffMs = Math.abs(end.getTime() - start.getTime());
+      days = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+    } else {
+      const preset = RANGE_PRESETS.find(p => p.id === dateRange) || RANGE_PRESETS[2];
+      days = preset.days;
+      start = new Date(y.getFullYear(), y.getMonth(), y.getDate() - (days - 1));
+      end = y;
+    }
+
+    let label = `${days} Ngày`;
+    let badge = `Chu kỳ ${days} ngày • Tự động tính toán`;
+
+    if (dateRange === '7d') {
+      label = '7 Ngày';
+      badge = 'Chu kỳ 7 ngày • Tự động tính toán';
+    } else if (dateRange === '14d') {
+      label = '14 Ngày';
+      badge = 'Chu kỳ 14 ngày • Tự động tính toán';
+    } else if (dateRange === '30d') {
+      label = '30 Ngày';
+      badge = 'Chu kỳ 30 ngày • Tự động tính toán';
+    } else if (dateRange === '80d') {
+      label = '80 Ngày';
+      badge = 'Chu kỳ 80 ngày • Tự động tính toán';
+    } else if (dateRange === '8w') {
+      label = '8 Tuần';
+      badge = 'Chu kỳ 8 tuần (56 ngày) • Tự động tính toán';
+    } else {
+      label = `${days} ngày tùy chỉnh`;
+      badge = `Khoảng tùy chỉnh (${days} ngày) • Tự động tính toán`;
+    }
+
+    return {
+      startDate: start,
+      endDate: end,
+      totalDays: days,
+      rangeLabel: label,
+      rangeBadgeText: badge,
+      isCustom: custom,
+    };
+  }, [dateRange, customStartDate, customEndDate]);
+
+  // Handler when clicking preset threshold buttons
+  const handleSelectPreset = (presetId: AnalyticsRange) => {
+    setDateRange(presetId);
+    const y = getYesterdayDate();
+    const preset = RANGE_PRESETS.find(p => p.id === presetId);
+    const days = preset ? preset.days : 30;
+    const start = new Date(y.getFullYear(), y.getMonth(), y.getDate() - (days - 1));
+    setCustomStartDate(toInputDateFormat(start));
+    setCustomEndDate(toInputDateFormat(y));
+    setIsCalendarOpen(false);
+  };
+
+  // Handler when applying custom dates from popover
+  const handleApplyCustomDates = () => {
+    if (!tempStart || !tempEnd) {
+      setCalendarError('Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc');
+      return;
+    }
+    const s = parseInputDate(tempStart);
+    const e = parseInputDate(tempEnd);
+    if (s.getTime() > e.getTime()) {
+      setCalendarError('Ngày bắt đầu không thể sau ngày kết thúc');
+      return;
+    }
+
+    setCustomStartDate(tempStart);
+    setCustomEndDate(tempEnd);
+
+    // Check if it matches an exact preset ending yesterday
+    const yStr = toInputDateFormat(getYesterdayDate());
+    let matchedPreset: AnalyticsRange = 'custom';
+    if (tempEnd === yStr) {
+      const diffMs = Math.abs(e.getTime() - s.getTime());
+      const days = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+      const found = RANGE_PRESETS.find(p => p.days === days);
+      if (found) matchedPreset = found.id;
+    }
+
+    setDateRange(matchedPreset);
+    setIsCalendarOpen(false);
+    setCalendarError(null);
+  };
+
+  // Quick button inside popover: set end date = yesterday
+  const handleSetEndToYesterday = () => {
+    const y = getYesterdayDate();
+    const yStr = toInputDateFormat(y);
+    setTempEnd(yStr);
+    const s = parseInputDate(tempStart);
+    if (s.getTime() > y.getTime()) {
+      const newStart = new Date(y.getFullYear(), y.getMonth(), y.getDate() - 6);
+      setTempStart(toInputDateFormat(newStart));
+    }
+    setCalendarError(null);
+  };
+
+  // Dynamic trend points mapped across the selected date range
+  const trendPoints = useMemo(() => {
+    const points: { day: string; score: number; focus: number; isPeak?: boolean; task?: string; fullDate: string }[] = [];
+    const startTs = startDate.getTime();
+    const endTs = endDate.getTime();
+    
+    let numPoints = 10;
+    if (totalDays <= 7) numPoints = totalDays;
+    else if (totalDays <= 14) numPoints = 8;
+    else if (totalDays <= 30) numPoints = 10;
+    else if (totalDays <= 60) numPoints = 11;
+    else numPoints = 12;
+
+    const step = numPoints > 1 ? (endTs - startTs) / (numPoints - 1) : 0;
+    const peakIndex = Math.max(1, Math.floor(numPoints * 0.75));
+
+    for (let i = 0; i < numPoints; i++) {
+      const pointDate = new Date(startTs + i * step);
+      const day = pointDate.getDate();
+      const month = pointDate.getMonth() + 1;
+      const dayStr = `${day}/${month}`;
+      const fullDateStr = formatDateVN(pointDate);
+      
+      const pseudoSeed = (day * 19 + month * 29 + i * 17) % 22;
+      const isPeak = i === peakIndex;
+      const score = isPeak ? 84 : 66 + pseudoSeed;
+      const focus = isPeak ? 4.2 : +(2.8 + (pseudoSeed % 14) * 0.1).toFixed(1);
+
+      points.push({
+        day: dayStr,
+        score,
+        focus,
+        isPeak,
+        task: isPeak ? 'Hoàn thành báo cáo & kiểm định' : undefined,
+        fullDate: fullDateStr,
+      });
+    }
+
+    return points;
+  }, [startDate, endDate, totalDays]);
+
+  const avgProductivityScore = useMemo(() => {
+    if (trendPoints.length === 0) return 74;
+    const sum = trendPoints.reduce((acc, p) => acc + p.score, 0);
+    return Math.round(sum / trendPoints.length);
+  }, [trendPoints]);
+
+  const totalFocusHours = useMemo(() => {
+    return +(totalDays * 3.6).toFixed(1);
+  }, [totalDays]);
+
+  // Dynamic Weekly performance ending on endDate
+  const weekDays = useMemo(() => {
+    const days: { label: string; completion: number; focus: number; highlight?: boolean }[] = [];
+    const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() - i);
+      const dayName = dayNames[d.getDay()];
+      const dayStr = `${d.getDate()}/${d.getMonth() + 1}`;
+      const isHighlight = i === 1;
+      days.push({
+        label: `${dayName} ${dayStr}`,
+        completion: isHighlight ? 100 : [75, 80, 75, 90, 75, 100, 75][6 - i],
+        focus: isHighlight ? 4.2 : +([3.2, 3.5, 3.8, 4.0, 3.6, 4.2, 3.7][6 - i]).toFixed(1),
+        highlight: isHighlight,
+      });
+    }
+    return days;
+  }, [endDate]);
+
+  // Dynamic SVG Area & Line coordinates
+  const chartSvgData = useMemo(() => {
+    if (trendPoints.length === 0) return { lineD: '', areaD: '', coords: [] };
+    const left = 50;
+    const right = 780;
+    const bottom = 210;
+    const top = 30;
+    const width = right - left;
+    const height = bottom - top;
+
+    const coords = trendPoints.map((p, idx) => {
+      const x = left + (idx / Math.max(1, trendPoints.length - 1)) * width;
+      const y = bottom - (p.score / 100) * height;
+      return { x, y, score: p.score, day: p.day, isPeak: p.isPeak, fullDate: p.fullDate };
+    });
+
+    let lineD = `M ${coords[0].x} ${coords[0].y}`;
+    for (let i = 1; i < coords.length; i++) {
+      const prev = coords[i - 1];
+      const curr = coords[i];
+      const cp1x = prev.x + (curr.x - prev.x) / 2;
+      const cp1y = prev.y;
+      const cp2x = prev.x + (curr.x - prev.x) / 2;
+      const cp2y = curr.y;
+      lineD += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`;
+    }
+
+    const areaD = `${lineD} L ${coords[coords.length - 1].x} ${bottom} L ${coords[0].x} ${bottom} Z`;
+    return { lineD, areaD, coords };
+  }, [trendPoints]);
 
   return (
     <div className="w-full pb-16 animate-fadeIn">
@@ -109,8 +380,8 @@ export const AnalyticsView: React.FC = () => {
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                 Thống kê & Phân tích Năng suất
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-[#222] dark:text-[#D4AF37] text-xs font-medium">
-                Chu kỳ 30 ngày • Tự động tính toán
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-[#222] dark:text-[#D4AF37] text-xs font-medium border border-blue-200/60 dark:border-[#D4AF37]/30">
+                {rangeBadgeText}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-[#999] max-w-3xl leading-relaxed">
@@ -120,26 +391,176 @@ export const AnalyticsView: React.FC = () => {
 
           {/* Action Toolbar */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Date Pills */}
+            {/* Date Preset Pills */}
             <div className="inline-flex p-1 rounded-lg bg-slate-100 dark:bg-[#1E1E1E]">
-              {(['7d', '14d', '30d', '8w'] as const).map(range => (
+              {RANGE_PRESETS.map(preset => (
                 <button
-                  key={range}
-                  onClick={() => setDateRange(range)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                    dateRange === range
+                  key={preset.id}
+                  onClick={() => handleSelectPreset(preset.id)}
+                  className={`px-2.5 sm:px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
+                    dateRange === preset.id
                       ? 'bg-white dark:bg-[#2A2A2A] text-blue-600 dark:text-[#D4AF37] shadow-xs font-semibold'
                       : 'text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
                   }`}
+                  title={`${preset.label}: ${preset.description}`}
                 >
-                  {range === '7d' ? '7 Ngày' : range === '14d' ? '14 Ngày' : range === '30d' ? '30 Ngày' : '8 Tuần'}
+                  {preset.label}
                 </button>
               ))}
             </div>
 
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-[#1E1E1E] text-slate-700 dark:text-[#BBB] text-xs">
-              <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
-              <span>01/10/2026 - 30/10/2026</span>
+            {/* Interactive Date Range Pill with Calendar Dropdown */}
+            <div className="relative" ref={calendarDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer select-none ${
+                  isCalendarOpen || isCustom
+                    ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-[#1E2B42] dark:text-[#D4AF37] dark:border-blue-500/40 shadow-xs ring-2 ring-blue-500/20'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-[#1E1E1E] dark:hover:bg-[#282828] dark:text-[#DDD] dark:border-[#333]'
+                }`}
+                title="Nhấp vào biểu tượng lịch để chọn khoảng thời gian tùy chỉnh"
+              >
+                <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37] shrink-0" />
+                <span className="font-mono">
+                  {formatDateVN(startDate)} - {formatDateVN(endDate)}
+                </span>
+                {isCustom && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-600 text-white font-bold ml-1">
+                    Tùy chỉnh
+                  </span>
+                )}
+              </button>
+
+              {/* Calendar Popover */}
+              {isCalendarOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-[#181B20] border border-slate-200 dark:border-[#334155] rounded-xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  {/* Popover Header */}
+                  <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100 dark:border-[#26354A]">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-blue-600 dark:text-[#D4AF37]" />
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                        Tùy Chỉnh Khoảng Thời Gian
+                      </h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCalendarOpen(false)}
+                      className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-md transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Quick Preset Selector */}
+                  <div className="mb-3">
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                      Chọn nhanh chu kỳ (kết thúc hôm qua):
+                    </span>
+                    <div className="grid grid-cols-5 gap-1">
+                      {RANGE_PRESETS.map((p) => {
+                        const isSelected = dateRange === p.id;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => handleSelectPreset(p.id)}
+                            className={`py-1.5 px-1 rounded-md text-xs font-medium text-center transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-600 text-white font-bold shadow-xs'
+                                : 'bg-slate-100 dark:bg-[#222E42] text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-[#2B3B55]'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Custom Date Pickers */}
+                  <div className="space-y-2.5 pt-2.5 border-t border-slate-100 dark:border-[#26354A]">
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                      Hoặc chọn ngày tùy chỉnh:
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 block mb-1">
+                          Từ ngày
+                        </label>
+                        <input
+                          type="date"
+                          value={tempStart}
+                          onChange={(e) => {
+                            setTempStart(e.target.value);
+                            setCalendarError(null);
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg text-xs border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#12161E] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                            Đến ngày
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleSetEndToYesterday}
+                            className="text-[10px] text-blue-600 dark:text-[#D4AF37] hover:underline cursor-pointer font-medium"
+                            title="Đặt ngày kết thúc là hôm qua"
+                          >
+                            Hôm qua
+                          </button>
+                        </div>
+                        <input
+                          type="date"
+                          value={tempEnd}
+                          onChange={(e) => {
+                            setTempEnd(e.target.value);
+                            setCalendarError(null);
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg text-xs border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#12161E] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Selected Duration Preview & Validation */}
+                    {calendarError ? (
+                      <div className="p-2 rounded bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-[11px] border border-rose-200 dark:border-rose-900/60 font-medium">
+                        ⚠️ {calendarError}
+                      </div>
+                    ) : (
+                      <div className="p-2 rounded bg-slate-50 dark:bg-[#131E31] text-slate-600 dark:text-slate-300 text-[11px] border border-slate-200/80 dark:border-[#22334D] flex items-center justify-between font-mono">
+                        <span>
+                          {formatDateVN(parseInputDate(tempStart))} ➔ {formatDateVN(parseInputDate(tempEnd))}
+                        </span>
+                        <span className="font-bold text-blue-600 dark:text-blue-400">
+                          {Math.max(1, Math.round(Math.abs(parseInputDate(tempEnd).getTime() - parseInputDate(tempStart).getTime()) / (1000 * 60 * 60 * 24)) + 1)} ngày
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#26354A]">
+                      <button
+                        type="button"
+                        onClick={() => setIsCalendarOpen(false)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#202B3D] transition-colors cursor-pointer"
+                      >
+                        Đóng
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApplyCustomDates}
+                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Áp Dụng</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Buttons */}
@@ -148,7 +569,7 @@ export const AnalyticsView: React.FC = () => {
                 onClick={() => {
                   window.print();
                 }}
-                className="h-8 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#1E1E1E] dark:hover:bg-[#2A2A2A] text-slate-700 dark:text-[#DDD] text-xs font-medium flex items-center gap-1.5 transition-colors"
+                className="h-8 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#1E1E1E] dark:hover:bg-[#2A2A2A] text-slate-700 dark:text-[#DDD] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Xuất báo cáo"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -156,9 +577,9 @@ export const AnalyticsView: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  openAiDrawer('Hãy phân tích toàn diện hiệu suất làm việc 30 ngày qua của tôi và đưa ra 3 lời khuyên cải thiện cụ thể.');
+                  openAiDrawer(`Hãy phân tích toàn diện hiệu suất làm việc trong chu kỳ ${rangeLabel} (${formatDateVN(startDate)} - ${formatDateVN(endDate)}) của tôi và đưa ra 3 lời khuyên cải thiện cụ thể.`);
                 }}
-                className="h-8 px-3.5 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-[#D4AF37] dark:text-black dark:hover:bg-[#c29f2e] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all"
+                className="h-8 px-3.5 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-[#D4AF37] dark:text-black dark:hover:bg-[#c29f2e] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>AI Đánh Giá</span>
@@ -168,6 +589,7 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
+
       {/* Top 4 KPI Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* KPI 1 */}
@@ -175,14 +597,14 @@ export const AnalyticsView: React.FC = () => {
           <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600 dark:bg-[#D4AF37]"></div>
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500 dark:text-[#888] uppercase tracking-wider">
-              ĐIỂM TB 30 NGÀY
+              ĐIỂM TB {rangeLabel.toUpperCase()}
             </span>
             <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-[#202020] text-blue-600 dark:text-[#D4AF37] flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">74</span>
+            <span className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{avgProductivityScore}</span>
             <span className="text-sm text-slate-500 dark:text-[#777]">/ 100</span>
             <span className="ml-auto inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 text-xs font-semibold">
               <TrendingUp className="w-3 h-3" /> +4.2đ
@@ -208,14 +630,14 @@ export const AnalyticsView: React.FC = () => {
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">24.9h</span>
-            <span className="text-xs text-slate-500 dark:text-[#777]">TB 3.6h/ngày</span>
+            <span className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{totalFocusHours}h</span>
+            <span className="text-xs text-slate-500 dark:text-[#777]">TB 3.6h/ngày ({totalDays}d)</span>
             <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 text-xs font-semibold">
-              88% Tuần
+              88% Chu kỳ
             </span>
           </div>
           <div className="mt-3 pt-2 border-t border-slate-100 dark:border-[#222] flex items-center justify-between text-xs text-slate-500 dark:text-[#777]">
-            <span>Đỉnh nhịp điệu: CN 25/10</span>
+            <span>Đỉnh nhịp điệu: Hôm qua</span>
             <span className="font-semibold text-slate-900 dark:text-white">4.2h sâu</span>
           </div>
         </div>
@@ -288,14 +710,14 @@ export const AnalyticsView: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                      Xu Hướng Tháng & Điểm Năng Suất (30 Ngày)
+                      Xu Hướng & Điểm Năng Suất ({rangeLabel})
                     </h2>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-50 text-blue-700 dark:bg-[#222] dark:text-[#D4AF37]">
-                      MONTHLY TREND
+                      TREND ENGINE
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-[#888]">
-                    Theo dõi quỹ đạo điểm năng suất (0 - 100) liên tục trong 30 ngày qua kết hợp ngưỡng cảnh báo AI
+                    Theo dõi quỹ đạo điểm năng suất (0 - 100) liên tục trong {rangeLabel} ({formatDateVN(startDate)} - {formatDateVN(endDate)})
                   </p>
                 </div>
               </div>
@@ -390,33 +812,37 @@ export const AnalyticsView: React.FC = () => {
                 {/* Actual Productivity Area Polygon */}
                 {chartMode === 'area' ? (
                   <>
-                    <path
-                      d="M 50 70 C 80 50, 110 52, 135 68 C 160 84, 190 60, 220 58 C 255 56, 285 75, 320 74 C 350 73, 385 46, 420 50 C 450 54, 480 75, 510 74 C 540 73, 570 64, 600 66 C 630 68, 660 38, 690 42 C 720 46, 750 82, 780 62 L 780 210 L 50 210 Z"
-                      fill="url(#areaGradientBlue)"
-                    />
-                    <path
-                      d="M 50 70 C 80 50, 110 52, 135 68 C 160 84, 190 60, 220 58 C 255 56, 285 75, 320 74 C 350 73, 385 46, 420 50 C 450 54, 480 75, 510 74 C 540 73, 570 64, 600 66 C 630 68, 660 38, 690 42 C 720 46, 750 82, 780 62"
-                      fill="none"
-                      stroke="url(#lineStrokeBlue)"
-                      strokeWidth="2.8"
-                      strokeLinecap="round"
-                    />
+                    {chartSvgData.areaD && (
+                      <path
+                        d={chartSvgData.areaD}
+                        fill="url(#areaGradientBlue)"
+                      />
+                    )}
+                    {chartSvgData.lineD && (
+                      <path
+                        d={chartSvgData.lineD}
+                        fill="none"
+                        stroke="url(#lineStrokeBlue)"
+                        strokeWidth="2.8"
+                        strokeLinecap="round"
+                      />
+                    )}
                   </>
                 ) : (
                   // Bar chart mode
-                  trendPoints.map((p, idx) => {
-                    const x = 50 + idx * 70;
-                    const height = (p.score / 100) * 180;
+                  chartSvgData.coords.map((c, idx) => {
+                    const height = (c.score / 100) * 180;
                     const y = 210 - height;
+                    const barWidth = Math.max(16, Math.min(32, 600 / chartSvgData.coords.length));
                     return (
                       <rect
                         key={idx}
-                        x={x - 14}
+                        x={c.x - barWidth / 2}
                         y={y}
-                        width="28"
+                        width={barWidth}
                         height={height}
                         rx="4"
-                        fill={p.isPeak ? '#2563eb' : '#93c5fd'}
+                        fill={c.isPeak ? '#2563eb' : '#93c5fd'}
                         className="transition-all hover:opacity-80 cursor-pointer"
                         onClick={() => setActiveTooltip(idx)}
                       />
@@ -424,43 +850,74 @@ export const AnalyticsView: React.FC = () => {
                   })
                 )}
 
-                {/* Peak Highlight Circle */}
-                <circle cx="690" cy="42" r="6" fill="#2563eb" stroke="#ffffff" strokeWidth="2.5" />
-                <circle cx="105" cy="52" r="3.5" fill="#3b82f6" />
-                <circle cx="410" cy="48" r="3.5" fill="#3b82f6" />
+                {/* Peak Highlight Circle Nodes */}
+                {chartSvgData.coords.map((c, idx) => {
+                  if (c.isPeak) {
+                    return (
+                      <circle
+                        key={idx}
+                        cx={c.x}
+                        cy={c.y}
+                        r="6"
+                        fill="#2563eb"
+                        stroke="#ffffff"
+                        strokeWidth="2.5"
+                        className="cursor-pointer"
+                        onClick={() => setActiveTooltip(idx)}
+                      />
+                    );
+                  }
+                  return (
+                    <circle
+                      key={idx}
+                      cx={c.x}
+                      cy={c.y}
+                      r="3.5"
+                      fill="#3b82f6"
+                      className="cursor-pointer hover:r-5 transition-all"
+                      onClick={() => setActiveTooltip(idx)}
+                    />
+                  );
+                })}
               </svg>
 
               {/* Floating Tooltip Card */}
-              {activeTooltip !== null && (
+              {activeTooltip !== null && chartSvgData.coords[activeTooltip] && (
                 <div
                   className="absolute top-4 right-8 sm:right-20 rounded-lg p-3 shadow-xl text-left border z-10 pointer-events-none transition-all bg-white border-slate-200 text-slate-800 dark:bg-[#0F172A] dark:border-[#334155] dark:text-[#F8FAFC]"
                 >
                   <div className="flex items-center gap-1.5 font-bold text-xs text-blue-600 dark:text-[#38BDF8]">
                     <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-blue-400/40 inline-block"></span>
-                    <span>CN, 25/10/2026: 82 điểm</span>
+                    <span>{chartSvgData.coords[activeTooltip].fullDate}: {chartSvgData.coords[activeTooltip].score} điểm</span>
                   </div>
                   <div className="text-[11px] mt-1.5 flex flex-col gap-1 font-medium text-slate-700 dark:text-[#F8FAFC]">
                     <span className="flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 inline-block shrink-0"></span>
-                      <span>1 Task hoàn thành (Liều kế X-quang)</span>
+                      <span>{chartSvgData.coords[activeTooltip].isPeak ? '1 Task hoàn thành (Kiểm định thiết bị y tế)' : 'Tiến độ làm việc ổn định'}</span>
                     </span>
                     <span className="flex items-center gap-1.5 text-slate-600 dark:text-[#E2E8F0]">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 inline-block shrink-0"></span>
-                      <span>4.2h Focus AI • Vượt chỉ tiêu +12%</span>
+                      <span>{trendPoints[activeTooltip]?.focus || 3.8}h Focus AI • Đạt chuẩn hiệu suất</span>
                     </span>
                   </div>
                 </div>
               )}
 
               {/* X-Axis Labels */}
-              <div className="w-full flex justify-between pl-10 pr-2 pt-1 text-[11px] text-slate-400 dark:text-[#777]">
-                {trendPoints.map((p, idx) => (
+              <div className="w-full flex justify-between pl-10 pr-4 pt-1 text-[11px] text-slate-400 dark:text-[#777]">
+                {chartSvgData.coords.map((c, idx) => (
                   <span
                     key={idx}
-                    className={`cursor-pointer ${p.isPeak ? 'text-blue-600 dark:text-[#D4AF37] font-bold' : ''}`}
+                    className={`cursor-pointer transition-colors ${
+                      c.isPeak
+                        ? 'text-blue-600 dark:text-[#D4AF37] font-bold'
+                        : activeTooltip === idx
+                        ? 'text-slate-900 dark:text-white font-semibold'
+                        : ''
+                    }`}
                     onClick={() => setActiveTooltip(idx)}
                   >
-                    {p.day}
+                    {c.day}
                   </span>
                 ))}
               </div>
@@ -482,7 +939,7 @@ export const AnalyticsView: React.FC = () => {
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-[#1A1A1A] text-blue-800 dark:text-[#CCC] text-xs">
                 <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
-                <span><strong>Tổng kết 30 ngày:</strong> 10% số ngày đạt chuẩn hiệu suất cao &gt;80đ.</span>
+                <span><strong>Tổng kết {rangeLabel}:</strong> Điểm TB {avgProductivityScore}/100 • {totalFocusHours}h giờ tập trung sâu.</span>
               </div>
             </div>
           </div>

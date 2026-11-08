@@ -3,6 +3,87 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        var g = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : this;
+        // 1. Iterator Polyfill for Chrome < 122 (Windows 7 / Chrome 109)
+        if (typeof g.Iterator === 'undefined') {
+          var IteratorConstructor = function Iterator() {};
+          try {
+            var iterProto = Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]()));
+            IteratorConstructor.prototype = iterProto || {};
+          } catch (e) {
+            IteratorConstructor.prototype = {};
+          }
+          if (!IteratorConstructor.from) {
+            IteratorConstructor.from = function(o) {
+              if (o && typeof o[Symbol.iterator] === 'function') return o[Symbol.iterator]();
+              return o;
+            };
+          }
+          g.Iterator = IteratorConstructor;
+          if (typeof window !== 'undefined') window.Iterator = IteratorConstructor;
+        }
+        if (g.Iterator && !g.Iterator.prototype) {
+          g.Iterator.prototype = {};
+        }
+        if (g.Iterator && typeof g.Iterator.prototype.join !== 'function') {
+          g.Iterator.prototype.join = function(sep) {
+            return Array.from(this).join(sep === undefined ? ',' : sep);
+          };
+        }
+        // 2. Promise.withResolvers (Chrome < 119)
+        if (typeof Promise.withResolvers === 'undefined') {
+          Promise.withResolvers = function() {
+            var resolve, reject;
+            var promise = new Promise(function(res, rej) { resolve = res; reject = rej; });
+            return { promise: promise, resolve: resolve, reject: reject };
+          };
+        }
+        // 3. URL.parse & URL.canParse (Chrome < 120/126)
+        if (!URL.parse) {
+          URL.parse = function(url, base) { try { return new URL(url, base); } catch(e) { return null; } };
+        }
+        if (!URL.canParse) {
+          URL.canParse = function(url, base) { try { new URL(url, base); return true; } catch(e) { return false; } };
+        }
+        // 4. Map.prototype.getOrInsertComputed
+        if (typeof Map.prototype.getOrInsertComputed !== 'function') {
+          Map.prototype.getOrInsertComputed = function(key, callbackfn) {
+            if (this.has(key)) return this.get(key);
+            var val = callbackfn(key);
+            this.set(key, val);
+            return val;
+          };
+        }
+        // 5. Object.groupBy & Map.groupBy (Chrome < 117)
+        if (!Object.groupBy) {
+          Object.groupBy = function(items, cb) {
+            var res = Object.create(null), idx = 0;
+            for (var item of items) {
+              var key = cb(item, idx++);
+              if (key in res) res[key].push(item); else res[key] = [item];
+            }
+            return res;
+          };
+        }
+        // 6. Array change-by-copy methods (Chrome < 110)
+        if (!Array.prototype.toReversed) {
+          Array.prototype.toReversed = function() { return this.slice().reverse(); };
+        }
+        if (!Array.prototype.toSorted) {
+          Array.prototype.toSorted = function(fn) { return this.slice().sort(fn); };
+        }
+        if (!Array.prototype.toSpliced) {
+          Array.prototype.toSpliced = function(start, deleteCount) {
+            var copy = this.slice();
+            var items = Array.prototype.slice.call(arguments, 2);
+            copy.splice.apply(copy, [start, deleteCount].concat(items));
+            return copy;
+          };
+        }
+      })();
+    </script>
     <title>AI Personal Productivity Assistant</title>
     <meta name="description" content="Hệ thống AI Assistant quản lý công việc, ghi chú, tài liệu Google Drive, thông báo Telegram và Chat AI thông minh." />
     <meta property="og:title" content="AI Personal Productivity Assistant" />
