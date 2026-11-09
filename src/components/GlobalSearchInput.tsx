@@ -59,6 +59,11 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<(HTMLButtonElement | null)[]>([]);
 
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({
+    left: '0px',
+    width: 'min(740px, calc(100vw - 24px))',
+  });
+
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -69,6 +74,50 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Dynamically position dropdown to guarantee it NEVER clips off-screen left or right
+  useEffect(() => {
+    if (!isOpen || (!value.trim() && tagQuery === null)) return;
+
+    const updatePosition = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const margin = 12;
+
+      // Desired width based on viewport
+      const targetWidth = Math.min(
+        viewportWidth - margin * 2,
+        viewportWidth >= 1024 ? 740 : viewportWidth >= 768 ? 640 : 540
+      );
+
+      // Default: align dropdown's left edge with container's left edge (idealLeft = 0)
+      let idealLeft = 0;
+
+      // If dropdown would overflow right edge of viewport:
+      if (rect.left + idealLeft + targetWidth > viewportWidth - margin) {
+        idealLeft = (viewportWidth - margin) - (rect.left + targetWidth);
+      }
+
+      // If dropdown would overflow left edge of viewport (never allow negative viewport coordinate):
+      if (rect.left + idealLeft < margin) {
+        idealLeft = margin - rect.left;
+      }
+
+      setDropdownStyle({
+        width: `${targetWidth}px`,
+        left: `${idealLeft}px`,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen, value, tagQuery]);
 
   // Check if cursor is on a #tag query
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -319,7 +368,10 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
 
       {/* Global Results Dropdown - Wide, Spacious Popover */}
       {isOpen && (value.trim() || tagQuery !== null) && (
-        <div className="absolute left-0 sm:left-auto sm:left-1/2 sm:-translate-x-1/2 top-full mt-2 z-50 w-[95vw] sm:w-[580px] md:w-[660px] lg:w-[720px] max-w-[95vw] bg-white dark:bg-[#152033] border border-slate-200 dark:border-[#22334D] rounded-xl shadow-2xl overflow-hidden max-h-[500px] overflow-y-auto divide-y divide-slate-100 dark:divide-[#22334D]/60 animate-in fade-in slide-in-from-top-1 duration-150">
+        <div
+          style={dropdownStyle}
+          className="absolute top-full mt-2 z-50 bg-white dark:bg-[#152033] border border-slate-200 dark:border-[#22334D] rounded-xl shadow-2xl overflow-hidden max-h-[75vh] sm:max-h-[560px] overflow-y-auto divide-y divide-slate-100 dark:divide-[#22334D]/60 animate-in fade-in slide-in-from-top-1 duration-150"
+        >
           
           {/* Header Summary */}
           <div className="px-4 py-2.5 bg-slate-50 dark:bg-[#0E1522] flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-[#22334D]">
@@ -431,16 +483,16 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
                                 )}
                               </span>
                               <div className="min-w-0 flex-1">
-                                <div className="font-medium text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                  <span className="truncate">{task.title}</span>
+                                <div className="font-semibold text-sm text-slate-900 dark:text-slate-100 flex items-start gap-2 flex-wrap">
+                                  <span className="break-words leading-snug">{task.title}</span>
                                   {task.priority === 'high' && (
-                                    <span className="text-[9px] px-1.5 py-0.2 bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/40 rounded shrink-0">
+                                    <span className="text-[9px] px-1.5 py-0.5 bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/40 rounded shrink-0">
                                       Ưu tiên cao
                                     </span>
                                   )}
                                 </div>
                                 {task.description && (
-                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 break-words line-clamp-2 mt-1 leading-relaxed">
                                     {task.description}
                                   </p>
                                 )}
@@ -494,11 +546,11 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
                             <div className="flex items-start gap-2.5 min-w-0 flex-1">
                               <FileText className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
                               <div className="min-w-0 flex-1">
-                                <div className="font-medium text-sm text-slate-900 dark:text-slate-100 truncate">
+                                <div className="font-semibold text-sm text-slate-900 dark:text-slate-100 break-words leading-snug">
                                   {note.title}
                                 </div>
                                 {note.content && (
-                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 break-words line-clamp-2 mt-1 leading-relaxed">
                                     {note.content.replace(/[#*`_]/g, '')}
                                   </p>
                                 )}
@@ -554,22 +606,22 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
                                 {getFileIcon(file.mimeType)}
                               </span>
                               <div className="min-w-0 flex-1">
-                                <div className="font-medium text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                  <span className="truncate">{file.name}</span>
+                                <div className="font-semibold text-sm text-slate-900 dark:text-slate-100 flex items-start gap-2 flex-wrap">
+                                  <span className="break-words leading-snug">{file.name}</span>
                                   {file.classification && (
-                                    <span className="text-[9px] px-1.5 py-0.2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40 rounded uppercase font-semibold">
+                                    <span className="text-[9px] px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40 rounded uppercase font-semibold shrink-0">
                                       {file.classification}
                                     </span>
                                   )}
-                                  <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 dark:bg-[#0E1522] text-slate-500 dark:text-slate-400 rounded uppercase">
+                                  <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 dark:bg-[#0E1522] text-slate-500 dark:text-slate-400 rounded uppercase shrink-0">
                                     {file.category}
                                   </span>
                                 </div>
 
                                 {/* Display Note / Annotation snippet if exists */}
                                 {(file.notes || file.description) && (
-                                  <p className="text-[11px] text-slate-600 dark:text-slate-300 italic line-clamp-1 mt-0.5 flex items-center gap-1">
-                                    <span className="text-blue-600 dark:text-blue-400 font-semibold not-italic">Chú thích:</span>
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-300 italic break-words line-clamp-2 mt-1 flex items-start gap-1 leading-relaxed">
+                                    <span className="text-blue-600 dark:text-blue-400 font-semibold not-italic shrink-0">Chú thích:</span>
                                     <span>&quot;{file.notes || file.description}&quot;</span>
                                   </p>
                                 )}

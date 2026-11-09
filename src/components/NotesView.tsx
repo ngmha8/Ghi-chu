@@ -226,16 +226,16 @@ export const NotesView: React.FC<NotesViewProps> = ({
   return (
     <div className="space-y-6 pb-12">
       {/* Top Title Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#152033] border border-slate-200 dark:border-[#22334D] p-5 rounded-xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] p-5 rounded-xl shadow-xs">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="p-1 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400 flex items-center">
+            <span className="p-1 rounded-md bg-blue-50 text-blue-600 dark:bg-[#1A1A1A] dark:text-[#D4AF37] dark:border dark:border-[#D4AF37]/30 flex items-center">
               <FileText className="w-5 h-5" />
             </span>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
               Ghi chú & Nhật ký Tri thức
             </h1>
-            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 dark:border dark:border-blue-700/50 text-xs font-semibold">
+            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-[#202020] dark:text-[#D4AF37] dark:border dark:border-[#D4AF37]/40 text-xs font-semibold">
               Knowledge Base
             </span>
           </div>
@@ -247,14 +247,14 @@ export const NotesView: React.FC<NotesViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => openAiChatWithPrompt('Hãy phân tích tất cả các ghi chú hiện có và trích xuất 5 bài học cốt lõi.')}
-            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#0E1522] dark:hover:bg-[#1A263D] dark:text-slate-200 dark:border dark:border-[#22334D] text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#151515] dark:hover:bg-[#202020] dark:text-[#DDD] dark:border dark:border-[#2A2A2A] text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
-            <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
             <span className="hidden sm:inline">AI Trích xuất</span>
           </button>
           <button
             onClick={openNewNoteModal}
-            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:text-black dark:hover:bg-[#c29f2e] font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Tạo Ghi Chú Mới</span>
@@ -265,12 +265,12 @@ export const NotesView: React.FC<NotesViewProps> = ({
       {/* 4 Stats Cards Metric Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1 */}
-        <div className="bg-white dark:bg-[#152033] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#22334D] flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 tracking-wider uppercase">
+            <span className="text-[10px] font-bold text-blue-600 dark:text-[#D4AF37] tracking-wider uppercase">
               TỔNG SỐ GHI CHÚ
             </span>
-            <span className="text-xs font-bold text-slate-300 dark:text-slate-600">01</span>
+            <span className="text-xs font-bold text-slate-300 dark:text-[#555]">01</span>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
             <span className="text-2xl font-bold text-slate-900 dark:text-white">{notes.length}</span>
@@ -285,34 +285,34 @@ export const NotesView: React.FC<NotesViewProps> = ({
         </div>
 
         {/* Card 2 */}
-        <div className="bg-white dark:bg-[#152033] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#22334D] flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 tracking-wider uppercase">
+            <span className="text-[10px] font-bold text-sky-600 dark:text-emerald-400 tracking-wider uppercase">
               ĐÃ ĐỒNG BỘ DRIVE
             </span>
-            <span className="text-xs font-bold text-slate-300 dark:text-slate-600">02</span>
+            <span className="text-xs font-bold text-slate-300 dark:text-[#555]">02</span>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
             <span className="text-2xl font-bold text-slate-900 dark:text-white">{files.length} / {files.length}</span>
             <span className="text-xs text-slate-500 dark:text-slate-400">tệp lưu</span>
           </div>
-          <div className="mt-2 text-xs text-sky-600 dark:text-sky-400 font-medium flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+          <div className="mt-2 text-xs text-sky-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
             <span>Vector Search Active</span>
           </div>
         </div>
 
         {/* Card 3 */}
-        <div className="bg-white dark:bg-[#152033] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#22334D] flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 tracking-wider uppercase">
+            <span className="text-[10px] font-bold text-amber-600 dark:text-[#D4AF37] tracking-wider uppercase">
               TAGS PHỔ BIẾN
             </span>
-            <span className="text-xs font-bold text-slate-300 dark:text-slate-600">03</span>
+            <span className="text-xs font-bold text-slate-300 dark:text-[#555]">03</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
             {allTags.slice(0, 3).map(tag => (
-              <span key={tag} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#0E1522] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#22334D] font-mono text-[10px]">
+              <span key={tag} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#1A1A1A] text-slate-700 dark:text-[#CCC] border border-slate-200 dark:border-[#2A2A2A] font-mono text-[10px]">
                 #{tag}
               </span>
             ))}
@@ -323,12 +323,12 @@ export const NotesView: React.FC<NotesViewProps> = ({
         </div>
 
         {/* Card 4 */}
-        <div className="bg-white dark:bg-[#152033] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#22334D] flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2A2A2A] flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 tracking-wider uppercase">
               ĐÚC KẾT & AI VECTOR
             </span>
-            <span className="text-xs font-bold text-slate-300 dark:text-slate-600">04</span>
+            <span className="text-xs font-bold text-slate-300 dark:text-[#555]">04</span>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
             <span className="text-2xl font-bold text-slate-900 dark:text-white">
@@ -349,7 +349,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
         <div className="lg:col-span-4 space-y-3">
           
           {/* Search & Tag Filter Box */}
-          <div className="p-4 bg-white dark:bg-[#152033] rounded-2xl border border-slate-200 dark:border-[#22334D] space-y-3.5 shadow-xs">
+          <div className="p-4 bg-white dark:bg-[#151515] rounded-2xl border border-slate-200 dark:border-[#2A2A2A] space-y-3.5 shadow-xs">
             <TagSearchInput
               placeholder="Tìm ghi chú (gõ # để lọc tag)..."
               value={search}
@@ -363,22 +363,22 @@ export const NotesView: React.FC<NotesViewProps> = ({
               <select
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value as NoteDateFilter)}
-                className="px-2.5 py-1 bg-white dark:bg-[#0E1522] border border-slate-200 dark:border-[#22334D] rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600 cursor-pointer"
+                className="px-2.5 py-1 bg-white dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600 dark:focus:border-[#D4AF37] cursor-pointer"
               >
-                <option value="all" className="bg-white dark:bg-[#0E1522] text-slate-800 dark:text-slate-200">Tất cả thời gian</option>
-                <option value="7days" className="bg-white dark:bg-[#0E1522] text-slate-800 dark:text-slate-200">7 ngày qua</option>
-                <option value="30days" className="bg-white dark:bg-[#0E1522] text-slate-800 dark:text-slate-200">30 ngày qua</option>
+                <option value="all" className="bg-white dark:bg-[#0C0C0C] text-slate-800 dark:text-slate-200">Tất cả thời gian</option>
+                <option value="7days" className="bg-white dark:bg-[#0C0C0C] text-slate-800 dark:text-slate-200">7 ngày qua</option>
+                <option value="30days" className="bg-white dark:bg-[#0C0C0C] text-slate-800 dark:text-slate-200">30 ngày qua</option>
               </select>
             </div>
 
             {/* Tag Filter Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pt-1 no-scrollbar border-t border-slate-100 dark:border-[#22334D]/60">
+            <div className="flex items-center gap-1.5 overflow-x-auto pt-1 no-scrollbar border-t border-slate-100 dark:border-[#2A2A2A]/60">
               <button
                 onClick={() => setSelectedTag('all')}
                 className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
                   selectedTag === 'all'
-                    ? 'bg-blue-600 text-white font-bold shadow-xs'
-                    : 'bg-slate-100 dark:bg-[#0E1522] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#22334D] hover:bg-slate-200 dark:hover:bg-[#1E2C44] hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-blue-600 text-white dark:bg-[#D4AF37] dark:text-black font-bold shadow-xs'
+                    : 'bg-slate-100 dark:bg-[#1A1A1A] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#2A2A2A] hover:bg-slate-200 dark:hover:bg-[#252525] hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Tất cả ({notes.length})
@@ -389,12 +389,12 @@ export const NotesView: React.FC<NotesViewProps> = ({
                   onClick={() => setSelectedTag(selectedTag === tag ? 'all' : tag)}
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer border ${
                     selectedTag === tag
-                      ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-xs'
-                      : 'bg-slate-100 dark:bg-[#0E1522] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#22334D] hover:bg-slate-200 dark:hover:bg-[#1E2C44] hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-blue-600 text-white border-blue-600 dark:bg-[#D4AF37] dark:text-black dark:border-[#D4AF37] font-bold shadow-xs'
+                      : 'bg-slate-100 dark:bg-[#1A1A1A] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#2A2A2A] hover:bg-slate-200 dark:hover:bg-[#252525] hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <span>#{tag}</span>
-                  <span className={`text-[9px] px-1 rounded-full font-mono ${selectedTag === tag ? 'bg-white/20 text-white font-bold' : 'bg-slate-200 dark:bg-[#1E2C44] text-slate-600 dark:text-slate-300'}`}>
+                  <span className={`text-[9px] px-1 rounded-full font-mono ${selectedTag === tag ? 'bg-white/20 text-white font-bold dark:bg-black/20 dark:text-black' : 'bg-slate-200 dark:bg-[#222222] text-slate-600 dark:text-slate-300'}`}>
                     {count}
                   </span>
                 </button>
@@ -402,10 +402,10 @@ export const NotesView: React.FC<NotesViewProps> = ({
             </div>
 
             {/* Filter Count, Sort Order Selector & Reset */}
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-2 border-t border-slate-100 dark:border-[#22334D]/60">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-2 border-t border-slate-100 dark:border-[#2A2A2A]/60">
               <div className="flex items-center gap-2">
                 <span className="text-slate-500 dark:text-slate-400">
-                  Hiển thị <strong className="text-blue-600 dark:text-blue-400 font-bold">{filteredNotes.length}</strong> / {notes.length}
+                  Hiển thị <strong className="text-blue-600 dark:text-[#D4AF37] font-bold">{filteredNotes.length}</strong> / {notes.length}
                 </span>
                 {hasActiveFilters && (
                   <button
@@ -420,18 +420,18 @@ export const NotesView: React.FC<NotesViewProps> = ({
               </div>
 
               {/* Bộ chọn sắp xếp ghi chú */}
-              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-[#0E1522] px-2 py-0.5 rounded-lg border border-slate-200 dark:border-[#22334D]">
-                <ArrowUpDown className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
+              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-[#0C0C0C] px-2 py-0.5 rounded-lg border border-slate-200 dark:border-[#2A2A2A]">
+                <ArrowUpDown className="w-3 h-3 text-blue-600 dark:text-[#D4AF37] shrink-0" />
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold">Xếp:</span>
                 <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value as NoteSortOrder)}
-                  className="bg-transparent text-[11px] text-blue-600 dark:text-blue-400 font-semibold focus:outline-none cursor-pointer"
+                  className="bg-transparent text-[11px] text-blue-600 dark:text-[#D4AF37] font-semibold focus:outline-none cursor-pointer"
                   title="Thứ tự sắp xếp ghi chú"
                 >
-                  <option value="newest" className="bg-white dark:bg-[#0E1522] text-slate-800 dark:text-slate-200">Gần nhất lên trên</option>
-                  <option value="oldest" className="bg-white dark:bg-[#0E1522] text-slate-800 dark:text-slate-200">Cũ nhất trước</option>
-                  <option value="title" className="bg-white dark:bg-[#0E1522] text-slate-800 dark:text-slate-200">Tiêu đề (A-Z)</option>
+                  <option value="newest" className="bg-white dark:bg-[#0C0C0C] text-slate-800 dark:text-slate-200">Gần nhất lên trên</option>
+                  <option value="oldest" className="bg-white dark:bg-[#0C0C0C] text-slate-800 dark:text-slate-200">Cũ nhất trước</option>
+                  <option value="title" className="bg-white dark:bg-[#0C0C0C] text-slate-800 dark:text-slate-200">Tiêu đề (A-Z)</option>
                 </select>
               </div>
             </div>
@@ -440,7 +440,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
           {/* Notes Cards Stream */}
           <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
             {filteredNotes.length === 0 ? (
-              <div className="p-8 text-center rounded-2xl bg-white dark:bg-[#152033] border border-slate-200 dark:border-[#22334D] text-xs text-slate-500 dark:text-slate-400 shadow-xs">
+              <div className="p-8 text-center rounded-2xl bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] text-xs text-slate-500 dark:text-slate-400 shadow-xs">
                 Không có ghi chú nào khớp với bộ lọc.
               </div>
             ) : (
@@ -453,19 +453,19 @@ export const NotesView: React.FC<NotesViewProps> = ({
                     onClick={() => setSelectedNoteId(note.id)}
                     className={`p-4 rounded-xl border transition-all cursor-pointer relative shadow-2xs ${
                       isSelected
-                        ? 'bg-blue-50/70 dark:bg-[#1A263D] border-2 border-blue-600 dark:border-blue-500 shadow-sm'
-                        : 'bg-white dark:bg-[#152033] border-slate-200 dark:border-[#22334D] hover:border-blue-400 dark:hover:border-blue-500/60'
+                        ? 'bg-blue-50/70 dark:bg-[#D4AF37]/5 border-2 border-blue-600 dark:border-[#D4AF37] shadow-sm'
+                        : 'bg-white dark:bg-[#151515] border-slate-200 dark:border-[#2A2A2A] hover:border-blue-400 dark:hover:border-[#D4AF37]/60'
                     }`}
                   >
                     {note.isPinned && (
-                      <Pin className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 absolute top-3.5 right-3.5 fill-blue-600 dark:fill-blue-400" />
+                      <Pin className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37] absolute top-3.5 right-3.5 fill-blue-600 dark:fill-[#D4AF37]" />
                     )}
 
-                    <h3 className="text-sm font-sans font-bold text-slate-900 dark:text-slate-100 pr-6 truncate">{note.title || 'Ghi chú chưa đặt tên'}</h3>
-                    <p className="text-xs font-sans italic text-slate-600 dark:text-slate-300 line-clamp-2 mt-1.5 leading-relaxed">&ldquo;{note.content || 'Nội dung trống...'}&rdquo;</p>
+                    <h3 className="text-sm font-sans font-bold text-slate-900 dark:text-white pr-6 truncate">{note.title || 'Ghi chú chưa đặt tên'}</h3>
+                    <p className="text-xs font-sans italic text-slate-600 dark:text-[#AAA] line-clamp-2 mt-1.5 leading-relaxed">&ldquo;{note.content || 'Nội dung trống...'}&rdquo;</p>
 
-                    <div className="flex items-center justify-between gap-2 mt-2.5 pt-2 border-t border-slate-100 dark:border-[#22334D]/60">
-                      <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1" title="Thời gian ghi chú">
+                    <div className="flex items-center justify-between gap-2 mt-2.5 pt-2 border-t border-slate-100 dark:border-[#2A2A2A]/60">
+                      <span className="text-[10px] font-mono text-slate-500 dark:text-[#888] flex items-center gap-1" title="Thời gian ghi chú">
                         <Calendar className="w-3 h-3 text-amber-500 shrink-0" />
                         <span>
                           {new Date(note.noteDate || note.createdAt || note.updatedAt).toLocaleString('vi-VN', {
@@ -479,7 +479,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                       </span>
                       <div className="flex items-center gap-1 flex-wrap">
                         {note.tags.map((t, idx) => (
-                          <span key={idx} className="text-[10px] uppercase font-medium px-1.5 py-0.5 rounded bg-slate-50 dark:bg-[#0E1522] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#22334D]">
+                          <span key={idx} className="text-[10px] uppercase font-medium px-1.5 py-0.5 rounded bg-slate-50 dark:bg-[#0C0C0C] text-slate-600 dark:text-[#BBB] border border-slate-200 dark:border-[#2A2A2A]">
                             #{t}
                           </span>
                         ))}
@@ -493,32 +493,34 @@ export const NotesView: React.FC<NotesViewProps> = ({
         </div>
 
         {/* Right Column (8 cols): Editor Area */}
-        <div className="lg:col-span-8 bg-white dark:bg-[#152033] border border-slate-200 dark:border-[#22334D] rounded-2xl p-6 space-y-4 shadow-xs">
+        <div className="lg:col-span-8 bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-2xl p-6 space-y-4 shadow-xs">
           {currentNote ? (
             <>
               {/* Note Header & Save / AI Toolbar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-[#22334D] pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-[#2A2A2A] pb-4">
                 <input
                   type="text"
                   value={editorTitle}
                   onChange={(e) => setEditorTitle(e.target.value)}
                   placeholder="Tiêu đề ghi chú..."
-                  className="bg-transparent text-lg font-sans font-bold text-slate-900 dark:text-slate-100 focus:outline-none placeholder-slate-400 dark:placeholder-slate-500 flex-1 tracking-tight"
+                  className="bg-transparent text-lg font-sans font-bold text-slate-900 dark:text-white focus:outline-none placeholder-slate-400 dark:placeholder-slate-500 flex-1 tracking-tight"
                 />
 
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => openAiChatWithPrompt(`Tóm tắt và trích xuất các ý chính, hành động cần làm từ ghi chú này: "${editorTitle}". Nội dung: ${editorContent}`)}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-[#0E1522] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#22334D] hover:bg-slate-50 dark:hover:bg-[#1A263D] transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-[#1A1A1A] text-slate-700 dark:text-[#D4AF37] border border-slate-200 dark:border-[#D4AF37]/40 hover:bg-slate-50 dark:hover:bg-[#252525] transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
                     <span className="hidden sm:inline">AI TÓM TẮT</span>
                   </button>
 
                   <button
                     onClick={() => setIsPreviewMode(!isPreviewMode)}
                     className={`p-2 rounded-lg border transition-colors cursor-pointer ${
-                      isPreviewMode ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-[#0E1522] text-slate-700 dark:text-slate-200 border-slate-200 dark:border-[#22334D] hover:bg-slate-50 dark:hover:bg-[#1A263D]'
+                      isPreviewMode
+                        ? 'bg-blue-600 text-white border-blue-600 dark:bg-[#D4AF37] dark:text-black dark:border-[#D4AF37]'
+                        : 'bg-white dark:bg-[#1A1A1A] text-slate-700 dark:text-[#DDD] border-slate-200 dark:border-[#2A2A2A] hover:bg-slate-50 dark:hover:bg-[#252525]'
                     }`}
                     title={isPreviewMode ? 'Chuyển sang chế độ Chỉnh sửa' : 'Xem trước Markdown'}
                   >
@@ -528,7 +530,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                   <button
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#D4AF37] dark:text-black dark:hover:bg-[#c29f2e] font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                   >
                     {isSaving ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
                     <span>{isSaving ? 'ĐÃ LƯU' : 'LƯU'}</span>
@@ -536,7 +538,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
                   <button
                     onClick={() => onNoteDelete(currentNote.id)}
-                    className="p-2 rounded-lg bg-white dark:bg-[#0E1522] border border-slate-200 dark:border-[#22334D] hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:border-rose-300 dark:hover:border-rose-800 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                    className="p-2 rounded-lg bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2A2A2A] hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:border-rose-300 dark:hover:border-rose-800 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
                     title="Xóa ghi chú"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -545,22 +547,22 @@ export const NotesView: React.FC<NotesViewProps> = ({
               </div>
 
               {/* Note Time Meta Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 dark:bg-[#0E1522] px-3 py-2 rounded-lg border border-slate-200 dark:border-[#22334D] text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 dark:bg-[#0C0C0C] px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2A2A2A] text-xs">
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-[#D4AF37]" />
                   <span className="font-semibold text-slate-700 dark:text-slate-300">Thời gian ghi chú:</span>
                   <input
                     type="datetime-local"
                     value={editorNoteDate}
                     onChange={(e) => setEditorNoteDate(e.target.value)}
-                    className="bg-white dark:bg-[#152033] border border-slate-200 dark:border-[#22334D] rounded px-2 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                    className="bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded px-2 py-1 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-600 dark:focus:border-[#D4AF37]"
                   />
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setEditorNoteDate(getLocalIsoString(new Date()))}
-                    className="px-2 py-0.5 rounded text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
+                    className="px-2 py-0.5 rounded text-[10px] font-medium text-slate-500 dark:text-[#D4AF37] hover:text-slate-900 dark:hover:text-[#F3E7A0] transition-colors cursor-pointer"
                     title="Đặt lại về thời điểm hiện tại"
                   >
                     Bây giờ
@@ -572,7 +574,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                       today.setHours(8, 0, 0, 0);
                       setEditorNoteDate(getLocalIsoString(today));
                     }}
-                    className="px-2 py-0.5 rounded text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
+                    className="px-2 py-0.5 rounded text-[10px] font-medium text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
                   >
                     Hôm nay (08:00)
                   </button>
@@ -581,38 +583,38 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
               {/* Markdown Helper Formatting Toolbar */}
               {!isPreviewMode && (
-                <div className="flex items-center gap-1 bg-slate-50 dark:bg-[#0E1522] p-1.5 rounded-lg border border-slate-200 dark:border-[#22334D] overflow-x-auto text-slate-600 dark:text-slate-300">
+                <div className="flex items-center gap-1 bg-slate-50 dark:bg-[#0C0C0C] p-1.5 rounded-lg border border-slate-200 dark:border-[#2A2A2A] overflow-x-auto text-slate-600 dark:text-[#AAA]">
                   <button
                     onClick={() => insertTextAtCursor('**', '**')}
-                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#1E2C44] cursor-pointer"
+                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#202020] cursor-pointer"
                     title="In đậm (Bold)"
                   >
                     <Bold className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => insertTextAtCursor('*', '*')}
-                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#1E2C44] cursor-pointer"
+                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#202020] cursor-pointer"
                     title="In nghiêng (Italic)"
                   >
                     <Italic className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => insertTextAtCursor('### ')}
-                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#1E2C44] cursor-pointer"
+                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#202020] cursor-pointer"
                     title="Tiêu đề H3"
                   >
                     <Heading className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => insertTextAtCursor('- ')}
-                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#1E2C44] cursor-pointer"
+                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#202020] cursor-pointer"
                     title="Danh sách gạch đầu dòng"
                   >
                     <List className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => insertTextAtCursor('```typescript\n', '\n```')}
-                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#1E2C44] cursor-pointer"
+                    className="p-1 hover:text-slate-900 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-[#202020] cursor-pointer"
                     title="Khối mã (Code block)"
                   >
                     <Code className="w-3.5 h-3.5" />
@@ -622,7 +624,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
               {/* Note Content Editor / Preview */}
               {isPreviewMode ? (
-                <div className="min-h-[350px] p-4 bg-white dark:bg-[#0E1522] rounded-lg border border-slate-200 dark:border-[#22334D] text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed font-sans shadow-inner">
+                <div className="min-h-[350px] p-4 bg-white dark:bg-[#0C0C0C] rounded-lg border border-slate-200 dark:border-[#2A2A2A] text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed font-sans shadow-inner">
                   {editorContent || 'Chưa có nội dung...'}
                 </div>
               ) : (
@@ -631,14 +633,14 @@ export const NotesView: React.FC<NotesViewProps> = ({
                   onChange={(e) => setEditorContent(e.target.value)}
                   placeholder="Viết nội dung ghi chú (hỗ trợ Markdown)..."
                   rows={14}
-                  className="w-full bg-white dark:bg-[#0E1522] border border-slate-200 dark:border-[#22334D] rounded-lg p-4 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500/20 font-sans leading-relaxed resize-y shadow-2xs placeholder-slate-400 dark:placeholder-slate-500"
+                  className="w-full bg-white dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] rounded-lg p-4 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500/20 dark:focus:border-[#D4AF37] dark:focus:ring-[#D4AF37]/20 font-sans leading-relaxed resize-y shadow-2xs placeholder-slate-400 dark:placeholder-slate-500"
                 />
               )}
 
               {/* Tags Autocomplete Input */}
-              <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-[#22334D]">
+              <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-[#2A2A2A]">
                 <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <Tag className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                  <Tag className="w-3 h-3 text-blue-600 dark:text-[#D4AF37]" />
                   <span>Thẻ phân loại (Tags)</span>
                 </label>
                 <TagAutocompleteInput

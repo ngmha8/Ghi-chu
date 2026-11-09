@@ -164,16 +164,16 @@ export const TagAutocompleteInput: React.FC<TagAutocompleteInputProps> = ({
             }
           }}
           placeholder={placeholder}
-          className={`w-full p-2.5 bg-slate-50 dark:bg-[#0E1522] border border-slate-200 dark:border-[#22334D] rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-xs focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 transition-colors ${className}`}
+          className={`w-full p-2.5 bg-slate-50 dark:bg-[#0C0C0C] border border-slate-200 dark:border-[#2A2A2A] rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-xs focus:outline-none focus:border-blue-600 dark:focus:border-[#D4AF37] transition-colors ${className}`}
         />
       </div>
 
       {/* Dropdown Popup List */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-[#152033] border border-slate-200 dark:border-[#22334D] rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-[#22334D]/60 animate-in fade-in slide-in-from-top-1 duration-150">
-          <div className="px-3 py-1.5 bg-slate-50 dark:bg-[#0E1522] flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-[#22334D]">
-            <span className="flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400">
-              <Tag className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-[#151515] border border-slate-200 dark:border-[#2A2A2A] rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-[#2A2A2A]/60 animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="px-3 py-1.5 bg-slate-50 dark:bg-[#0C0C0C] flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-[#2A2A2A]">
+            <span className="flex items-center gap-1 font-medium text-blue-600 dark:text-[#D4AF37]">
+              <Tag className="w-3 h-3 text-blue-600 dark:text-[#D4AF37]" />
               {searchQuery ? `Tìm kiếm tag: "${searchQuery}"` : 'Danh sách Tag hiện có'}
             </span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500">Dùng ↑ ↓ và Enter để chọn</span>
@@ -193,16 +193,16 @@ export const TagAutocompleteInput: React.FC<TagAutocompleteInputProps> = ({
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors cursor-pointer ${
                       isHighlighted
-                        ? 'bg-blue-50 dark:bg-[#1A263D] text-blue-600 dark:text-blue-400 font-medium'
-                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1A263D]/50'
+                        ? 'bg-blue-50 dark:bg-[#202020] text-blue-600 dark:text-[#D4AF37] font-medium'
+                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#202020]/50'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-blue-600 dark:text-blue-400 font-bold">#</span>
+                      <span className="text-blue-600 dark:text-[#D4AF37] font-bold">#</span>
                       <span>{tag}</span>
                     </div>
                     {isSelectedInInput && (
-                      <span className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] text-blue-600 dark:text-[#D4AF37] flex items-center gap-1 bg-blue-50 dark:bg-[#D4AF37]/10 border border-blue-200 dark:border-[#D4AF37]/40 px-1.5 py-0.5 rounded">
                         <Check className="w-2.5 h-2.5" /> Đã chọn
                       </span>
                     )}
