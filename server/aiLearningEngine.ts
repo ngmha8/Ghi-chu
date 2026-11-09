@@ -14,15 +14,17 @@ import {
   saveDbAiPersonaConfig,
 } from './firebaseDb.ts';
 import { AiMemoryFact, AiLearningInsight, AiMemoryCategory, AiPersonaConfig } from '../src/types/index.ts';
-import { safeGenerateContent } from './geminiHelper.ts';
+import { safeGenerateContent, ThinkingLevel } from './geminiHelper.ts';
 
 // -------------------------------------------------------------
 // 1. DYNAMIC MEMORY SYNTHESIS (INJECT INTO SYSTEM PROMPT)
 // -------------------------------------------------------------
 export async function synthesizeLearnedPromptContext(): Promise<string> {
-  const activeMemories = await getActiveDbAiMemories();
-  const insights = await getDbAiInsights();
-  const persona = await getDbAiPersonaConfig();
+  const [activeMemories, insights, persona] = await Promise.all([
+    getActiveDbAiMemories(),
+    getDbAiInsights(),
+    getDbAiPersonaConfig(),
+  ]);
 
   const styleDescriptions: Record<string, string> = {
     warm_empathetic: 'Tận tụy, thấu cảm sâu sắc, ấm áp, giàu năng lượng tích cực và luôn mang lại cảm giác an tâm tuyệt đối.',
@@ -171,6 +173,7 @@ HÃY TRẢ VỀ DUY NHẤT ĐỊNH DẠNG JSON KHÔNG KÈM TEXT GIẢI THÍCH:
         contents: extractionPrompt,
         config: {
           responseMimeType: 'application/json',
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         },
       });
 

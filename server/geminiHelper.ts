@@ -1,40 +1,40 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 /**
  * Standard, production-grade Gemini fallback chain.
- * Prioritizes high-throughput, low-latency models officially available in the Google GenAI production API.
- * 1. gemini-3.6-flash: Ultra-fast, highly reliable, recommended replacement for flash
- * 2. gemini-3.8-flash: Official state-of-the-art flash model
- * 3. gemini-flash-latest: Official rolling alias from Google
- * 4. gemini-3.5-flash-lite / gemini-3.1-flash-lite: Lightweight high-efficiency models
+ * Prioritizes high-throughput, lowest-latency models officially available in the Google GenAI production API.
+ * 1. gemini-3.8-flash: Official state-of-the-art flagship flash model (Fastest TTFT + high reasoning)
+ * 2. gemini-flash-latest: Official rolling alias from Google
+ * 3. gemini-3.1-flash-lite: Lightweight high-efficiency fallback
+ * 4. gemini-3.6-flash: Secondary fallback
  */
 export const GEMINI_MODEL_FALLBACK_CHAIN = [
-  'gemini-3.6-flash',
   'gemini-3.8-flash',
   'gemini-flash-latest',
-  'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite',
+  'gemini-3.6-flash',
 ];
 
 /**
  * Normalizes model names to currently active production endpoints in Google GenAI API.
- * Google GenAI API returns 404/NOT_FOUND for deprecated models (e.g. gemini-2.5-flash is retired
- * in favor of gemini-3.6-flash, and gemini-2.5-flash-lite is retired in favor of gemini-3.5-flash-lite).
+ * Google GenAI API returns 404/NOT_FOUND for deprecated models.
  * This mapping eliminates wasteful 404 network round-trips.
  */
 export function normalizeModelAlias(model: string): string {
   const clean = model.trim().toLowerCase();
   if (clean === 'gemini-2.5-flash' || clean === 'gemini-3.7-flash' || clean === 'gemini-3.5-flash') {
-    return 'gemini-3.6-flash';
+    return 'gemini-3.8-flash';
   }
-  if (clean === 'gemini-2.5-flash-lite') {
-    return 'gemini-3.5-flash-lite';
+  if (clean === 'gemini-2.5-flash-lite' || clean === 'gemini-3.5-flash-lite') {
+    return 'gemini-3.1-flash-lite';
   }
   if (clean === 'gemini-2.5-pro') {
-    return 'gemini-3.6-flash';
+    return 'gemini-3.8-flash';
   }
   return model;
 }
+
+export { ThinkingLevel };
 
 export interface SafeGenerateOptions {
   gemini: GoogleGenAI;

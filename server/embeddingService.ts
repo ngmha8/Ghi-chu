@@ -268,13 +268,37 @@ function computeTextHash(text: string): string {
   return hash.toString();
 }
 
+// High-speed In-Memory Query Embedding Cache (LRU up to 250 queries)
+const queryVectorCache = new Map<string, { vector: number[]; model: string }>();
+const MAX_QUERY_CACHE_SIZE = 250;
+
+/**
+ * High-speed check if a query needs semantic document retrieval
+ */
+export function isInformationSeekingQuery(query: string): boolean {
+  const q = query.toLowerCase().trim();
+  if (q.length < 4) return false;
+  const greetings = ['chào', 'hi', 'hello', 'alo', 'cảm ơn', 'thanks', 'ok', 'oke', 'tạm biệt', 'bye'];
+  if (greetings.includes(q)) return false;
+  const actionPrefixes = ['thêm việc', 'tạo việc', 'tạo task', 'nhắc việc', 'nhắc tôi', 'xong việc', 'đã xong', 'hoàn thành'];
+  if (actionPrefixes.some(p => q.startsWith(p))) return false;
+  return true;
+}
+
 /**
  * Generate 3072-dimensional dense vector using Google's gemini-embedding-2-preview model
+ * with multi-tier in-memory caching to eliminate redundant network round-trips.
  */
 export async function generateEmbedding(text: string): Promise<{ vector: number[]; model: string }> {
   const cleanText = text.trim().slice(0, 4000);
   if (!cleanText) {
     return { vector: generateLocalDenseVector('', EMBEDDING_DIMENSIONS), model: 'local-dense' };
+  }
+
+  // Fast Memory Cache Hit (0ms)
+  const cached = queryVectorCache.get(cleanText);
+  if (cached) {
+    return cached;
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -290,7 +314,13 @@ export async function generateEmbedding(text: string): Promise<{ vector: number[
 
       const values = (response as any)?.embeddings?.[0]?.values || (response as any)?.embedding?.values;
       if (values && Array.isArray(values) && values.length > 0) {
-        return { vector: values, model: PRIMARY_EMBEDDING_MODEL };
+        const result = { vector: values, model: PRIMARY_EMBEDDING_MODEL };
+        if (queryVectorCache.size >= MAX_QUERY_CACHE_SIZE) {
+          const firstKey = queryVectorCache.keys().next().value;
+          if (firstKey) queryVectorCache.delete(firstKey);
+        }
+        queryVectorCache.set(cleanText, result);
+        return result;
       }
     } catch (err: any) {
       console.warn(`[Embedding] Primary ${PRIMARY_EMBEDDING_MODEL} failed, attempting resilient local:`, err?.message);
@@ -534,10 +564,22 @@ export async function searchSemanticDocuments(
   const cleanQuery = query.trim();
   if (!cleanQuery) return [];
 
+  // Short-circuit: If no documents or files exist at all, skip embedding generation
+  if (vectorCache.size === 0 && bm25Index.search(cleanQuery, type, 1).length === 0) {
+    return [];
+  }
+
+  // Fast check: If query is purely conversational/greeting, check BM25 first before expensive embedding call
+  const isDocSeeking = isInformationSeekingQuery(cleanQuery);
+  const bm25Initial = bm25Index.search(cleanQuery, type, 30);
+  if (!isDocSeeking && bm25Initial.length === 0) {
+    return [];
+  }
+
   // Parallel Execution: Dense Embedding Retrieval + Sparse BM25 Retrieval
   const [embedResult, bm25Results] = await Promise.all([
     generateEmbedding(cleanQuery),
-    Promise.resolve(bm25Index.search(cleanQuery, type, 30)),
+    Promise.resolve(bm25Initial),
   ]);
 
   const queryVector = embedResult.vector;

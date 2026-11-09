@@ -10,7 +10,7 @@ import {
   appendConversationTurn,
   clearConversationHistory,
 } from './firebaseDb.ts';
-import { safeGenerateContent, safeGenerateContentStream } from './geminiHelper.ts';
+import { safeGenerateContent, safeGenerateContentStream, ThinkingLevel } from './geminiHelper.ts';
 import { fetchLiveWeather } from './weatherService.ts';
 import { aiFunctionDeclarations, executeAiFunctionCall } from './aiTools.ts';
 import {
@@ -18,7 +18,7 @@ import {
   triggerPassiveLearningExtraction,
 } from './aiLearningEngine.ts';
 import { searchSemanticDocuments } from './embeddingService.ts';
-import type { Task } from '../src/types/index.ts';
+import type { Task, Note, DriveFile } from '../src/types/index.ts';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 export const UPLOADS_DIR = path.join(_dirname, 'data', 'uploads');
@@ -47,25 +47,6 @@ export async function processAiChat(
   sessionId: string = 'default_session',
   providedHistory: { role: string; content: string }[] = []
 ) {
-  const tasks = await getDbTasks();
-  const notes = await getDbNotes();
-  const currentFiles = await getDbFiles();
-
-  const currentTimeIso = new Date().toISOString();
-  const telegramConfig = await getDbTelegramConfig();
-  const timeZone = telegramConfig.timezone || 'Asia/Ho_Chi_Minh';
-  const vnDate = new Date();
-  const vnTimeStr = vnDate.toLocaleString('vi-VN', {
-    timeZone,
-    weekday: 'long',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-
   const queryLower = message.toLowerCase().trim();
 
   // -------------------------------------------------------------
@@ -176,20 +157,50 @@ YÊU CẦU:
   // -------------------------------------------------------------
   // TIER 3: AUTONOMOUS ADVANCED AI COGNITIVE LAYER & FIRESTORE RAG
   // -------------------------------------------------------------
+  let tasks: Task[] = [];
+  let notes: Note[] = [];
+  let currentFiles: DriveFile[] = [];
+
   try {
     const ai = getGeminiClient();
 
+    // High-Speed Parallel Execution: Concurrently load Tasks, Notes, Files, Telegram Config, Learned Memory and Semantic RAG
+    const [fetchedTasks, fetchedNotes, fetchedFiles, telegramConfig, learnedMemoryContext, semanticMatches] = await Promise.all([
+      getDbTasks().catch(() => []),
+      getDbNotes().catch(() => []),
+      getDbFiles().catch(() => []),
+      getDbTelegramConfig(),
+      synthesizeLearnedPromptContext(),
+      searchSemanticDocuments(message, { topK: 4, threshold: 0.25 }).catch(() => []),
+    ]);
+
+    tasks = fetchedTasks;
+    notes = fetchedNotes;
+    currentFiles = fetchedFiles;
+
+    const currentTimeIso = new Date().toISOString();
+    const timeZone = telegramConfig.timezone || 'Asia/Ho_Chi_Minh';
     const nowRef = new Date();
-    const vnDateNow = new Date(nowRef.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+    const vnDateNow = new Date(nowRef.toLocaleString('en-US', { timeZone }));
     const weekdayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
     const currentVnDateStr = `${vnDateNow.getFullYear()}-${String(vnDateNow.getMonth() + 1).padStart(2, '0')}-${String(vnDateNow.getDate()).padStart(2, '0')}`;
+    const vnTimeStr = vnDateNow.toLocaleString('vi-VN', {
+      timeZone,
+      weekday: 'long',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
 
     const tasksContext = tasks.map(t => {
       if (!t.deadline) {
         return `- [ID: ${t.id}] [${t.status.toUpperCase()}] [ƯU TIÊN: ${t.priority.toUpperCase()}] "${t.title}" | Deadline: Không đặt hạn | Tags: ${(t.tags || []).join(', ')}`;
       }
       const tDate = new Date(t.deadline);
-      const tVn = new Date(tDate.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+      const tVn = new Date(tDate.toLocaleString('en-US', { timeZone }));
       const tIso = `${tVn.getFullYear()}-${String(tVn.getMonth() + 1).padStart(2, '0')}-${String(tVn.getDate()).padStart(2, '0')}`;
       const tWeekday = weekdayNames[tVn.getDay()];
       const tTime = `${String(tVn.getHours()).padStart(2, '0')}:${String(tVn.getMinutes()).padStart(2, '0')}`;
@@ -209,7 +220,7 @@ YÊU CẦU:
       } else {
         const tomorrow = new Date(nowRef);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowVn = new Date(tomorrow.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+        const tomorrowVn = new Date(tomorrow.toLocaleString('en-US', { timeZone }));
         const tomorrowIso = `${tomorrowVn.getFullYear()}-${String(tomorrowVn.getMonth() + 1).padStart(2, '0')}-${String(tomorrowVn.getDate()).padStart(2, '0')}`;
 
         if (tIso === tomorrowIso) {
@@ -233,27 +244,15 @@ YÊU CẦU:
       ? activeHistory.slice(-8).map(h => `${h.role === 'user' ? 'Người dùng' : 'Trợ lý AI'}: ${h.content}`).join('\n')
       : '';
 
-    const learnedMemoryContext = await synthesizeLearnedPromptContext();
-
-    // Semantic Vector Search for user question to retrieve exact matching excerpts
     let semanticMatchesContext = '';
-    try {
-      const semanticMatches = await searchSemanticDocuments(message, {
-        topK: 4,
-        threshold: 0.25,
-      });
-
-      if (semanticMatches.length > 0) {
-        semanticMatchesContext = '=== KẾT QUẢ TRUY XUẤT HYBRID RAG (DENSE gemini-embedding-2-preview + SPARSE BM25 + RRF) ===\n' +
-          '(Hệ thống Hybrid Search đã trích xuất các tài liệu/ghi chú liên quan mật thiết nhất bằng mô hình Vector Google kết hợp thuật toán BM25 và Reciprocal Rank Fusion):\n' +
-          semanticMatches.map(m => {
-            const typeLabel = m.type === 'note' ? 'GHI CHÚ' : 'TÀI LIỆU';
-            const matchScore = Math.round(m.similarity * 100);
-            return `• [${typeLabel}: "${m.title}"] (Độ khớp: ${matchScore}% | Phương thức: ${m.matchMethod?.toUpperCase() || 'HYBRID'})\n  - Đánh giá liên quan: ${m.relevanceExplanation || ''}\n  - Trích đoạn nội dung: "${m.fullText.slice(0, 700)}"`;
-          }).join('\n\n');
-      }
-    } catch (semErr) {
-      console.warn('[Semantic Search Retrieval Error]:', semErr);
+    if (semanticMatches && semanticMatches.length > 0) {
+      semanticMatchesContext = '=== KẾT QUẢ TRUY XUẤT HYBRID RAG (DENSE gemini-embedding-2-preview + SPARSE BM25 + RRF) ===\n' +
+        '(Hệ thống Hybrid Search đã trích xuất các tài liệu/ghi chú liên quan mật thiết nhất bằng mô hình Vector Google kết hợp thuật toán BM25 và Reciprocal Rank Fusion):\n' +
+        semanticMatches.map(m => {
+          const typeLabel = m.type === 'note' ? 'GHI CHÚ' : 'TÀI LIỆU';
+          const matchScore = Math.round(m.similarity * 100);
+          return `• [${typeLabel}: "${m.title}"] (Độ khớp: ${matchScore}% | Phương thức: ${m.matchMethod?.toUpperCase() || 'HYBRID'})\n  - Đánh giá liên quan: ${m.relevanceExplanation || ''}\n  - Trích đoạn nội dung: "${m.fullText.slice(0, 700)}"`;
+        }).join('\n\n');
     }
 
     const systemInstruction = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp & Bạn Đồng Hành Trí Tuệ Tự Học (Senior AI Executive Companion & Thought Partner).
@@ -340,6 +339,7 @@ NGUYÊN TẮC BẤT DI BẤT DỊCH VỀ PHẢN HỒI & CHUẨN XÁC THỜI GIAN
           contents: message,
           config: {
             systemInstruction,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
             tools: [{ functionDeclarations: aiFunctionDeclarations }],
           },
         });
@@ -348,7 +348,10 @@ NGUYÊN TẮC BẤT DI BẤT DỊCH VỀ PHẢN HỒI & CHUẨN XÁC THỜI GIAN
         response = await safeGenerateContent({
           gemini: ai,
           contents: message,
-          config: { systemInstruction },
+          config: {
+            systemInstruction,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          },
         });
       }
     } else if (enableSearch && (queryLower.includes('tìm kiếm') || queryLower.includes('tin tức') || queryLower.includes('mới nhất') || queryLower.includes('giá') || queryLower.includes('search') || queryLower.includes('hôm nay có gì'))) {
@@ -358,6 +361,7 @@ NGUYÊN TẮC BẤT DI BẤT DỊCH VỀ PHẢN HỒI & CHUẨN XÁC THỜI GIAN
           contents: message,
           config: {
             systemInstruction,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
             tools: [{ googleSearch: {} }],
           },
         });
@@ -365,14 +369,20 @@ NGUYÊN TẮC BẤT DI BẤT DỊCH VỀ PHẢN HỒI & CHUẨN XÁC THỜI GIAN
         response = await safeGenerateContent({
           gemini: ai,
           contents: message,
-          config: { systemInstruction },
+          config: {
+            systemInstruction,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          },
         });
       }
     } else {
       response = await safeGenerateContent({
         gemini: ai,
         contents: message,
-        config: { systemInstruction },
+        config: {
+          systemInstruction,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        },
       });
     }
 
@@ -586,13 +596,19 @@ export async function processAiChatStream(
     return result;
   }
 
-  // Tier 4: Native LLM Content Stream with Context & RAG
-  const tasks = await getDbTasks();
-  const notes = await getDbNotes();
-  const currentFiles = await getDbFiles();
+  // Tier 4: Native LLM Content Stream with Context & RAG (Parallel High-Throughput Pipeline)
+  const [tasks, notes, currentFiles, telegramConfig, learnedMemoryContext, semanticMatches] = await Promise.all([
+    getDbTasks(),
+    getDbNotes(),
+    getDbFiles(),
+    getDbTelegramConfig(),
+    synthesizeLearnedPromptContext(),
+    searchSemanticDocuments(message, { topK: 4, threshold: 0.25 }).catch(() => []),
+  ]);
 
+  const timeZone = telegramConfig.timezone || 'Asia/Ho_Chi_Minh';
   const nowRef = new Date();
-  const vnDateNow = new Date(nowRef.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+  const vnDateNow = new Date(nowRef.toLocaleString('en-US', { timeZone }));
   const weekdayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
   const currentVnDateStr = `${vnDateNow.getFullYear()}-${String(vnDateNow.getMonth() + 1).padStart(2, '0')}-${String(vnDateNow.getDate()).padStart(2, '0')}`;
 
@@ -601,7 +617,7 @@ export async function processAiChatStream(
       return `- [ID: ${t.id}] [${t.status.toUpperCase()}] [ƯU TIÊN: ${t.priority.toUpperCase()}] "${t.title}" | Deadline: Không đặt hạn | Tags: ${(t.tags || []).join(', ')}`;
     }
     const tDate = new Date(t.deadline);
-    const tVn = new Date(tDate.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+    const tVn = new Date(tDate.toLocaleString('en-US', { timeZone }));
     const tIso = `${tVn.getFullYear()}-${String(tVn.getMonth() + 1).padStart(2, '0')}-${String(tVn.getDate()).padStart(2, '0')}`;
     const tWeekday = weekdayNames[tVn.getDay()];
     const tTime = `${String(tVn.getHours()).padStart(2, '0')}:${String(tVn.getMinutes()).padStart(2, '0')}`;
@@ -621,7 +637,7 @@ export async function processAiChatStream(
     } else {
       const tomorrow = new Date(nowRef);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowVn = new Date(tomorrow.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+      const tomorrowVn = new Date(tomorrow.toLocaleString('en-US', { timeZone }));
       const tomorrowIso = `${tomorrowVn.getFullYear()}-${String(tomorrowVn.getMonth() + 1).padStart(2, '0')}-${String(tomorrowVn.getDate()).padStart(2, '0')}`;
 
       if (tIso === tomorrowIso) {
@@ -645,26 +661,15 @@ export async function processAiChatStream(
     ? activeHistory.slice(-8).map(h => `${h.role === 'user' ? 'Người dùng' : 'Trợ lý AI'}: ${h.content}`).join('\n')
     : '';
 
-  const learnedMemoryContext = await synthesizeLearnedPromptContext();
-
   let semanticMatchesContext = '';
-  try {
-    const semanticMatches = await searchSemanticDocuments(message, {
-      topK: 4,
-      threshold: 0.25,
-    });
-
-    if (semanticMatches.length > 0) {
-      semanticMatchesContext = '=== KẾT QUẢ TRUY XUẤT HYBRID RAG (DENSE gemini-embedding-2-preview + SPARSE BM25 + RRF) ===\n' +
-        '(Hệ thống Hybrid Search đã trích xuất các tài liệu/ghi chú liên quan mật thiết nhất bằng mô hình Vector Google kết hợp thuật toán BM25 và Reciprocal Rank Fusion):\n' +
-        semanticMatches.map(m => {
-          const typeLabel = m.type === 'note' ? 'GHI CHÚ' : 'TÀI LIỆU';
-          const matchScore = Math.round(m.similarity * 100);
-          return `• [${typeLabel}: "${m.title}"] (Độ khớp: ${matchScore}% | Phương thức: ${m.matchMethod?.toUpperCase() || 'HYBRID'})\n  - Đánh giá liên quan: ${m.relevanceExplanation || ''}\n  - Trích đoạn nội dung: "${m.fullText.slice(0, 700)}"`;
-        }).join('\n\n');
-    }
-  } catch (semErr) {
-    console.warn('[Semantic Search Retrieval Error]:', semErr);
+  if (semanticMatches && semanticMatches.length > 0) {
+    semanticMatchesContext = '=== KẾT QUẢ TRUY XUẤT HYBRID RAG (DENSE gemini-embedding-2-preview + SPARSE BM25 + RRF) ===\n' +
+      '(Hệ thống Hybrid Search đã trích xuất các tài liệu/ghi chú liên quan mật thiết nhất bằng mô hình Vector Google kết hợp thuật toán BM25 và Reciprocal Rank Fusion):\n' +
+      semanticMatches.map(m => {
+        const typeLabel = m.type === 'note' ? 'GHI CHÚ' : 'TÀI LIỆU';
+        const matchScore = Math.round(m.similarity * 100);
+        return `• [${typeLabel}: "${m.title}"] (Độ khớp: ${matchScore}% | Phương thức: ${m.matchMethod?.toUpperCase() || 'HYBRID'})\n  - Đánh giá liên quan: ${m.relevanceExplanation || ''}\n  - Trích đoạn nội dung: "${m.fullText.slice(0, 700)}"`;
+      }).join('\n\n');
   }
 
   const systemInstruction = `Bạn là Trợ Lý Cố Vấn Điều Hành Cao Cấp & Bạn Đồng Hành Trí Tuệ Tự Học (Senior AI Executive Companion & Thought Partner).
@@ -696,6 +701,7 @@ ${semanticMatchesContext ? `${semanticMatchesContext}\n\n` : ''}${historySnippet
       contents: message,
       config: {
         systemInstruction,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         ...(enableSearch && hasSearchQuery ? { tools: [{ googleSearch: {} }] } : {}),
       },
     });
@@ -808,7 +814,7 @@ QUY TẮC BẮT BUỘC:
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
-        temperature: 0.3,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       },
     });
 
@@ -913,7 +919,7 @@ QUY TẮC BẮT BUỘC:
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
-        temperature: 0.25,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       },
     });
 

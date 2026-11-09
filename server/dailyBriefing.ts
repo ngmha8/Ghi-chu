@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { Task, Note } from '../src/types/index.ts';
-import { safeGenerateContent } from './geminiHelper.ts';
+import { safeGenerateContent, ThinkingLevel } from './geminiHelper.ts';
 
 export interface DailyBriefingResult {
   type: 'morning' | 'noon' | 'evening';
@@ -234,6 +234,7 @@ CẤU TRÚC BẢN TIN BUỔI TỐI:
         gemini,
         contents: prompt,
         config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           tools: [{ googleSearch: {} }],
         },
       });
@@ -241,6 +242,9 @@ CẤU TRÚC BẢN TIN BUỔI TỐI:
       res = await safeGenerateContent({
         gemini,
         contents: prompt,
+        config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        },
       });
     }
 
