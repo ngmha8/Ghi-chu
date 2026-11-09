@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { DriveFile, Task, Note, DriveServiceAccountConfig, DocumentCategory } from '../types/index.js';
 import { TagSearchInput } from './TagSearchInput.js';
-import { PdfCanvasViewer } from './PdfCanvasViewer.js';
+
+const PdfCanvasViewer = React.lazy(() =>
+  import('./PdfCanvasViewer.js').then((m) => ({ default: m.PdfCanvasViewer }))
+);
 import { api } from '../services/api.js';
 import { useFileStore } from '../stores/useFileStore.js';
 import { useTaskStore } from '../stores/useTaskStore.js';
@@ -3845,14 +3848,21 @@ Chỉ trả về trực tiếp đoạn văn bản chú thích súc tích, tự n
                     ) : previewData?.previewType === 'pdf' ? (
                       /* PDF NATIVE VIEWER (Zero-iframe HTML5 Canvas powered by pdfjs-dist) */
                       <div className="w-full">
-                        <PdfCanvasViewer
-                          url={previewData?.rawUrl || `/api/files/raw/${previewFile.id}`}
-                          fileName={previewFile.name}
-                          textContent={previewData?.textContent || previewFile.textContent}
-                          onDownload={() => {
-                            window.open(previewFile.downloadUrl || `/api/files/download/${previewFile.id}`, '_blank');
-                          }}
-                        />
+                        <React.Suspense fallback={
+                          <div className="flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-[#141414] rounded-lg border border-slate-200 dark:border-[#222222]">
+                            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-2" />
+                            <p className="text-xs text-slate-500 dark:text-[#888888]">Đang chuẩn bị trình xem PDF...</p>
+                          </div>
+                        }>
+                          <PdfCanvasViewer
+                            url={previewData?.rawUrl || `/api/files/raw/${previewFile.id}`}
+                            fileName={previewFile.name}
+                            textContent={previewData?.textContent || previewFile.textContent}
+                            onDownload={() => {
+                              window.open(previewFile.downloadUrl || `/api/files/download/${previewFile.id}`, '_blank');
+                            }}
+                          />
+                        </React.Suspense>
                       </div>
                     ) : previewData?.previewType === 'image' ? (
                       /* IMAGE VIEWER */
